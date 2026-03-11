@@ -29,8 +29,37 @@ function baseUrl() {
   return normalized;
 }
 
-async function parseEnvelope<T>(response: Response): Promise<T> {
-  const json = (await response.json()) as ApiEnvelope<T>;
+function buildInvalidJsonMessage(rawText: string, status: number, url: string): string {
+  const trimmed = rawText.trim();
+  const isHtml = trimmed.startsWith('<');
+  const preview = trimmed.slice(0, 120).replace(/\s+/g, ' ');
+  if (isHtml) {
+    return `Expected JSON but received HTML (status: ${status}) from ${url}. Check EXPO_PUBLIC_API_BASE_URL and API route.`;
+  }
+  return `Expected JSON response (status: ${status}) from ${url}. Preview: ${preview}`;
+}
+
+async function parseEnvelope<T>(response: Response, url: string): Promise<T> {
+  const rawText = await response.text();
+  let json: ApiEnvelope<T> | null = null;
+
+  if (rawText.length > 0) {
+    try {
+      json = JSON.parse(rawText) as ApiEnvelope<T>;
+    } catch {
+      json = null;
+    }
+  }
+
+  if (!json) {
+    throw new ApiClientError(
+      {
+        code: 'INVALID_JSON_RESPONSE',
+        message: buildInvalidJsonMessage(rawText, response.status, url),
+      },
+      response.status,
+    );
+  }
 
   if (!response.ok) {
     if ('ok' in json && json.ok === false) {
@@ -72,7 +101,7 @@ export async function getJson<T>(path: string, opts?: RequestOptions): Promise<T
     headers: { Accept: 'application/json', ...authHeaders(opts?.token) },
   });
 
-  return parseEnvelope<T>(response);
+  return parseEnvelope<T>(response, url);
 }
 
 export async function postJson<T>(path: string, body?: unknown, opts?: RequestOptions): Promise<T> {
@@ -88,7 +117,7 @@ export async function postJson<T>(path: string, body?: unknown, opts?: RequestOp
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-  return parseEnvelope<T>(response);
+  return parseEnvelope<T>(response, url);
 }
 
 export async function putJson<T>(path: string, body?: unknown, opts?: RequestOptions): Promise<T> {
@@ -104,7 +133,7 @@ export async function putJson<T>(path: string, body?: unknown, opts?: RequestOpt
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-  return parseEnvelope<T>(response);
+  return parseEnvelope<T>(response, url);
 }
 
 export async function deleteJson<T>(path: string, opts?: RequestOptions): Promise<T> {
@@ -115,5 +144,5 @@ export async function deleteJson<T>(path: string, opts?: RequestOptions): Promis
     headers: { Accept: 'application/json', ...authHeaders(opts?.token) },
   });
 
-  return parseEnvelope<T>(response);
+  return parseEnvelope<T>(response, url);
 }

@@ -49,6 +49,11 @@ export function useGachaRoomScreen(): GachaRoomVM {
         setPawnCurrency(snapshot.pawnCurrency);
         setGoldCurrency(snapshot.goldCurrency);
       })
+      .catch((error: unknown) => {
+        if (!active) return;
+        console.error('[gacha-room] failed to load lobby', error);
+        setBanners([]);
+      })
       .finally(() => {
         if (active) setIsLoading(false);
       });
@@ -60,10 +65,15 @@ export function useGachaRoomScreen(): GachaRoomVM {
   async function roll() {
     if (phase !== 'idle') return;
     setPhase('video');
-    const result = await rollUseCase.execute({ gachaId: selectedKey });
-    setLastResult(result);
-    setPawnCurrency(result.pawnCurrency);
-    setGoldCurrency(result.goldCurrency);
+    try {
+      const result = await rollUseCase.execute({ gachaId: selectedKey });
+      setLastResult(result);
+      setPawnCurrency(result.pawnCurrency);
+      setGoldCurrency(result.goldCurrency);
+    } catch (error: unknown) {
+      console.error('[gacha-room] failed to roll gacha', error);
+      setPhase('idle');
+    }
   }
 
   function onVideoEnd() {
