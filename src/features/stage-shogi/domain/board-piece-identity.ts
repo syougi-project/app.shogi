@@ -3,6 +3,17 @@ import { toBasePieceCode } from '@/ai/model/move';
 import { CHAR_TO_CODE } from '@/features/stage-shogi/domain/char-to-piece-code-map';
 import { CODE_TO_CHAR } from '@/features/stage-shogi/domain/piece-conversion';
 
+const OPAQUE_PIECE_CODE_TO_CHAR: Readonly<Record<string, string>> = {
+  piece_c518b11858f2: '歩',
+  piece_8bc5d3ca0b32: '香',
+  piece_7c0b1e09154b: '桂',
+  piece_6e7f7100e7bb: '銀',
+  piece_c8295f7ed9a8: '金',
+  piece_f221427c3f31: '角',
+  piece_cc64bbd54bb3: '飛',
+  piece_cb504254c93f: '玉',
+};
+
 /** DB の `piece_<hex>` インスタンス ID。 */
 export function isOpaquePieceInstanceId(value: string | null | undefined): boolean {
   if (!value) return false;
@@ -19,6 +30,10 @@ export function isDisplayKanjiChar(char: string | null | undefined): boolean {
 }
 
 function getDisplayCharFromPieceCode(pieceCode: string | null | undefined): string | null {
+  const raw = pieceCode?.trim();
+  if (!raw) return null;
+  const opaqueChar = OPAQUE_PIECE_CODE_TO_CHAR[raw] ?? OPAQUE_PIECE_CODE_TO_CHAR[raw.toLowerCase()];
+  if (opaqueChar) return opaqueChar;
   const base = toBasePieceCode(pieceCode);
   return base ? (CODE_TO_CHAR[base] ?? null) : null;
 }
