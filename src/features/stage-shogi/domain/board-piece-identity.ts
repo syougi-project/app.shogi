@@ -2,7 +2,6 @@ import { toBasePieceCode } from '@/ai/model/move';
 
 import { CHAR_TO_CODE } from '@/features/stage-shogi/domain/char-to-piece-code-map';
 import { CODE_TO_CHAR } from '@/features/stage-shogi/domain/piece-conversion';
-import { getDisplayCharFromPieceCode } from '@/lib/piece-image-registry';
 
 /** DB の `piece_<hex>` インスタンス ID。 */
 export function isOpaquePieceInstanceId(value: string | null | undefined): boolean {
@@ -17,6 +16,11 @@ export function isDisplayKanjiChar(char: string | null | undefined): boolean {
   if (!trimmed || trimmed === '?') return false;
   if (isOpaquePieceInstanceId(trimmed)) return false;
   return trimmed.length <= 2;
+}
+
+function getDisplayCharFromPieceCode(pieceCode: string | null | undefined): string | null {
+  const base = toBasePieceCode(pieceCode);
+  return base ? (CODE_TO_CHAR[base] ?? null) : null;
 }
 
 /**

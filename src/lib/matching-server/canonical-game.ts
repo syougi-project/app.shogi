@@ -11,7 +11,6 @@ import {
   type BoardPiece,
   type Side,
 } from '@/features/stage-shogi/domain/game-rules';
-import { decodeEncodedBoardPiece } from '@/lib/matching-server/game-bridge';
 import { formatMatchingSquare, parseMatchingSquare } from '@/lib/matching-server/square';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 
@@ -32,6 +31,19 @@ function pieceCharFromCode(pieceCode: string, side: Side, promoted: boolean): st
     return side === 'enemy' ? '玉' : '王';
   }
   return CODE_TO_CHAR[pieceCode] ?? '?';
+}
+
+function decodeEncodedBoardPiece(encoded: string): {
+  serverSide: PlayerSide;
+  code: string;
+  promoted: boolean;
+} {
+  const [sideRaw, restRaw] = encoded.split(':');
+  const serverSide: PlayerSide = sideRaw === 'white' ? 'white' : 'black';
+  const rest = restRaw ?? '';
+  const promoted = rest.endsWith('+');
+  const code = (promoted ? rest.slice(0, -1) : rest).trim().toUpperCase();
+  return { serverSide, code, promoted };
 }
 
 export function matchingWireToCanonicalPosition(

@@ -18,4 +18,16 @@ describe('resolvePieceImageSource', () => {
       require('../../assets/pieces/種.png'),
     );
   });
+
+  it('resolves gacha special pieces via canonical code', () => {
+    expect(resolvePieceImageSource({ pieceCode: 'GACHA_BAKU' })).toBe(
+      require('../../assets/pieces/0114-piece_gacha_baku.png'),
+    );
+    expect(resolvePieceImageSource({ pieceCode: 'GACHA_SHITSU' })).toBe(
+      require('../../assets/pieces/室.png'),
+    );
+    expect(resolvePieceImageSource({ pieceCode: 'GACHA_SO' })).toBe(
+      require('../../assets/pieces/0119-piece_gacha_so.png'),
+    );
+  });
 });
