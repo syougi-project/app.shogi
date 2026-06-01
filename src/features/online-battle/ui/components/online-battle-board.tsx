@@ -2,7 +2,14 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { BoardCell, BoardPiece } from '@/features/stage-shogi/domain/game-rules';
-import { getPieceImageSource } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
+import {
+  BOARD_PIECE_SIZE_OVERRIDES,
+  KING_PIECE_SIZE_PERCENT,
+  NORMAL_PIECE_SIZE_PERCENT,
+  getPieceImageSource,
+  isEnemySide,
+  isKingChar,
+} from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
 import { OnlineBattleSkillParticleLayer } from '@/features/online-battle/ui/components/online-battle-skill-particle-layer';
 import type { SkillVisualEffect } from '@/domain/battle/skill-visual-effect';
 import { toViewCoord } from '@/lib/matching-server/game-bridge';
@@ -91,6 +98,11 @@ export function OnlineBattleBoard(props: {
           char: piece.char,
           imageSignedUrl: null,
         });
+        const enemy = isEnemySide(piece.side);
+        const king = piece.pieceCode === 'OU' || isKingChar(piece.char);
+        const pieceScalePercent =
+          BOARD_PIECE_SIZE_OVERRIDES[piece.char] ??
+          (king ? KING_PIECE_SIZE_PERCENT : NORMAL_PIECE_SIZE_PERCENT);
         return (
           <View
             key={`${piece.row}-${piece.col}-${piece.pieceCode}`}
@@ -106,9 +118,24 @@ export function OnlineBattleBoard(props: {
             ]}
           >
             {source ? (
-              <Image source={source} contentFit="contain" style={styles.pieceImage} />
+              <View
+                style={{
+                  width: `${pieceScalePercent}%`,
+                  height: `${pieceScalePercent}%`,
+                  transform: [{ rotate: enemy ? '180deg' : '0deg' }],
+                }}
+              >
+                <Image source={source} contentFit="contain" style={styles.pieceImage} />
+              </View>
             ) : (
-              <Text style={styles.pieceFallback}>{piece.char}</Text>
+              <Text
+                style={[
+                  styles.pieceFallback,
+                  { transform: [{ rotate: enemy ? '180deg' : '0deg' }] },
+                ]}
+              >
+                {piece.char}
+              </Text>
             )}
           </View>
         );
@@ -148,10 +175,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
   },
   pieceImage: {
-    width: '88%',
-    height: '88%',
+    width: '100%',
+    height: '100%',
   },
   pieceFallback: {
     color: '#fff',
