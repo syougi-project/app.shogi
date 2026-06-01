@@ -3,7 +3,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { BoardCell, BoardPiece } from '@/features/stage-shogi/domain/game-rules';
 import {
+  BOARD_INNER,
   BOARD_PIECE_SIZE_OVERRIDES,
+  BOARD_PADDING_RATIO,
+  BOARD_VIEWBOX,
   KING_PIECE_SIZE_PERCENT,
   NORMAL_PIECE_SIZE_PERCENT,
   getPieceImageSource,
@@ -44,12 +47,15 @@ export function OnlineBattleBoard(props: {
     selectedCell,
     legalTargets,
     enemyPreviewTargets = [],
+    pieceDefsByCode,
     canInteract,
     skillVisualEffects = [],
     onSkillVisualEffectFinished,
     onCellPress,
   } = props;
-  const cellSize = boardSize / BOARD_SIZE;
+  const boardInnerRatio = BOARD_INNER / BOARD_VIEWBOX;
+  const boardInnerSize = boardSize * boardInnerRatio;
+  const cellSize = boardInnerSize / BOARD_SIZE;
 
   const piecesByView = pieces.map((piece) => {
     const view = toViewCoord(piece.row, piece.col, myRole);
@@ -65,89 +71,105 @@ export function OnlineBattleBoard(props: {
   return (
     <View style={[styles.frame, { width: boardSize, height: boardSize }]}>
       <Image source={boardImage} contentFit="cover" style={StyleSheet.absoluteFillObject} />
-      {Array.from({ length: BOARD_SIZE }, (_, viewRow) =>
-        Array.from({ length: BOARD_SIZE }, (_, viewCol) => {
-          const isSelected =
-            selectedView != null && selectedView.row === viewRow && selectedView.col === viewCol;
-          const isTarget = isTargetCell(targetsView, viewRow, viewCol);
-          const isEnemyTarget = isTargetCell(enemyTargetsView, viewRow, viewCol);
+      <View
+        style={[
+          styles.innerBoard,
+          {
+            left: boardSize * BOARD_PADDING_RATIO,
+            top: boardSize * BOARD_PADDING_RATIO,
+            width: boardInnerSize,
+            height: boardInnerSize,
+          },
+        ]}
+      >
+        {Array.from({ length: BOARD_SIZE }, (_, viewRow) =>
+          Array.from({ length: BOARD_SIZE }, (_, viewCol) => {
+            const isSelected =
+              selectedView != null && selectedView.row === viewRow && selectedView.col === viewCol;
+            const isTarget = isTargetCell(targetsView, viewRow, viewCol);
+            const isEnemyTarget = isTargetCell(enemyTargetsView, viewRow, viewCol);
+            return (
+              <Pressable
+                key={`cell-${viewRow}-${viewCol}`}
+                disabled={!canInteract}
+                onPress={() => onCellPress(viewRow, viewCol)}
+                style={[
+                  styles.cell,
+                  {
+                    left: viewCol * cellSize,
+                    top: viewRow * cellSize,
+                    width: cellSize,
+                    height: cellSize,
+                  },
+                  isSelected && styles.cellSelected,
+                  isTarget && styles.cellTarget,
+                  isEnemyTarget && styles.cellEnemyTarget,
+                ]}
+              />
+            );
+          }),
+        )}
+        {piecesByView.map((piece) => {
+          const pieceCode = piece.pieceCode?.toUpperCase();
+          const pieceDef = pieceCode ? pieceDefsByCode[pieceCode] : undefined;
+          const displayChar = piece.char && piece.char !== '?' ? piece.char : pieceDef?.char;
+          const source = getPieceImageSource({
+            pieceId: pieceDef?.pieceId,
+            pieceCode: piece.pieceCode ?? pieceDef?.pieceCode,
+            char: displayChar,
+            imageSignedUrl: pieceDef?.imageSignedUrl ?? null,
+          });
+          const enemy = isEnemySide(piece.side);
+          const king = piece.pieceCode === 'OU' || isKingChar(displayChar ?? piece.char);
+          const pieceScalePercent =
+            BOARD_PIECE_SIZE_OVERRIDES[displayChar ?? piece.char] ??
+            (king ? KING_PIECE_SIZE_PERCENT : NORMAL_PIECE_SIZE_PERCENT);
           return (
-            <Pressable
-              key={`cell-${viewRow}-${viewCol}`}
-              disabled={!canInteract}
-              onPress={() => onCellPress(viewRow, viewCol)}
+            <View
+              key={`${piece.row}-${piece.col}-${piece.pieceCode}`}
+              pointerEvents="none"
               style={[
-                styles.cell,
+                styles.pieceWrap,
                 {
-                  left: viewCol * cellSize,
-                  top: viewRow * cellSize,
+                  left: piece.viewCol * cellSize,
+                  top: piece.viewRow * cellSize,
                   width: cellSize,
                   height: cellSize,
                 },
-                isSelected && styles.cellSelected,
-                isTarget && styles.cellTarget,
-                isEnemyTarget && styles.cellEnemyTarget,
               ]}
-            />
+            >
+              {source ? (
+                <View
+                  style={{
+                    width: `${pieceScalePercent}%`,
+                    height: `${pieceScalePercent}%`,
+                    transform: [{ rotate: enemy ? '180deg' : '0deg' }],
+                  }}
+                >
+                  <Image source={source} contentFit="contain" style={styles.pieceImage} />
+                </View>
+              ) : (
+                <Text
+                  style={[
+                    styles.pieceFallback,
+                    { transform: [{ rotate: enemy ? '180deg' : '0deg' }] },
+                  ]}
+                >
+                  {displayChar ?? piece.char}
+                </Text>
+              )}
+            </View>
           );
-        }),
-      )}
-      {piecesByView.map((piece) => {
-        const source = getPieceImageSource({
-          pieceCode: piece.pieceCode,
-          char: piece.char,
-          imageSignedUrl: null,
-        });
-        const enemy = isEnemySide(piece.side);
-        const king = piece.pieceCode === 'OU' || isKingChar(piece.char);
-        const pieceScalePercent =
-          BOARD_PIECE_SIZE_OVERRIDES[piece.char] ??
-          (king ? KING_PIECE_SIZE_PERCENT : NORMAL_PIECE_SIZE_PERCENT);
-        return (
-          <View
-            key={`${piece.row}-${piece.col}-${piece.pieceCode}`}
-            pointerEvents="none"
-            style={[
-              styles.pieceWrap,
-              {
-                left: piece.viewCol * cellSize,
-                top: piece.viewRow * cellSize,
-                width: cellSize,
-                height: cellSize,
-              },
-            ]}
-          >
-            {source ? (
-              <View
-                style={{
-                  width: `${pieceScalePercent}%`,
-                  height: `${pieceScalePercent}%`,
-                  transform: [{ rotate: enemy ? '180deg' : '0deg' }],
-                }}
-              >
-                <Image source={source} contentFit="contain" style={styles.pieceImage} />
-              </View>
-            ) : (
-              <Text
-                style={[
-                  styles.pieceFallback,
-                  { transform: [{ rotate: enemy ? '180deg' : '0deg' }] },
-                ]}
-              >
-                {piece.char}
-              </Text>
-            )}
-          </View>
-        );
-      })}
-      {onSkillVisualEffectFinished ? (
-        <OnlineBattleSkillParticleLayer
-          effects={skillVisualEffects}
-          boardSize={boardSize}
-          myRole={myRole}
-          onEffectFinished={onSkillVisualEffectFinished}
-        />
-      ) : null}
+        })}
+        {onSkillVisualEffectFinished ? (
+          <OnlineBattleSkillParticleLayer
+            effects={skillVisualEffects}
+            boardSize={boardInnerSize}
+            myRole={myRole}
+            onEffectFinished={onSkillVisualEffectFinished}
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -161,6 +183,10 @@ const styles = StyleSheet.create({
   },
   cell: {
     position: 'absolute',
+  },
+  innerBoard: {
+    position: 'absolute',
+    overflow: 'visible',
   },
   cellSelected: {
     backgroundColor: 'rgba(250, 204, 21, 0.35)',

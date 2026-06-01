@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   ImageBackground,
   Modal,
@@ -46,7 +46,6 @@ export function OnlineBattleScreen() {
   const {
     session,
     isLoading,
-    resign,
     disconnect,
     pieces,
     hands,
@@ -76,6 +75,7 @@ export function OnlineBattleScreen() {
     skillVisualEffects,
     handleSkillVisualEffectFinished,
   } = vm;
+  const [isExitConfirmVisible, setIsExitConfirmVisible] = useState(false);
   const { isReady: areAssetsReady } = useAssetPreload([
     ...onlineBattleHtmlPreloadTargets,
     ...stageShogiBattleAssetPreloadTargets,
@@ -88,16 +88,27 @@ export function OnlineBattleScreen() {
 
   const display = parseOnlineBattleDisplay(session);
 
-  const goHome = useCallback(() => {
+  const openExitConfirm = useCallback(() => {
+    void playSe('cancel');
+    if (session.winnerSide) {
+      disconnect();
+      router.replace('/home');
+      return;
+    }
+    setIsExitConfirmVisible(true);
+  }, [disconnect, router, session.winnerSide]);
+
+  const cancelExit = useCallback(() => {
     void playSe('tap');
+    setIsExitConfirmVisible(false);
+  }, []);
+
+  const confirmExit = useCallback(() => {
+    void playSe('cancel');
+    setIsExitConfirmVisible(false);
     disconnect();
     router.replace('/home');
   }, [disconnect, router]);
-
-  const onResign = useCallback(() => {
-    void playSe('cancel');
-    resign();
-  }, [resign]);
 
   if (isLoading || !areAssetsReady) {
     return <AppLoadingScreen imageSource={homeAssets.loadingImage} />;
@@ -109,6 +120,7 @@ export function OnlineBattleScreen() {
       resizeMode="cover"
       style={styles.pageRoot}
     >
+      <Stack.Screen options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeTop}>
         <ScrollView
           keyboardShouldPersistTaps="handled"
@@ -131,14 +143,18 @@ export function OnlineBattleScreen() {
               <View style={styles.headerLeft}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="ホームに戻る"
-                  onPress={goHome}
+                  accessibilityLabel={session.winnerSide ? 'ホームに戻る' : '対局を終了する'}
+                  onPress={openExitConfirm}
                   style={({ pressed }) => [
                     styles.homeBackBtn,
                     { marginBottom: 16, opacity: pressed ? 0.85 : 1 },
                   ]}
                 >
-                  <MaterialIcons name="arrow-back" size={28} color="#fff" />
+                  <MaterialIcons
+                    name={session.winnerSide ? 'home' : 'logout'}
+                    size={28}
+                    color="#fff"
+                  />
                 </Pressable>
                 <Text style={styles.titleText} numberOfLines={2}>
                   オンライン対戦
@@ -178,7 +194,7 @@ export function OnlineBattleScreen() {
                 {session.matchId ? ` / 対局 ${session.matchId.slice(0, 8)}` : ''}
               </Text>
               <Pressable
-                onPress={onResign}
+                onPress={openExitConfirm}
                 disabled={Boolean(session.winnerSide)}
                 style={({ pressed }) => [
                   styles.resignBtn,
@@ -186,7 +202,7 @@ export function OnlineBattleScreen() {
                   pressed && !session.winnerSide && { opacity: 0.85 },
                 ]}
               >
-                <Text style={styles.resignBtnText}>投了</Text>
+                <Text style={styles.resignBtnText}>対局終了</Text>
               </Pressable>
               {moveError ? <Text style={styles.moveErrorText}>{moveError}</Text> : null}
               <Text style={styles.serverPanelFootnote}>
@@ -366,6 +382,31 @@ export function OnlineBattleScreen() {
                 </View>
               </View>
             </Modal>
+
+            <Modal visible={isExitConfirmVisible} transparent animationType="fade">
+              <View style={styles.promoOverlay}>
+                <View style={styles.promoCard}>
+                  <Text style={styles.promoTitle}>対局を終了しますか？</Text>
+                  <Text style={styles.exitConfirmText}>
+                    終了するとあなたの負けとして記録され、相手の勝利になります。
+                  </Text>
+                  <View style={styles.promoButtons}>
+                    <Pressable
+                      style={[styles.promoBtn, styles.promoBtnSecondary]}
+                      onPress={cancelExit}
+                    >
+                      <Text style={styles.promoBtnText}>続ける</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.promoBtn, styles.promoBtnDanger]}
+                      onPress={confirmExit}
+                    >
+                      <Text style={styles.promoBtnText}>負けで終了</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            </Modal>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -520,6 +561,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
+  exitConfirmText: {
+    color: '#334155',
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
   promoButtons: {
     flexDirection: 'row',
     gap: 12,
@@ -532,6 +580,9 @@ const styles = StyleSheet.create({
   },
   promoBtnPrimary: {
     backgroundColor: '#2563eb',
+  },
+  promoBtnDanger: {
+    backgroundColor: '#dc2626',
   },
   promoBtnSecondary: {
     backgroundColor: '#64748b',

@@ -855,8 +855,15 @@ export function useOnlineBattleGame(matchId?: string) {
   }, [appendLog, client, matchId, userId]);
 
   const disconnect = useCallback(() => {
+    if (userId && matchId && !session.winnerSide) {
+      try {
+        client.resign(userId, matchId);
+      } catch {
+        // Fall back to the websocket close path; the server treats active disconnect as a loss.
+      }
+    }
     client.disconnect();
-  }, [client]);
+  }, [client, matchId, session.winnerSide, userId]);
 
   return {
     session,

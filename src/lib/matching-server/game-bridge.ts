@@ -159,6 +159,8 @@ export function catalogDefsByCode(catalog: PieceCatalogItem[]): Record<string, P
   for (const item of catalog) {
     const code = item.pieceCode?.toUpperCase();
     if (code) out[code] = item;
+    const canonicalCode = item.canonicalCode?.toUpperCase();
+    if (canonicalCode) out[canonicalCode] = item;
   }
   return out;
 }
