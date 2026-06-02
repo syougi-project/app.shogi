@@ -89,6 +89,12 @@ export function matchingWireToCanonicalPosition(
     boardState: buildBoardState(pieces, defsByCode),
     hands,
   };
+  if (wire.skillState) {
+    position.boardState = {
+      ...(position.boardState as Record<string, unknown>),
+      skill_state: serverSkillStateToCanonical(wire.skillState),
+    };
+  }
 
   return injectSkillDefinitionsIntoPosition(position, pieceCatalog);
 }
@@ -110,7 +116,10 @@ export function injectSkillDefinitionsIntoPosition(
 }
 
 export function canonicalToMatchingWire(position: AiBattlePosition): MatchingGameState {
-  const boardState = position.boardState as { pieces?: BoardPiece[] };
+  const boardState = position.boardState as {
+    pieces?: BoardPiece[];
+    skill_state?: MatchingGameState['skillState'];
+  };
   const pieces = boardState.pieces ?? [];
   const board: Record<string, string> = {};
   for (const piece of pieces) {
@@ -130,7 +139,59 @@ export function canonicalToMatchingWire(position: AiBattlePosition): MatchingGam
     turn: canonicalSideToServerSide(position.sideToMove),
     board,
     hands,
+    skillState: canonicalSkillStateToServer(boardState.skill_state),
   };
+}
+
+function serverSkillStateToCanonical(
+  skillState: NonNullable<MatchingGameState['skillState']>,
+): NonNullable<MatchingGameState['skillState']> {
+  return mapSkillStateSides(skillState, serverSideValueToCanonical);
+}
+
+function canonicalSkillStateToServer(raw: unknown): MatchingGameState['skillState'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  return mapSkillStateSides(
+    raw as NonNullable<MatchingGameState['skillState']>,
+    canonicalSideValueToServer,
+  );
+}
+
+function mapSkillStateSides(
+  skillState: NonNullable<MatchingGameState['skillState']>,
+  mapper: (value: unknown) => unknown,
+): NonNullable<MatchingGameState['skillState']> {
+  return {
+    board_hazards: mapSkillEntries(skillState.board_hazards, mapper),
+    board_arrow_tiles: mapSkillEntries(skillState.board_arrow_tiles, mapper),
+    movement_modifiers: mapSkillEntries(skillState.movement_modifiers, mapper),
+    piece_statuses: mapSkillEntries(skillState.piece_statuses, mapper),
+    piece_defenses: mapSkillEntries(skillState.piece_defenses, mapper),
+  };
+}
+
+function mapSkillEntries(
+  entries: Record<string, unknown>[] | undefined,
+  mapper: (value: unknown) => unknown,
+): Record<string, unknown>[] {
+  return (entries ?? []).map((entry) => ({
+    ...entry,
+    side: mapper(entry.side),
+    affects_side: mapper(entry.affects_side),
+    affectsSide: mapper(entry.affectsSide),
+  }));
+}
+
+function serverSideValueToCanonical(value: unknown): unknown {
+  if (value === 'black') return 'player';
+  if (value === 'white') return 'enemy';
+  return value;
+}
+
+function canonicalSideValueToServer(value: unknown): unknown {
+  if (value === 'player') return 'black';
+  if (value === 'enemy') return 'white';
+  return value;
 }
 
 export function isMyTurnInCanonical(myRole: PlayerSide, position: AiBattlePosition): boolean {

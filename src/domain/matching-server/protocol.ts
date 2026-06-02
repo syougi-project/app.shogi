@@ -73,6 +73,13 @@ export type MatchingGameState = {
   turn: PlayerSide;
   board: Record<string, string>;
   hands: Record<PlayerSide, Record<string, number>>;
+  skillState?: {
+    board_hazards?: Record<string, unknown>[];
+    board_arrow_tiles?: Record<string, unknown>[];
+    movement_modifiers?: Record<string, unknown>[];
+    piece_statuses?: Record<string, unknown>[];
+    piece_defenses?: Record<string, unknown>[];
+  };
   lastMove?: MovePayload;
   /** 直前の着手でスキルが発動したか（相手着手の効果音用） */
   lastSkillTriggered?: boolean;
