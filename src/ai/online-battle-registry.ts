@@ -19,13 +19,17 @@ import {
 } from '@/lib/matching-server/canonical-game';
 import { battleMoveToServerPayload } from '@/lib/matching-server/game-bridge';
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
-import type { BoardPiece as UiBoardPiece } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
+import {
+  normalizeBoardPieceForDisplay,
+  type BoardPiece as UiBoardPiece,
+} from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 
 export type OnlineBattleGameRecord = {
   matchId: string;
   myRole: PlayerSide;
   pieceCatalog: AiPieceDefinition[];
+  displayPieceCatalog: PieceCatalogItem[];
   position: AiBattlePosition;
   game: AiBattleGameStatus;
 };
@@ -35,6 +39,7 @@ const games = new Map<string, OnlineBattleGameRecord>();
 export function setOnlineBattlePieceCatalog(items: PieceCatalogItem[]) {
   for (const record of games.values()) {
     record.pieceCatalog = normalizePieceCatalog(items);
+    record.displayPieceCatalog = items;
   }
 }
 
@@ -50,6 +55,7 @@ export function createOnlineBattleGame(input: {
     matchId: input.matchId,
     myRole: input.myRole,
     pieceCatalog,
+    displayPieceCatalog: input.pieceCatalog,
     position,
     game: { status: 'in_progress', result: null, winnerSide: null },
   };
@@ -120,10 +126,16 @@ export function getBoardPieces(matchId: string) {
 export function getDisplayBoardPieces(matchId: string): UiBoardPiece[] {
   const record = games.get(matchId);
   if (!record) return [];
-  return piecesForDisplay(piecesFromBoardState(record.position), record.myRole).map((piece) => ({
-    ...piece,
-    imageSignedUrl: null,
-  }));
+  const pieceDefsByChar = pieceDefsByCharFromCatalog(record.displayPieceCatalog);
+  return piecesForDisplay(piecesFromBoardState(record.position), record.myRole).map((piece) =>
+    normalizeBoardPieceForDisplay(
+      {
+        ...piece,
+        imageSignedUrl: null,
+      },
+      pieceDefsByChar,
+    ),
+  );
 }
 
 export function getDisplayHands(matchId: string) {
@@ -151,9 +163,16 @@ export function syncFromServerWire(input: {
     matchId: input.matchId,
     myRole: input.myRole,
     pieceCatalog,
+    displayPieceCatalog: input.pieceCatalog,
     position,
     game: input.game ?? existing?.game ?? { status: 'in_progress', result: null, winnerSide: null },
   };
   games.set(input.matchId, record);
   return record;
+}
+
+function pieceDefsByCharFromCatalog(
+  catalog: PieceCatalogItem[],
+): Partial<Record<string, PieceCatalogItem>> {
+  return Object.fromEntries(catalog.filter((item) => item.char).map((item) => [item.char, item]));
 }

@@ -30,4 +30,22 @@ describe('resolvePieceImageSource', () => {
       require('../../assets/pieces/0119-piece_gacha_so.png'),
     );
   });
+
+  it('resolves online battle alias codes used by matching snapshots', () => {
+    expect(resolvePieceImageSource({ pieceCode: 'WATER' })).toBe(
+      require('../../assets/pieces/0016-piece_shogi_sui.png'),
+    );
+    expect(resolvePieceImageSource({ pieceCode: 'IRON' })).toBe(
+      require('../../assets/pieces/0025-piece_788aa9f49675.png'),
+    );
+    expect(resolvePieceImageSource({ pieceCode: 'RAINBOW' })).toBe(
+      require('../../assets/pieces/0039-piece_74a3ad14ddbc.png'),
+    );
+    expect(resolvePieceImageSource({ pieceCode: 'POISON' })).toBe(
+      require('../../assets/pieces/0040-piece_cbb2ff2e126b.png'),
+    );
+    expect(resolvePieceImageSource({ pieceCode: 'GACHA_KO' })).toBe(
+      require('../../assets/pieces/膠.png'),
+    );
+  });
 });

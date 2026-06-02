@@ -870,6 +870,10 @@ if (yamaSource != null && !pieceImageByChar.has('山') && !pieceImageByCode.has(
 // 刀/銃/鎧/盾は一部経路で canonical code（SWORD/GUN/ARMOR/SHIELD）になるため、
 // CHAR_TO_CODE 非登録でも画像解決できるようコード別名を明示する。
 const aliasCodeToChar: Readonly<Record<string, string>> = {
+  WATER: '水',
+  IRON: '鉄',
+  RAINBOW: '虹',
+  POISON: '毒',
   SWORD: '刀',
   KATANA: '刀',
   HOLY_SWORD: '剣',
@@ -913,7 +917,9 @@ const aliasCodeToChar: Readonly<Record<string, string>> = {
   GACHA_SOU: '艸',
   EN: '閹',
   GACHA_EN: '閹',
+  KO: '膠',
   KOU: '膠',
+  GACHA_KO: '膠',
   GACHA_KOU: '膠',
   SO: '走',
   TANE: '種',
