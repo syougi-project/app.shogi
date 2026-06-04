@@ -327,6 +327,21 @@ export function useOnlineBattleGame(matchId?: string) {
     [clearSkillUiState, pieceCatalog, refreshLocalFromRegistry, userId],
   );
 
+  const applyServerGameRef = useRef(applyServerGame);
+  applyServerGameRef.current = applyServerGame;
+  const appendLogRef = useRef(appendLog);
+  appendLogRef.current = appendLog;
+  const clearSkillUiStateRef = useRef(clearSkillUiState);
+  clearSkillUiStateRef.current = clearSkillUiState;
+  const playRemoteLastMoveAudioRef = useRef(playRemoteLastMoveAudio);
+  playRemoteLastMoveAudioRef.current = playRemoteLastMoveAudio;
+  const queueSkillVisualEffectsRef = useRef(queueSkillVisualEffects);
+  queueSkillVisualEffectsRef.current = queueSkillVisualEffects;
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
+  const roleRef = useRef(role);
+  roleRef.current = role;
+
   useEffect(() => {
     if (!matchId || !role || !game || pieceCatalog.length === 0) return;
     const existing = getOnlineBattleGame(matchId);
@@ -338,6 +353,8 @@ export function useOnlineBattleGame(matchId?: string) {
     refreshLocalFromRegistry(matchId);
   }, [matchId, role, game, pieceCatalog, refreshLocalFromRegistry]);
 
+  // 対局中は WebSocket を1本だけ維持する（駒カタログ読込などで effect が再実行されると
+  // disconnect→再接続となり、サーバー側で切断扱い／「接続に失敗しました」になる）。
   useEffect(() => {
     let active = true;
     if (!isReady || !userId || !accessToken || !matchId) {
@@ -349,7 +366,7 @@ export function useOnlineBattleGame(matchId?: string) {
 
     const stored = getActiveMatchSession();
     if (stored && stored.matchId === matchId) {
-      applyServerGame(matchId, stored.role, stored.game);
+      applyServerGameRef.current(matchId, stored.role, stored.game);
     }
 
     const handleMessage = (payload: WebSocketServerMessage) => {
@@ -358,7 +375,12 @@ export function useOnlineBattleGame(matchId?: string) {
         case 'game_started': {
           const nextRole = client.getRole() ?? stored?.role;
           if (!nextRole) return;
-          applyServerGame(payload.matchId, nextRole, payload.initialState, '対局が開始されました');
+          applyServerGameRef.current(
+            payload.matchId,
+            nextRole,
+            payload.initialState,
+            '対局が開始されました',
+          );
           return;
         }
         case 'game_state_updated': {
@@ -387,13 +409,13 @@ export function useOnlineBattleGame(matchId?: string) {
                 pieceCatalog: record.pieceCatalog,
                 move,
               });
-              queueSkillVisualEffects(preview.skillVisualEffects);
+              queueSkillVisualEffectsRef.current(preview.skillVisualEffects);
             }
           }
-          applyServerGame(payload.matchId, nextRole, nextGame, moveText);
+          applyServerGameRef.current(payload.matchId, nextRole, nextGame, moveText);
           if (nextRole && payload.lastMove) {
             const board = getDisplayBoardPieces(payload.matchId);
-            playRemoteLastMoveAudio(nextGame, nextRole, board, {
+            playRemoteLastMoveAudioRef.current(nextGame, nextRole, board, {
               skillTriggered: payload.lastSkillTriggered === true,
             });
           }
@@ -414,11 +436,11 @@ export function useOnlineBattleGame(matchId?: string) {
           }));
           return;
         case 'game_finished': {
-          const won = payload.winnerUserId === userId;
+          const won = payload.winnerUserId === userIdRef.current;
           setSelectedCell(null);
           setLegalTargets([]);
           setPendingPromotion(null);
-          clearSkillUiState();
+          clearSkillUiStateRef.current();
           setSession((current) => ({
             ...current,
             connectionStatus: `接続状態: 終了（${payload.reason}）`,
@@ -429,15 +451,16 @@ export function useOnlineBattleGame(matchId?: string) {
           return;
         }
         case 'state_resync_required':
-          appendLog(`版数不一致（サーバー v${payload.currentVersion}）`);
+          appendLogRef.current(`版数不一致（サーバー v${payload.currentVersion}）`);
           setMoveError('盤面の版数がずれました。再接続してください。');
           return;
         case 'error':
           setMoveError(payload.message);
-          appendLog(`エラー: ${payload.message}`);
+          appendLogRef.current(`エラー: ${payload.message}`);
           const activeGame = getActiveMatchSession()?.game;
-          if (matchId && role && activeGame) {
-            applyServerGame(matchId, role, activeGame);
+          const activeRole = roleRef.current ?? getActiveMatchSession()?.role ?? stored?.role;
+          if (matchId && activeRole && activeGame) {
+            applyServerGameRef.current(matchId, activeRole, activeGame);
           }
           setSession((current) => ({
             ...current,
@@ -457,7 +480,12 @@ export function useOnlineBattleGame(matchId?: string) {
         const nextRole = client.getRole() ?? getActiveMatchSession()?.role ?? stored?.role;
         const nextGame = getActiveMatchSession()?.game ?? stored?.game;
         if (nextRole && nextGame) {
-          applyServerGame(matchId, nextRole, nextGame, 'マッチングサーバーに接続しました');
+          applyServerGameRef.current(
+            matchId,
+            nextRole,
+            nextGame,
+            'マッチングサーバーに接続しました',
+          );
         }
       } catch {
         if (!active) return;
@@ -473,21 +501,14 @@ export function useOnlineBattleGame(matchId?: string) {
     return () => {
       active = false;
       unsubscribe();
+    };
+  }, [accessToken, client, isReady, matchId, userId]);
+
+  useEffect(() => {
+    return () => {
       if (matchId) removeOnlineBattleGame(matchId);
     };
-  }, [
-    applyServerGame,
-    appendLog,
-    clearSkillUiState,
-    client,
-    accessToken,
-    isReady,
-    matchId,
-    playRemoteLastMoveAudio,
-    queueSkillVisualEffects,
-    role,
-    userId,
-  ]);
+  }, [matchId]);
 
   const record = matchId ? getOnlineBattleGame(matchId) : null;
   const canInteract =

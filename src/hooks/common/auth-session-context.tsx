@@ -1,4 +1,12 @@
-import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import { ensureSession } from '@/usecases/auth/ensure-session-usecase';
 
@@ -11,6 +19,7 @@ type AuthSessionState = {
   needsUsernameSetup: boolean;
   error: Error | null;
   statusMessage: string | null;
+  reinitializeSession: () => Promise<void>;
 };
 
 const initialState: AuthSessionState = {
@@ -20,6 +29,7 @@ const initialState: AuthSessionState = {
   needsUsernameSetup: false,
   error: null,
   statusMessage: null,
+  reinitializeSession: async () => {},
 };
 
 const AuthSessionContext = createContext<AuthSessionState>(initialState);
@@ -41,47 +51,57 @@ function normalizeUnknownError(error: unknown): Error {
 export function AuthSessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthSessionState>(initialState);
 
-  useEffect(() => {
-    let active = true;
+  const reinitializeSession = useCallback(async () => {
+    setState((current) => ({
+      ...current,
+      isReady: false,
+      error: null,
+      statusMessage: null,
+    }));
 
-    ensureSession({
-      onRetry: ({ nextAttempt }) => {
-        if (!active || nextAttempt < 2) return;
-        setState((current) => ({
-          ...current,
-          statusMessage: AUTH_RETRY_MESSAGE,
-        }));
-      },
-    })
-      .then(({ userId, accessToken, needsUsernameSetup }) => {
-        if (!active) return;
-        setState({
-          isReady: true,
-          userId,
-          accessToken,
-          needsUsernameSetup,
-          error: null,
-          statusMessage: null,
-        });
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        setState({
-          isReady: true,
-          userId: null,
-          accessToken: null,
-          needsUsernameSetup: false,
-          error: normalizeUnknownError(error),
-          statusMessage: null,
-        });
+    try {
+      const { userId, accessToken, needsUsernameSetup } = await ensureSession({
+        onRetry: ({ nextAttempt }) => {
+          if (nextAttempt < 2) return;
+          setState((current) => ({
+            ...current,
+            statusMessage: AUTH_RETRY_MESSAGE,
+          }));
+        },
       });
-
-    return () => {
-      active = false;
-    };
+      setState((current) => ({
+        ...current,
+        isReady: true,
+        userId,
+        accessToken,
+        needsUsernameSetup,
+        error: null,
+        statusMessage: null,
+      }));
+    } catch (error: unknown) {
+      setState((current) => ({
+        ...current,
+        isReady: true,
+        userId: null,
+        accessToken: null,
+        needsUsernameSetup: false,
+        error: normalizeUnknownError(error),
+        statusMessage: null,
+      }));
+    }
   }, []);
 
-  const value = useMemo(() => state, [state]);
+  useEffect(() => {
+    void reinitializeSession();
+  }, [reinitializeSession]);
+
+  const value = useMemo(
+    () => ({
+      ...state,
+      reinitializeSession,
+    }),
+    [state, reinitializeSession],
+  );
   return <AuthSessionContext.Provider value={value}>{children}</AuthSessionContext.Provider>;
 }
 

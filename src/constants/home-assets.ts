@@ -1,5 +1,9 @@
 export const homeAssets = {
   titleBackground: require('../../assets/home/ui/真名仮名.png'),
+  /** タイトル画面左上「お知らせ」 */
+  informationButton: require('../../assets/home/ui/information.png'),
+  /** タイトル画面左上「設定」 */
+  settingsButton: require('../../assets/home/ui/option.png'),
   /** タイトル画面右下「チュートリアル」 */
   tutorialButton: require('../../assets/home/ui/チュートリアル.png'),
   loadingImage: require('../../assets/home/ui/読み込み中.png'),
@@ -32,6 +36,8 @@ export const homeAssets = {
     pieceShop: require('../../assets/home/buttons/pieceShop_botton.png'),
   },
   preloadTargets: [
+    require('../../assets/home/ui/information.png'),
+    require('../../assets/home/ui/option.png'),
     require('../../assets/home/ui/チュートリアル.png'),
     require('../../assets/home/ui/準備中.png'),
     require('../../assets/home/background/home-bg.png'),

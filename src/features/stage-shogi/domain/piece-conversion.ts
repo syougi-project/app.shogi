@@ -491,6 +491,9 @@ export const CODE_TO_CHAR: Readonly<Record<string, string>> = {
   SEN: '銭',
   ZAI: '財',
   GIANT: '巨',
+  REDONI: '赤鬼',
+  BLUEONI: '青鬼',
+  BLACKONI: '黒鬼',
 };
 
 export const PROMOTED_CODE_TO_CHAR: Readonly<Record<string, string>> = {

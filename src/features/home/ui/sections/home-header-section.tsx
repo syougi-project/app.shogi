@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { Pressable, View } from 'react-native';
 
-import { EditableHomeCommonHeader } from '@/components/organism/editable-home-common-header';
+import { HomeCommonHeader } from '@/components/organism/home-common-header';
 import { homeAssets } from '@/constants/home-assets';
 import {
   HOME_GACHA_ICON_SIZE,
@@ -42,7 +42,7 @@ export function HomeHeaderSection({
 }: HomeHeaderSectionProps) {
   return (
     <View pointerEvents="box-none">
-      <EditableHomeCommonHeader
+      <HomeCommonHeader
         userName={playerName}
         rating={playerRating}
         pawnCurrency={pawnCurrency}

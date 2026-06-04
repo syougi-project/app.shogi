@@ -19,6 +19,27 @@ describe('canonicalizeBoardPieceIdentity', () => {
       char: '火',
     });
   });
+
+  it('maps blueOni + 鬼 to BLUEONI / 青鬼', () => {
+    expect(canonicalizeBoardPieceIdentity('blueOni', '鬼')).toEqual({
+      pieceCode: 'BLUEONI',
+      char: '青鬼',
+    });
+  });
+
+  it('maps blackOni + 鬼 to BLACKONI / 黒鬼', () => {
+    expect(canonicalizeBoardPieceIdentity('blackOni', '鬼')).toEqual({
+      pieceCode: 'BLACKONI',
+      char: '黒鬼',
+    });
+  });
+
+  it('maps 鬼 without variant code to REDONI / 赤鬼', () => {
+    expect(canonicalizeBoardPieceIdentity('piece_533b7fec5456', '鬼')).toEqual({
+      pieceCode: 'REDONI',
+      char: '赤鬼',
+    });
+  });
 });
 
 describe('resolveStagePlacementIdentity', () => {

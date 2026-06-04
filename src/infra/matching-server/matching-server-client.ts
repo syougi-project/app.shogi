@@ -74,7 +74,13 @@ export class MatchingServerClient {
       return Promise.reject(new Error('EXPO_PUBLIC_MATCHING_SERVER_WS_URL が未設定です'));
     }
 
-    if (this.ws && this.userId === userId && this.connectionState === 'connected') {
+    const nextMatchId = options?.matchId ?? null;
+    if (
+      this.ws &&
+      this.userId === userId &&
+      this.matchId === nextMatchId &&
+      this.connectionState === 'connected'
+    ) {
       return Promise.resolve();
     }
 

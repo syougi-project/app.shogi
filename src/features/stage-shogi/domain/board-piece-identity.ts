@@ -12,7 +12,46 @@ const OPAQUE_PIECE_CODE_TO_CHAR: Readonly<Record<string, string>> = {
   piece_f221427c3f31: '角',
   piece_cc64bbd54bb3: '飛',
   piece_cb504254c93f: '玉',
+  piece_533b7fec5456: '赤鬼',
 };
+
+/** ステージ39の赤鬼・青鬼・黒鬼（piece_code / canonical / 表示字）。 */
+const ONI_VARIANT_IDENTITY: Readonly<Record<string, { pieceCode: string; char: string }>> = {
+  REDONI: { pieceCode: 'REDONI', char: '赤鬼' },
+  BLUEONI: { pieceCode: 'BLUEONI', char: '青鬼' },
+  BLACKONI: { pieceCode: 'BLACKONI', char: '黒鬼' },
+  赤鬼: { pieceCode: 'REDONI', char: '赤鬼' },
+  青鬼: { pieceCode: 'BLUEONI', char: '青鬼' },
+  黒鬼: { pieceCode: 'BLACKONI', char: '黒鬼' },
+};
+
+function resolveOniVariantIdentity(
+  pieceCode: string | null | undefined,
+  char: string | null | undefined,
+): { pieceCode: string; char: string } | null {
+  const rawCode = pieceCode?.trim();
+  if (rawCode) {
+    const upper = (toBasePieceCode(rawCode) ?? rawCode).toUpperCase();
+    if (upper === 'BLUEONI' || rawCode.toLowerCase() === 'blueoni') {
+      return ONI_VARIANT_IDENTITY.BLUEONI;
+    }
+    if (upper === 'BLACKONI' || rawCode.toLowerCase() === 'blackoni') {
+      return ONI_VARIANT_IDENTITY.BLACKONI;
+    }
+    if (
+      upper === 'REDONI' ||
+      rawCode.toLowerCase() === 'redoni' ||
+      rawCode.toLowerCase() === 'piece_533b7fec5456'
+    ) {
+      return ONI_VARIANT_IDENTITY.REDONI;
+    }
+  }
+  const displayChar = (char ?? '').trim();
+  if (displayChar === '青鬼' || displayChar === '黒鬼' || displayChar === '赤鬼') {
+    return ONI_VARIANT_IDENTITY[displayChar];
+  }
+  return null;
+}
 
 /** DB の `piece_<hex>` インスタンス ID。 */
 export function isOpaquePieceInstanceId(value: string | null | undefined): boolean {
@@ -46,8 +85,17 @@ export function canonicalizeBoardPieceIdentity(
   pieceCode: string | null | undefined,
   char: string | null | undefined,
 ): { pieceCode: string | null; char: string } {
+  const oniVariant = resolveOniVariantIdentity(pieceCode, char);
+  if (oniVariant) return oniVariant;
+
   const rawChar = (char ?? '').trim();
   const displayChar = isDisplayKanjiChar(rawChar) ? rawChar : null;
+
+  if (displayChar === '鬼') {
+    const fromCode = resolveOniVariantIdentity(pieceCode, null);
+    if (fromCode) return fromCode;
+    return ONI_VARIANT_IDENTITY.REDONI;
+  }
 
   if (displayChar && CHAR_TO_CODE[displayChar]) {
     const canonical = toBasePieceCode(CHAR_TO_CODE[displayChar]) ?? CHAR_TO_CODE[displayChar];

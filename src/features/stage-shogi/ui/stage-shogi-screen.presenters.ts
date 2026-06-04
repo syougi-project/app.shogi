@@ -109,15 +109,16 @@ function inspectPieceFlagsByCode(pieceCode?: string | null): {
   blackOni: boolean;
 } {
   const code = (pieceCode ?? '').toUpperCase();
+  const lower = (pieceCode ?? '').toLowerCase();
   return {
     book: code === 'BOOK',
     seal: code === 'SEAL',
     bignoise: code === 'BIGNOISE',
     ritual: code === 'RITUAL' || code.includes('4FCDDF14D08D'),
     saint: code === 'SAINT' || code.includes('A3BAB6C13DC7'),
-    redOni: code === 'REDONI',
-    blueOni: code === 'BLUEONI',
-    blackOni: code === 'BLACKONI',
+    redOni: code === 'REDONI' || lower === 'redoni' || code.includes('533B7FEC5456'),
+    blueOni: code === 'BLUEONI' || lower === 'blueoni',
+    blackOni: code === 'BLACKONI' || lower === 'blackoni',
   };
 }
 
@@ -134,9 +135,9 @@ export function resolveInspectSkillDescription(
   if (char === '轟' || byCode.bignoise) return BIGNOISE_SKILL_INSPECT;
   if (char === '礼' || byCode.ritual) return RITUAL_SKILL_INSPECT;
   if (char === '聖' || byCode.saint) return SAINT_SKILL_INSPECT;
-  if (byCode.redOni) return RED_ONI_SKILL_INSPECT;
-  if (byCode.blueOni) return BLUE_ONI_SKILL_INSPECT;
-  if (byCode.blackOni) return BLACK_ONI_SKILL_INSPECT;
+  if (char === '赤鬼' || byCode.redOni) return RED_ONI_SKILL_INSPECT;
+  if (char === '青鬼' || byCode.blueOni) return BLUE_ONI_SKILL_INSPECT;
+  if (char === '黒鬼' || byCode.blackOni) return BLACK_ONI_SKILL_INSPECT;
   if (char === '葉') return LEAF_SKILL_DESCRIPTION;
   if (char === '種') return TANE_SKILL_DESCRIPTION;
   if (char === '麒') return KIRIN_SKILL_DESCRIPTION;

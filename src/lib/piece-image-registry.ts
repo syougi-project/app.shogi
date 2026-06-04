@@ -508,17 +508,22 @@ const pieceImageRecords: PieceImageRecord[] = [
   {
     pieceId: 83,
     pieceCode: 'piece_533b7fec5456',
-    char: '鬼',
+    char: '赤鬼',
+    source: require('../../assets/pieces/0083-piece_533b7fec5456.png'),
+  },
+  {
+    pieceCode: 'redOni',
+    char: '赤鬼',
     source: require('../../assets/pieces/0083-piece_533b7fec5456.png'),
   },
   {
     pieceCode: 'blueOni',
-    char: '鬼',
+    char: '青鬼',
     source: require('../../assets/pieces/blueOni.png'),
   },
   {
     pieceCode: 'blackOni',
-    char: '鬼',
+    char: '黒鬼',
     source: require('../../assets/pieces/blackOni.png'),
   },
   {
@@ -921,6 +926,9 @@ const aliasCodeToChar: Readonly<Record<string, string>> = {
   KOU: '膠',
   GACHA_KO: '膠',
   GACHA_KOU: '膠',
+  REDONI: '赤鬼',
+  BLUEONI: '青鬼',
+  BLACKONI: '黒鬼',
   SO: '走',
   TANE: '種',
   KIRIN: '麒',

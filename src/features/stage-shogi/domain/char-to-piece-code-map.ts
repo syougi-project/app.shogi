@@ -112,5 +112,8 @@ export const CHAR_TO_CODE: Readonly<Record<string, string>> = {
   財: 'ZAI',
   /** `lib/piece-image-registry` piece_c4aeb81f3634 と整合（2×2 占有駒） */
   巨: 'GIANT',
+  赤鬼: 'REDONI',
+  青鬼: 'BLUEONI',
+  黒鬼: 'BLACKONI',
   /** 刀／剣／銃／鎧／盾は載せない（`piecesFromBoardState` の canonical 寄せ用）。手駒は `game-rules` の CAPTURE_CHAR_TO_HAND_CODE。 */
 };

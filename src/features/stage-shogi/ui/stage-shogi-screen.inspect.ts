@@ -58,11 +58,13 @@ export function resolveInspectingPieceState(input: {
     null;
   const pieceCodeLower = (target.pieceCode ?? '').toLowerCase();
   const oniNameOverride =
-    pieceCodeLower === 'blueoni'
+    displayChar === '青鬼' || pieceCodeLower === 'blueoni'
       ? '青鬼'
-      : pieceCodeLower === 'blackoni'
+      : displayChar === '黒鬼' || pieceCodeLower === 'blackoni'
         ? '黒鬼'
-        : pieceCodeLower === 'redoni'
+        : displayChar === '赤鬼' ||
+            pieceCodeLower === 'redoni' ||
+            pieceCodeLookupKey.includes('533B7FEC5456')
           ? '赤鬼'
           : null;
   const beastNameOverride =
