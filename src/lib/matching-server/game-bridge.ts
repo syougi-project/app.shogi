@@ -159,20 +159,22 @@ export function battleMoveToServerPayload(
   wire?: Pick<MatchingGameState, 'board' | 'hands'>,
 ): MovePayload {
   const piece = resolveServerMovePieceCode(move, myRole, wire);
+  const to = formatMatchingSquare(move.toRow, move.toCol).toLowerCase();
   if (move.dropPieceCode) {
     return {
-      to: formatMatchingSquare(move.toRow, move.toCol),
+      to,
       piece,
       drop: true,
       promote: false,
     };
   }
+  if (move.fromRow == null || move.fromCol == null) {
+    throw new Error('盤上の着手に移動元がありません');
+  }
+  const from = formatMatchingSquare(move.fromRow, move.fromCol).toLowerCase();
   return {
-    from:
-      move.fromRow != null && move.fromCol != null
-        ? formatMatchingSquare(move.fromRow, move.fromCol)
-        : undefined,
-    to: formatMatchingSquare(move.toRow, move.toCol),
+    from,
+    to,
     piece,
     promote: move.promote === true,
     drop: false,

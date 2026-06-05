@@ -19,8 +19,8 @@ import {
 } from '@/lib/matching-server/match-profile-store';
 import {
   getActiveMatchSession,
+  getAuthoritativeMatchGame,
   setActiveMatchSession,
-  updateActiveMatchGame,
 } from '@/lib/matching-server/session-store';
 import {
   applyOnlineBattleMove,
@@ -178,6 +178,7 @@ export function useOnlineBattleGame(matchId?: string) {
     [pieceDefsByChar, pieceDefsByCode, promotedPieceDefsByCode],
   );
   const locallyAuditedVersionsRef = useRef<Set<number>>(new Set());
+  const authoritativeServerGameRef = useRef<MatchingGameState | null>(null);
   const playMoveAudio = useCallback(
     (move: BattleMove, actorSide: Side, board: BoardPiece[]) => {
       playBattleMoveOrPromoteSe(move, actorSide, board, battleAudioCatalog);
@@ -280,13 +281,14 @@ export function useOnlineBattleGame(matchId?: string) {
 
   const applyServerGame = useCallback(
     (matchIdValue: string, nextRole: PlayerSide, nextGame: MatchingGameState, logLine?: string) => {
+      authoritativeServerGameRef.current = nextGame;
       setActiveMatchSession({
         matchId: matchIdValue,
         role: nextRole,
         userId: userId ?? '',
         game: nextGame,
+        authoritativeGame: nextGame,
       });
-      updateActiveMatchGame(nextGame);
       setGame(nextGame);
       setRole(nextRole);
       if (pieceCatalog.length > 0) {
@@ -458,10 +460,11 @@ export function useOnlineBattleGame(matchId?: string) {
         case 'error':
           setMoveError(payload.message);
           appendLogRef.current(`エラー: ${payload.message}`);
-          const activeGame = getActiveMatchSession()?.game;
           const activeRole = roleRef.current ?? getActiveMatchSession()?.role ?? stored?.role;
-          if (matchId && activeRole && activeGame) {
-            applyServerGameRef.current(matchId, activeRole, activeGame);
+          const authoritativeGame =
+            authoritativeServerGameRef.current ?? getAuthoritativeMatchGame();
+          if (matchId && activeRole && authoritativeGame) {
+            applyServerGameRef.current(matchId, activeRole, authoritativeGame);
           }
           setSession((current) => ({
             ...current,
@@ -523,16 +526,17 @@ export function useOnlineBattleGame(matchId?: string) {
 
   const commitMove = useCallback(
     (move: BattleMove) => {
-      if (!userId || !matchId || !game || !role) return;
+      if (!userId || !matchId || !role) return;
+      const serverWire = authoritativeServerGameRef.current ?? getAuthoritativeMatchGame() ?? game;
+      if (!serverWire) return;
       setMoveError(null);
       try {
-        const expectedVersion = game.version + 1;
-        const { committed, payload, wire } = applyOnlineBattleMove({
+        const expectedVersion = serverWire.version + 1;
+        const { committed, payload } = applyOnlineBattleMove({
           matchId,
           move,
-          serverWire: game,
+          serverWire,
         });
-        updateActiveMatchGame(wire);
         refreshLocalFromRegistry(matchId);
         const boardAfter = getDisplayBoardPieces(matchId);
         playMoveAudio(move, 'player', boardAfter);
@@ -544,7 +548,7 @@ export function useOnlineBattleGame(matchId?: string) {
         client.makeMove({
           userId,
           matchId,
-          expectedVersion: game.version,
+          expectedVersion: serverWire.version,
           move: payload,
         });
         setSelectedCell(null);
@@ -554,9 +558,9 @@ export function useOnlineBattleGame(matchId?: string) {
         clearSkillUiState();
       } catch (error) {
         setMoveError(error instanceof Error ? error.message : '着手の送信に失敗しました');
-        const activeGame = getActiveMatchSession()?.game;
-        if (activeGame) {
-          applyServerGame(matchId, role, activeGame);
+        const authoritativeGame = authoritativeServerGameRef.current ?? getAuthoritativeMatchGame();
+        if (authoritativeGame) {
+          applyServerGame(matchId, role, authoritativeGame);
         }
       }
     },

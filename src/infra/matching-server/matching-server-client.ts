@@ -12,7 +12,7 @@ import {
 import {
   clearActiveMatchSession,
   setActiveMatchSession,
-  updateActiveMatchGame,
+  updateAuthoritativeMatchGame,
 } from '@/lib/matching-server/session-store';
 
 export type MatchingServerConnectionState =
@@ -231,7 +231,7 @@ export class MatchingServerClient {
         return;
       case 'game_state_updated':
         this.matchId = message.matchId;
-        updateActiveMatchGame({
+        updateAuthoritativeMatchGame({
           version: message.version,
           turn: message.turn,
           board: message.board,
@@ -239,6 +239,7 @@ export class MatchingServerClient {
           skillState: message.skillState,
           lastMove: message.lastMove,
           lastSkillTriggered: message.lastSkillTriggered,
+          canonicalState: message.canonicalState,
         });
         return;
       case 'game_finished':

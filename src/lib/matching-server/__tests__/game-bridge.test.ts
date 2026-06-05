@@ -54,6 +54,25 @@ describe('matching-server game-bridge', () => {
     });
   });
 
+  it('rejects board moves without a from square', () => {
+    expect(() =>
+      battleMoveToServerPayload(
+        {
+          fromRow: null,
+          fromCol: null,
+          toRow: 5,
+          toCol: 2,
+          pieceCode: 'FU',
+          promote: false,
+          dropPieceCode: null,
+          capturedPieceCode: null,
+          notation: null,
+        },
+        'black',
+      ),
+    ).toThrow('盤上の着手に移動元がありません');
+  });
+
   it('uses server board piece code instead of canonicalized app code', () => {
     const wire: MatchingGameState = {
       version: 1,

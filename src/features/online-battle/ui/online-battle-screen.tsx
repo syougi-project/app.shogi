@@ -145,10 +145,7 @@ export function OnlineBattleScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={session.winnerSide ? 'ホームに戻る' : '対局を終了する'}
                   onPress={openExitConfirm}
-                  style={({ pressed }) => [
-                    styles.homeBackBtn,
-                    { marginBottom: 16, opacity: pressed ? 0.85 : 1 },
-                  ]}
+                  style={({ pressed }) => [styles.homeBackBtn, { opacity: pressed ? 0.85 : 1 }]}
                 >
                   <MaterialIcons
                     name={session.winnerSide ? 'home' : 'logout'}
@@ -156,9 +153,6 @@ export function OnlineBattleScreen() {
                     color="#fff"
                   />
                 </Pressable>
-                <Text style={styles.titleText} numberOfLines={2}>
-                  オンライン対戦
-                </Text>
               </View>
 
               <View style={styles.ratingPanel}>
@@ -187,28 +181,7 @@ export function OnlineBattleScreen() {
               </View>
             </View>
 
-            <View style={styles.serverPanel}>
-              <Text style={styles.serverPanelTitle}>マッチングサーバー対戦</Text>
-              <Text style={styles.serverPanelMeta}>
-                版数 v{session.version}
-                {session.matchId ? ` / 対局 ${session.matchId.slice(0, 8)}` : ''}
-              </Text>
-              <Pressable
-                onPress={openExitConfirm}
-                disabled={Boolean(session.winnerSide)}
-                style={({ pressed }) => [
-                  styles.resignBtn,
-                  session.winnerSide && styles.resignBtnDisabled,
-                  pressed && !session.winnerSide && { opacity: 0.85 },
-                ]}
-              >
-                <Text style={styles.resignBtnText}>対局終了</Text>
-              </Pressable>
-              {moveError ? <Text style={styles.moveErrorText}>{moveError}</Text> : null}
-              <Text style={styles.serverPanelFootnote}>
-                ステージ戦と同じ駒図鑑エンジンで特殊駒・スキル手を含む合法手を表示します。
-              </Text>
-            </View>
+            {moveError ? <Text style={styles.moveErrorText}>{moveError}</Text> : null}
 
             {/* HTML .row: 盤 → サイド */}
             <View style={styles.rowColumn}>
@@ -444,15 +417,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(139, 0, 0, 0.88)',
     padding: 10,
   },
-  titleText: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-    maxWidth: HTML_APP_MAX_WIDTH - 16,
-  },
   ratingPanel: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -497,49 +461,13 @@ const styles = StyleSheet.create({
   ratingMetaStrong: {
     fontWeight: '700',
   },
-  serverPanel: {
-    marginVertical: 12,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  serverPanelTitle: {
-    color: '#fff',
-    fontWeight: '700',
-    marginBottom: 4,
-    fontSize: 15,
-  },
-  serverPanelMeta: {
-    color: '#e5e7eb',
-    fontSize: 13,
-    marginBottom: 10,
-  },
-  resignBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#dc2626',
-    borderRadius: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  resignBtnDisabled: {
-    opacity: 0.45,
-  },
-  resignBtnText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  serverPanelFootnote: {
-    marginTop: 10,
-    fontSize: 12,
-    color: '#ccc',
-    lineHeight: 18,
-  },
   moveErrorText: {
     marginTop: 8,
+    marginBottom: 4,
     color: '#fecaca',
     fontWeight: '700',
     fontSize: 13,
+    textAlign: 'center',
   },
   promoOverlay: {
     flex: 1,
