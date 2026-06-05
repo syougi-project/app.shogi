@@ -16,6 +16,7 @@ import {
 import { OnlineBattleSkillParticleLayer } from '@/features/online-battle/ui/components/online-battle-skill-particle-layer';
 import type { SkillVisualEffect } from '@/domain/battle/skill-visual-effect';
 import { toViewCoord } from '@/lib/matching-server/game-bridge';
+import { normalizeWirePieceCode } from '@/lib/matching-server/piece-display';
 import type { PlayerSide } from '@/domain/matching-server/protocol';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 
@@ -111,7 +112,9 @@ export function OnlineBattleBoard(props: {
         )}
         {piecesByView.map((piece) => {
           const pieceCode = piece.pieceCode?.toUpperCase();
-          const pieceDef = pieceCode ? pieceDefsByCode[pieceCode] : undefined;
+          const pieceDef = pieceCode
+            ? (pieceDefsByCode[pieceCode] ?? pieceDefsByCode[normalizeWirePieceCode(pieceCode)])
+            : undefined;
           const displayChar = piece.char && piece.char !== '?' ? piece.char : pieceDef?.char;
           const source = getPieceImageSource({
             pieceId: pieceDef?.pieceId,

@@ -1,4 +1,5 @@
-import { resolveOnlineMatchPieceCode } from '@/lib/online-match/resolve-online-match-piece-code';
+import { resolveOnlineMatchPieceCodeFromPlacement } from '@/lib/online-match/resolve-online-match-piece-code';
+import { createLoadPieceCatalogUseCase } from '@/usecases/piece-info/create-piece-info-usecases';
 import { createSaveOnlineMatchSetupUseCase } from '@/usecases/online-match/create-online-match-usecases';
 
 export type OnlineMatchDeckPlacement = {
@@ -14,6 +15,12 @@ export async function saveOnlineMatchSetupFromDeck(
   placements: OnlineMatchDeckPlacement[],
   accessToken?: string,
 ) {
+  const catalog = await createLoadPieceCatalogUseCase().execute();
+  const catalogByPieceId = new Map(
+    catalog
+      .filter((item) => typeof item.pieceId === 'number')
+      .map((item) => [item.pieceId as number, item]),
+  );
   const useCase = createSaveOnlineMatchSetupUseCase(accessToken);
   const boardLayout = placements
     .filter((placement) => typeof placement.piece.pieceId === 'number')
@@ -21,7 +28,7 @@ export async function saveOnlineMatchSetupFromDeck(
       row: placement.row,
       col: placement.col,
       pieceId: placement.piece.pieceId!,
-      pieceCode: resolveOnlineMatchPieceCode(placement.piece.char),
+      pieceCode: resolveOnlineMatchPieceCodeFromPlacement(placement.piece, catalogByPieceId),
     }));
   const selectedPieceIds = boardLayout.map((placement) => placement.pieceId);
 

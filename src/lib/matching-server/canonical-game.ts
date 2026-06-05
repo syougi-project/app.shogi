@@ -1,16 +1,14 @@
 import { buildBoardState } from '@/ai/engine/shared';
 import { assembleSkillDefinitionsV2ForSession } from '@/ai/engine/session-skill-definitions-v2';
 import { normalizePieceCatalog, type AiBattlePosition } from '@/ai/model';
+import { buildPieceLookups } from '@/ai/model/piece';
 import type { MatchingGameState, PlayerSide } from '@/domain/matching-server/protocol';
-import {
-  CODE_TO_CHAR,
-  PROMOTED_CODE_TO_CHAR,
-} from '@/features/stage-shogi/domain/piece-conversion';
 import {
   createEmptyHandsState,
   type BoardPiece,
   type Side,
 } from '@/features/stage-shogi/domain/game-rules';
+import { resolveWirePieceChar } from '@/lib/matching-server/piece-display';
 import { formatMatchingSquare, parseMatchingSquare } from '@/lib/matching-server/square';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 
@@ -21,16 +19,6 @@ export function serverSideToCanonicalSide(serverSide: PlayerSide): Side {
 
 export function canonicalSideToServerSide(side: Side): PlayerSide {
   return side === 'player' ? 'black' : 'white';
-}
-
-function pieceCharFromCode(pieceCode: string, side: Side, promoted: boolean): string {
-  if (promoted && PROMOTED_CODE_TO_CHAR[pieceCode]) {
-    return PROMOTED_CODE_TO_CHAR[pieceCode];
-  }
-  if (pieceCode === 'OU') {
-    return side === 'enemy' ? '玉' : '王';
-  }
-  return CODE_TO_CHAR[pieceCode] ?? '?';
 }
 
 function decodeEncodedBoardPiece(encoded: string): {
@@ -51,11 +39,7 @@ export function matchingWireToCanonicalPosition(
   pieceCatalog: PieceCatalogItem[],
 ): AiBattlePosition {
   const catalog = normalizePieceCatalog(pieceCatalog);
-  const defsByCode: Record<string, (typeof catalog)[number]> = {};
-  for (const item of catalog) {
-    const code = item.pieceCode?.toUpperCase();
-    if (code) defsByCode[code] = item;
-  }
+  const { pieceDefsByCode } = buildPieceLookups(catalog);
 
   const pieces: BoardPiece[] = [];
   for (const [square, encoded] of Object.entries(wire.board)) {
@@ -67,7 +51,7 @@ export function matchingWireToCanonicalPosition(
       col,
       side,
       pieceCode: code,
-      char: pieceCharFromCode(code, side, promoted),
+      char: resolveWirePieceChar(code, side, promoted, pieceDefsByCode),
       promoted,
     });
   }
@@ -86,7 +70,7 @@ export function matchingWireToCanonicalPosition(
     moveCount: Math.max(0, wire.version - 1),
     sfen: 'online-match',
     stateHash: `v${wire.version}`,
-    boardState: buildBoardState(pieces, defsByCode),
+    boardState: buildBoardState(pieces, pieceDefsByCode),
     hands,
   };
   if (wire.skillState) {

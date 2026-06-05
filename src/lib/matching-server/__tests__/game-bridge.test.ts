@@ -95,7 +95,8 @@ describe('matching-server game-bridge', () => {
 
     const defs = catalogDefsByCode([mist]);
 
-    expect(defs.PIECE_AE158934197B).toBe(mist);
-    expect(defs.MIST).toBe(mist);
+    expect(defs.PIECE_AE158934197B?.pieceCode).toBe('PIECE_AE158934197B');
+    expect(defs.MIST?.pieceCode).toBe('PIECE_AE158934197B');
+    expect(defs.MIST?.canonicalCode).toBe('MIST');
   });
 });

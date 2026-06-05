@@ -8,6 +8,7 @@ import {
   type AiBattlePosition,
   type AiPieceDefinition,
 } from '@/ai/model';
+import { buildPieceLookups } from '@/ai/model/piece';
 import type { MatchingGameState, PlayerSide } from '@/domain/matching-server/protocol';
 import {
   canonicalToMatchingWire,
@@ -126,7 +127,7 @@ export function getBoardPieces(matchId: string) {
 export function getDisplayBoardPieces(matchId: string): UiBoardPiece[] {
   const record = games.get(matchId);
   if (!record) return [];
-  const pieceDefsByChar = pieceDefsByCharFromCatalog(record.displayPieceCatalog);
+  const { pieceDefsByChar } = buildPieceLookups(normalizePieceCatalog(record.displayPieceCatalog));
   return piecesForDisplay(piecesFromBoardState(record.position), record.myRole).map((piece) =>
     normalizeBoardPieceForDisplay(
       {
@@ -169,10 +170,4 @@ export function syncFromServerWire(input: {
   };
   games.set(input.matchId, record);
   return record;
-}
-
-function pieceDefsByCharFromCatalog(
-  catalog: PieceCatalogItem[],
-): Partial<Record<string, PieceCatalogItem>> {
-  return Object.fromEntries(catalog.filter((item) => item.char).map((item) => [item.char, item]));
 }

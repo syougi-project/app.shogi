@@ -1,5 +1,6 @@
 import { generateLegalMoves } from '@/ai/engine';
 import { normalizePieceCatalog } from '@/ai/model';
+import { buildPieceLookups } from '@/ai/model/piece';
 import type { AiBattlePosition } from '@/ai/model';
 import type { MovePayload, MatchingGameState, PlayerSide } from '@/domain/matching-server/protocol';
 import {
@@ -155,14 +156,7 @@ export function fromViewCoord(
 }
 
 export function catalogDefsByCode(catalog: PieceCatalogItem[]): Record<string, PieceCatalogItem> {
-  const out: Record<string, PieceCatalogItem> = {};
-  for (const item of catalog) {
-    const code = item.pieceCode?.toUpperCase();
-    if (code) out[code] = item;
-    const canonicalCode = item.canonicalCode?.toUpperCase();
-    if (canonicalCode) out[canonicalCode] = item;
-  }
-  return out;
+  return buildPieceLookups(normalizePieceCatalog(catalog)).pieceDefsByCode;
 }
 
 export function isInteractablePhysicalMove(move: BattleMove): boolean {

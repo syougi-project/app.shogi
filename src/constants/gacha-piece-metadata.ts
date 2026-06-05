@@ -73,7 +73,7 @@ type GachaPieceMeta = {
 const GACHA_PIECE_META: Record<GachaCollectibleChar, GachaPieceMeta> = {
   室: {
     pieceId: 116,
-    pieceCode: 'piece_gacha_shitsu',
+    pieceCode: 'piece_gacha_muro',
     skillCode: 'skill_gacha_muro',
     char: '室',
     name: '室',
@@ -194,7 +194,7 @@ const GACHA_PIECE_META: Record<GachaCollectibleChar, GachaPieceMeta> = {
   },
   逃: {
     pieceId: 124,
-    pieceCode: 'piece_gacha_tou2',
+    pieceCode: 'piece_gacha_to',
     skillCode: 'skill_gacha_to',
     char: '逃',
     name: '逃',
@@ -230,7 +230,7 @@ const GACHA_PIECE_META: Record<GachaCollectibleChar, GachaPieceMeta> = {
   },
   膠: {
     pieceId: 127,
-    pieceCode: 'piece_gacha_kou',
+    pieceCode: 'piece_gacha_ko',
     skillCode: 'skill_gacha_ko',
     char: '膠',
     name: '膠',

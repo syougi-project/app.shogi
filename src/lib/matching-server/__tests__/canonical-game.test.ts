@@ -28,6 +28,41 @@ describe('matching-server canonical-game', () => {
     expect(canonicalToMatchingWire(position).board['7g']).toBe('black:FU');
   });
 
+  it('resolves gacha deck piece char from catalog when wire uses BFF piece code', () => {
+    const wire: MatchingGameState = {
+      version: 1,
+      turn: 'black',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '5e': 'black:PIECE_GACHA_KO',
+      },
+      hands: { black: {}, white: {} },
+    };
+    const catalog = [
+      {
+        pieceId: 127,
+        pieceCode: 'piece_gacha_ko',
+        canonicalCode: 'GACHA_KOU',
+        char: '膠',
+        name: '膠',
+        unlock: 'test',
+        desc: '',
+        skill: '',
+        move: '',
+        moveVectors: [],
+        isRepeatable: false,
+      },
+    ];
+
+    const position = matchingWireToCanonicalPosition(wire, catalog);
+    const pieces =
+      (position.boardState as { pieces?: Array<{ pieceCode?: string; char: string }> }).pieces ??
+      [];
+
+    expect(pieces.find((piece) => piece.pieceCode === 'PIECE_GACHA_KO')?.char).toBe('膠');
+  });
+
   it('preserves server skill state through canonical conversion with side mapping', () => {
     const wire: MatchingGameState = {
       version: 2,
