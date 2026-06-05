@@ -63,6 +63,37 @@ describe('matching-server canonical-game', () => {
     expect(pieces.find((piece) => piece.pieceCode === 'PIECE_GACHA_KO')?.char).toBe('膠');
   });
 
+  it('preserves server skill state on wire sync for online battle parity', () => {
+    const wire: MatchingGameState = {
+      version: 2,
+      turn: 'white',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '5e': 'black:RAINBOW',
+      },
+      hands: { black: {}, white: {} },
+      skillState: {
+        movement_modifiers: [
+          {
+            row: 4,
+            col: 4,
+            side: 'black',
+            movement_rule: 'orthogonal_step_only',
+            remaining_turns: 2,
+          },
+        ],
+      },
+    };
+
+    const position = matchingWireToCanonicalPosition(wire, []);
+    const skillState = (position.boardState as { skill_state?: MatchingGameState['skillState'] })
+      .skill_state;
+
+    expect(skillState?.movement_modifiers?.[0]?.side).toBe('player');
+    expect(skillState?.movement_modifiers?.[0]?.movement_rule).toBe('orthogonal_step_only');
+  });
+
   it('preserves server skill state through canonical conversion with side mapping', () => {
     const wire: MatchingGameState = {
       version: 2,

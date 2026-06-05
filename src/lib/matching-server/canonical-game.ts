@@ -87,13 +87,8 @@ export function injectSkillDefinitionsIntoPosition(
   position: AiBattlePosition,
   pieceCatalog: PieceCatalogItem[],
 ): AiBattlePosition {
-  const defsByCode: Record<string, PieceCatalogItem> = {};
-  for (const item of pieceCatalog) {
-    const code = (item.pieceCode ?? '').toUpperCase();
-    if (!code) continue;
-    defsByCode[code] = item;
-  }
-  const assembled = assembleSkillDefinitionsV2ForSession(defsByCode);
+  const { pieceDefsByCode } = buildPieceLookups(normalizePieceCatalog(pieceCatalog));
+  const assembled = assembleSkillDefinitionsV2ForSession(pieceDefsByCode);
   const boardState = { ...(position.boardState as Record<string, unknown>) };
   boardState.skill_definitions_v2 = assembled;
   return { ...position, boardState };

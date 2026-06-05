@@ -236,7 +236,9 @@ export class MatchingServerClient {
           turn: message.turn,
           board: message.board,
           hands: message.hands,
+          skillState: message.skillState,
           lastMove: message.lastMove,
+          lastSkillTriggered: message.lastSkillTriggered,
         });
         return;
       case 'game_finished':

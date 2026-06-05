@@ -41,6 +41,7 @@ export function setOnlineBattlePieceCatalog(items: PieceCatalogItem[]) {
   for (const record of games.values()) {
     record.pieceCatalog = normalizePieceCatalog(items);
     record.displayPieceCatalog = items;
+    record.position = injectSkillDefinitionsIntoPosition(record.position, items);
   }
 }
 

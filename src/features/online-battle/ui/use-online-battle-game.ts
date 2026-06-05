@@ -391,6 +391,7 @@ export function useOnlineBattleGame(matchId?: string) {
             turn: payload.turn,
             board: payload.board,
             hands: payload.hands,
+            skillState: payload.skillState,
             lastMove: payload.lastMove,
             lastSkillTriggered: payload.lastSkillTriggered,
             canonicalState: payload.canonicalState,
