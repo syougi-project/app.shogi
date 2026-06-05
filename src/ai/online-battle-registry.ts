@@ -84,7 +84,11 @@ export function removeOnlineBattleGame(matchId: string) {
   games.delete(matchId);
 }
 
-export function applyOnlineBattleMove(input: { matchId: string; move: BattleMove }) {
+export function applyOnlineBattleMove(input: {
+  matchId: string;
+  move: BattleMove;
+  serverWire?: MatchingGameState;
+}) {
   const record = games.get(input.matchId);
   if (!record) {
     throw new Error(`online battle game not found: ${input.matchId}`);
@@ -104,7 +108,7 @@ export function applyOnlineBattleMove(input: { matchId: string; move: BattleMove
     committed,
     record: next,
     wire: canonicalToMatchingWire(next.position),
-    payload: battleMoveToServerPayload(input.move, record.myRole),
+    payload: battleMoveToServerPayload(input.move, record.myRole, input.serverWire),
   };
 }
 

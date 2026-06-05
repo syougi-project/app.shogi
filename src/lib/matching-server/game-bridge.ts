@@ -14,7 +14,7 @@ import {
   pieceCharFromCode,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
 import { formatMatchingSquare, parseMatchingSquare } from '@/lib/matching-server/square';
-import { toBasePieceCode } from '@/ai/model/move';
+import { normalizeWirePieceCode } from '@/lib/matching-server/piece-display';
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 
@@ -109,9 +109,56 @@ export function buildMatchingBattleContext(input: {
   return { pieces, hands, sideToMove, position, playerLegalMoves };
 }
 
-export function battleMoveToServerPayload(move: BattleMove, myRole: PlayerSide): MovePayload {
+/** マッチングサーバーが盤面・持ち駒に使う piece コードと UI 側コードが一致するか */
+export function serverPieceCodesEquivalent(left: string, right: string): boolean {
+  const a = normalizeWirePieceCode(left.trim().toUpperCase());
+  const b = normalizeWirePieceCode(right.trim().toUpperCase());
+  if (a === b) return true;
+  const stripPiecePrefix = (code: string) =>
+    code.startsWith('PIECE_') && !/^PIECE_[0-9A-F]{8,}$/i.test(code)
+      ? code.slice('PIECE_'.length)
+      : code;
+  return stripPiecePrefix(a) === stripPiecePrefix(b);
+}
+
+/** サーバー wire 上の盤面/持ち駒キーを優先して move.piece を決める（toBasePieceCode による不一致を防ぐ） */
+export function resolveServerMovePieceCode(
+  move: BattleMove,
+  myRole: PlayerSide,
+  wire?: Pick<MatchingGameState, 'board' | 'hands'>,
+): string {
+  if (move.dropPieceCode) {
+    const dropRaw = move.dropPieceCode.trim().toUpperCase();
+    const bag = wire?.hands?.[myRole];
+    if (bag) {
+      if ((bag[dropRaw] ?? 0) > 0) return dropRaw;
+      for (const [key, count] of Object.entries(bag)) {
+        if (count > 0 && serverPieceCodesEquivalent(key, dropRaw)) {
+          return key.toUpperCase();
+        }
+      }
+    }
+    return dropRaw;
+  }
+
+  if (move.fromRow != null && move.fromCol != null && wire?.board) {
+    const from = formatMatchingSquare(move.fromRow, move.fromCol);
+    const encoded = wire.board[from];
+    if (encoded) {
+      return decodeEncodedBoardPiece(encoded).code;
+    }
+  }
+
   const rawCode = move.dropPieceCode ?? move.pieceCode;
-  const piece = toBasePieceCode(rawCode) ?? rawCode.toUpperCase();
+  return (rawCode ?? 'FU').trim().toUpperCase();
+}
+
+export function battleMoveToServerPayload(
+  move: BattleMove,
+  myRole: PlayerSide,
+  wire?: Pick<MatchingGameState, 'board' | 'hands'>,
+): MovePayload {
+  const piece = resolveServerMovePieceCode(move, myRole, wire);
   if (move.dropPieceCode) {
     return {
       to: formatMatchingSquare(move.toRow, move.toCol),

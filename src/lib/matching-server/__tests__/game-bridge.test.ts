@@ -54,6 +54,38 @@ describe('matching-server game-bridge', () => {
     });
   });
 
+  it('uses server board piece code instead of canonicalized app code', () => {
+    const wire: MatchingGameState = {
+      version: 1,
+      turn: 'black',
+      board: { '5e': 'black:PIECE_GACHA_KO' },
+      hands: { black: {}, white: {} },
+    };
+    expect(
+      battleMoveToServerPayload(
+        {
+          fromRow: 4,
+          fromCol: 4,
+          toRow: 5,
+          toCol: 4,
+          pieceCode: 'GACHA_KOU',
+          promote: false,
+          dropPieceCode: null,
+          capturedPieceCode: null,
+          notation: null,
+        },
+        'black',
+        wire,
+      ),
+    ).toEqual({
+      from: '5e',
+      to: '5f',
+      piece: 'PIECE_GACHA_KO',
+      promote: false,
+      drop: false,
+    });
+  });
+
   it('converts drop move to server payload', () => {
     expect(
       battleMoveToServerPayload(

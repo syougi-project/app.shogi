@@ -527,7 +527,11 @@ export function useOnlineBattleGame(matchId?: string) {
       setMoveError(null);
       try {
         const expectedVersion = game.version + 1;
-        const { committed, payload, wire } = applyOnlineBattleMove({ matchId, move });
+        const { committed, payload, wire } = applyOnlineBattleMove({
+          matchId,
+          move,
+          serverWire: game,
+        });
         updateActiveMatchGame(wire);
         refreshLocalFromRegistry(matchId);
         const boardAfter = getDisplayBoardPieces(matchId);
