@@ -2,6 +2,9 @@ import {
   battleMoveToServerPayload,
   catalogDefsByCode,
   decodeEncodedBoardPiece,
+  filterBattleMovesForServerWire,
+  findEncodedBoardPieceAt,
+  lookupWireBoardEncoded,
   matchingGameToBoardPieces,
 } from '@/lib/matching-server/game-bridge';
 import type { MatchingGameState } from '@/domain/matching-server/protocol';
@@ -71,6 +74,74 @@ describe('matching-server game-bridge', () => {
         'black',
       ),
     ).toThrow('盤上の着手に移動元がありません');
+  });
+
+  it('looks up board cells case-insensitively', () => {
+    expect(lookupWireBoardEncoded({ '7G': 'black:FU' }, '7g')).toBe('black:FU');
+    expect(findEncodedBoardPieceAt({ board: { '7G': 'black:FU' } }, 'black', 6, 2)?.code).toBe(
+      'FU',
+    );
+  });
+
+  it('rejects moves when from square is absent on server wire', () => {
+    const wire = {
+      board: { '7g': 'black:FU' },
+      hands: { black: {}, white: {} },
+    };
+    expect(() =>
+      battleMoveToServerPayload(
+        {
+          fromRow: 6,
+          fromCol: 3,
+          toRow: 5,
+          toCol: 3,
+          pieceCode: 'FU',
+          promote: false,
+          dropPieceCode: null,
+          capturedPieceCode: null,
+          notation: null,
+        },
+        'black',
+        wire,
+      ),
+    ).toThrow('サーバー盤面と着手が一致しません');
+  });
+
+  it('filters legal moves to those present on server wire', () => {
+    const wire = {
+      board: { '7g': 'black:FU' },
+      hands: { black: {}, white: {} },
+    };
+    const filtered = filterBattleMovesForServerWire(
+      [
+        {
+          fromRow: 6,
+          fromCol: 2,
+          toRow: 5,
+          toCol: 2,
+          pieceCode: 'FU',
+          promote: false,
+          dropPieceCode: null,
+          capturedPieceCode: null,
+          notation: null,
+        },
+        {
+          fromRow: 6,
+          fromCol: 3,
+          toRow: 5,
+          toCol: 3,
+          pieceCode: 'FU',
+          promote: false,
+          dropPieceCode: null,
+          capturedPieceCode: null,
+          notation: null,
+        },
+      ],
+      wire,
+      'black',
+    );
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.fromCol).toBe(2);
   });
 
   it('uses server board piece code instead of canonicalized app code', () => {

@@ -7,10 +7,12 @@ import { createRequestId } from '@/domain/matching-server/protocol';
 import { getMatchingServerWsBaseUrl } from '@/lib/config/online-match';
 import {
   clearActiveMatchProfile,
+  getActiveMatchProfile,
   setActiveMatchProfile,
 } from '@/lib/matching-server/match-profile-store';
 import {
   clearActiveMatchSession,
+  getActiveMatchSession,
   setActiveMatchSession,
   updateAuthoritativeMatchGame,
 } from '@/lib/matching-server/session-store';
@@ -84,11 +86,26 @@ export class MatchingServerClient {
       return Promise.resolve();
     }
 
+    const preservedSession =
+      nextMatchId && getActiveMatchSession()?.matchId === nextMatchId
+        ? getActiveMatchSession()
+        : null;
+    const preservedProfile = getActiveMatchProfile();
+    const preservedRole = this.role ?? preservedSession?.role ?? null;
+
     this.disconnect();
     this.userId = userId;
-    this.matchId = options?.matchId ?? null;
+    this.matchId = nextMatchId;
     this.connectionState = 'connecting';
     this.lastError = null;
+
+    if (preservedSession) {
+      setActiveMatchSession(preservedSession);
+      if (preservedProfile) {
+        setActiveMatchProfile(preservedProfile);
+      }
+      this.role = preservedRole;
+    }
 
     const url = new URL(wsBaseUrl);
     if (options?.ticket) {
@@ -220,17 +237,30 @@ export class MatchingServerClient {
         return;
       case 'game_started':
         this.matchId = message.matchId;
-        if (this.userId && this.role) {
-          setActiveMatchSession({
-            matchId: message.matchId,
-            role: this.role,
-            userId: this.userId,
-            game: message.initialState,
-          });
+        if (this.userId) {
+          const role = this.role ?? getActiveMatchSession()?.role;
+          if (role) {
+            this.role = role;
+          }
+          if (role) {
+            setActiveMatchSession({
+              matchId: message.matchId,
+              role,
+              userId: this.userId,
+              game: message.initialState,
+              authoritativeGame: message.initialState,
+            });
+          }
         }
         return;
       case 'game_state_updated':
         this.matchId = message.matchId;
+        {
+          const session = getActiveMatchSession();
+          if (session && !this.role) {
+            this.role = session.role;
+          }
+        }
         updateAuthoritativeMatchGame({
           version: message.version,
           turn: message.turn,

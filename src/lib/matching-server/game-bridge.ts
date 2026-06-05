@@ -109,6 +109,49 @@ export function buildMatchingBattleContext(input: {
   return { pieces, hands, sideToMove, position, playerLegalMoves };
 }
 
+/** wire 盤面キー（USI 風座標）を大文字小文字無視で引く */
+export function lookupWireBoardEncoded(
+  board: Record<string, string>,
+  square: string,
+): string | undefined {
+  const normalized = square.trim().toLowerCase();
+  if (board[normalized]) return board[normalized];
+  for (const [key, value] of Object.entries(board)) {
+    if (key.trim().toLowerCase() === normalized) return value;
+  }
+  return undefined;
+}
+
+export function findEncodedBoardPieceAt(
+  wire: Pick<MatchingGameState, 'board'>,
+  myRole: PlayerSide,
+  row: number,
+  col: number,
+): { square: string; code: string } | null {
+  const square = formatMatchingSquare(row, col).toLowerCase();
+  const encoded = lookupWireBoardEncoded(wire.board, square);
+  if (!encoded) return null;
+  const decoded = decodeEncodedBoardPiece(encoded);
+  if (decoded.serverSide !== myRole) return null;
+  return { square, code: decoded.code };
+}
+
+/** サーバー wire 上で着手 payload を組み立て可能な手だけ残す */
+export function filterBattleMovesForServerWire(
+  moves: BattleMove[],
+  wire: Pick<MatchingGameState, 'board' | 'hands'>,
+  myRole: PlayerSide,
+): BattleMove[] {
+  return moves.filter((move) => {
+    try {
+      battleMoveToServerPayload(move, myRole, wire);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
 /** マッチングサーバーが盤面・持ち駒に使う piece コードと UI 側コードが一致するか */
 export function serverPieceCodesEquivalent(left: string, right: string): boolean {
   const a = normalizeWirePieceCode(left.trim().toUpperCase());
@@ -142,11 +185,11 @@ export function resolveServerMovePieceCode(
   }
 
   if (move.fromRow != null && move.fromCol != null && wire?.board) {
-    const from = formatMatchingSquare(move.fromRow, move.fromCol);
-    const encoded = wire.board[from];
-    if (encoded) {
-      return decodeEncodedBoardPiece(encoded).code;
+    const at = findEncodedBoardPieceAt(wire, myRole, move.fromRow, move.fromCol);
+    if (!at) {
+      throw new Error('サーバー盤面と着手が一致しません。再接続してください。');
     }
+    return at.code;
   }
 
   const rawCode = move.dropPieceCode ?? move.pieceCode;

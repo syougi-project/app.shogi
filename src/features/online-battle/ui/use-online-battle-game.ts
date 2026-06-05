@@ -11,7 +11,12 @@ import { useAuthSession } from '@/hooks/common/auth-session-context';
 import { OnlineMatchApiDataSource } from '@/infra/datasources/online-match-datasource';
 import { getMatchingServerClient } from '@/infra/matching-server/matching-server-client';
 import { boardPiecesFromState, handSummary } from '@/lib/matching-server/board-view';
-import { catalogDefsByCode, fromViewCoord } from '@/lib/matching-server/game-bridge';
+import {
+  battleMoveToServerPayload,
+  catalogDefsByCode,
+  filterBattleMovesForServerWire,
+  fromViewCoord,
+} from '@/lib/matching-server/game-bridge';
 import { canonicalToMatchingWire, isMyTurnInCanonical } from '@/lib/matching-server/canonical-game';
 import {
   formatMatchPlayerLabel,
@@ -226,8 +231,8 @@ export function useOnlineBattleGame(matchId?: string) {
   const refreshLocalFromRegistry = useCallback((matchIdValue: string) => {
     const record = getOnlineBattleGame(matchIdValue);
     if (!record) return;
-    const wire = canonicalToMatchingWire(record.position);
-    wire.canonicalState = {
+    const displayWire = canonicalToMatchingWire(record.position);
+    displayWire.canonicalState = {
       sideToMove: record.position.sideToMove,
       turnNumber: record.position.turnNumber,
       moveCount: record.position.moveCount,
@@ -236,23 +241,21 @@ export function useOnlineBattleGame(matchId?: string) {
       boardState: record.position.boardState as Record<string, unknown>,
       hands: record.position.hands,
     };
-    setGame((current) => {
-      if (
-        current?.version === wire.version &&
-        current?.canonicalState?.stateHash === wire.canonicalState?.stateHash
-      ) {
-        return current;
-      }
-      return wire;
-    });
+    const authoritativeWire =
+      authoritativeServerGameRef.current ?? getAuthoritativeMatchGame() ?? null;
+    const legalMoves = filterBattleMovesForServerWire(
+      getMyLegalMoves(matchIdValue),
+      authoritativeWire ?? displayWire,
+      record.myRole,
+    );
     setPieces(getDisplayBoardPieces(matchIdValue));
     setHands(getDisplayHands(matchIdValue));
-    setPlayerLegalMoves(getMyLegalMoves(matchIdValue));
+    setPlayerLegalMoves(legalMoves);
     setSession((current) =>
       buildSession(
         matchIdValue,
         record.myRole,
-        wire,
+        displayWire,
         current.connectionStatus,
         current.logLines,
         record.game.winnerSide,
@@ -345,12 +348,13 @@ export function useOnlineBattleGame(matchId?: string) {
   roleRef.current = role;
 
   useEffect(() => {
-    if (!matchId || !role || !game || pieceCatalog.length === 0) return;
+    const serverWire = getAuthoritativeMatchGame() ?? authoritativeServerGameRef.current ?? game;
+    if (!matchId || !role || !serverWire || pieceCatalog.length === 0) return;
     const existing = getOnlineBattleGame(matchId);
     if (!existing) {
-      createOnlineBattleGame({ matchId, myRole: role, wire: game, pieceCatalog });
+      createOnlineBattleGame({ matchId, myRole: role, wire: serverWire, pieceCatalog });
     } else {
-      syncFromServerWire({ matchId, myRole: role, wire: game, pieceCatalog });
+      syncFromServerWire({ matchId, myRole: role, wire: serverWire, pieceCatalog });
     }
     refreshLocalFromRegistry(matchId);
   }, [matchId, role, game, pieceCatalog, refreshLocalFromRegistry]);
@@ -531,8 +535,9 @@ export function useOnlineBattleGame(matchId?: string) {
       if (!serverWire) return;
       setMoveError(null);
       try {
+        const payload = battleMoveToServerPayload(move, role, serverWire);
         const expectedVersion = serverWire.version + 1;
-        const { committed, payload } = applyOnlineBattleMove({
+        const { committed } = applyOnlineBattleMove({
           matchId,
           move,
           serverWire,
