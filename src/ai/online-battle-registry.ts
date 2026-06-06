@@ -37,11 +37,15 @@ export type OnlineBattleGameRecord = {
 
 const games = new Map<string, OnlineBattleGameRecord>();
 
-export function setOnlineBattlePieceCatalog(items: PieceCatalogItem[]) {
+export function setOnlineBattlePieceCatalog(
+  engineCatalog: PieceCatalogItem[],
+  displayCatalog?: PieceCatalogItem[],
+) {
+  const display = displayCatalog ?? engineCatalog;
   for (const record of games.values()) {
-    record.pieceCatalog = normalizePieceCatalog(items);
-    record.displayPieceCatalog = items;
-    record.position = injectSkillDefinitionsIntoPosition(record.position, items);
+    record.pieceCatalog = normalizePieceCatalog(engineCatalog);
+    record.displayPieceCatalog = display;
+    record.position = injectSkillDefinitionsIntoPosition(record.position, display);
   }
 }
 
@@ -50,14 +54,16 @@ export function createOnlineBattleGame(input: {
   myRole: PlayerSide;
   wire: MatchingGameState;
   pieceCatalog: PieceCatalogItem[];
+  displayPieceCatalog?: PieceCatalogItem[];
 }): OnlineBattleGameRecord {
   const pieceCatalog = normalizePieceCatalog(input.pieceCatalog);
-  const position = matchingWireToCanonicalPosition(input.wire, pieceCatalog);
+  const displayPieceCatalog = input.displayPieceCatalog ?? input.pieceCatalog;
+  const position = matchingWireToCanonicalPosition(input.wire, displayPieceCatalog);
   const record: OnlineBattleGameRecord = {
     matchId: input.matchId,
     myRole: input.myRole,
     pieceCatalog,
-    displayPieceCatalog: input.pieceCatalog,
+    displayPieceCatalog,
     position,
     game: { status: 'in_progress', result: null, winnerSide: null },
   };
@@ -155,21 +161,23 @@ export function syncFromServerWire(input: {
   myRole: PlayerSide;
   wire: MatchingGameState;
   pieceCatalog: PieceCatalogItem[];
+  displayPieceCatalog?: PieceCatalogItem[];
   game?: AiBattleGameStatus;
 }) {
   const pieceCatalog = normalizePieceCatalog(input.pieceCatalog);
+  const displayPieceCatalog = input.displayPieceCatalog ?? input.pieceCatalog;
   const position = input.wire.canonicalState
     ? injectSkillDefinitionsIntoPosition(
         normalizeBattlePosition(input.wire.canonicalState as AiBattlePosition),
-        input.pieceCatalog,
+        displayPieceCatalog,
       )
-    : matchingWireToCanonicalPosition(input.wire, pieceCatalog);
+    : matchingWireToCanonicalPosition(input.wire, displayPieceCatalog);
   const existing = games.get(input.matchId);
   const record: OnlineBattleGameRecord = {
     matchId: input.matchId,
     myRole: input.myRole,
     pieceCatalog,
-    displayPieceCatalog: input.pieceCatalog,
+    displayPieceCatalog,
     position,
     game: input.game ?? existing?.game ?? { status: 'in_progress', result: null, winnerSide: null },
   };

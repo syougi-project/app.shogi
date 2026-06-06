@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { OwnedPiece, SavedDeck } from '@/domain/models/deck-builder';
 import { useAuthSession } from '@/hooks/common/auth-session-context';
@@ -10,7 +10,7 @@ import {
 } from '@/usecases/deck-builder/create-deck-builder-usecases';
 import { createLoadPieceCatalogUseCase } from '@/usecases/piece-info/create-piece-info-usecases';
 import { isApiDataSource } from '@/lib/config/data-source';
-import { supabase } from '@/lib/supabase/supabase-client';
+import { ApiClientError } from '@/infra/http/api-client';
 import {
   filterOwnedPiecesForDeckBuilder,
   isPieceExcludedFromDeckBuilder,
@@ -476,7 +476,7 @@ function boardPlacementsFromSavedDeck(
 
 export function useDeckBuilderScreen() {
   const isApiMode = isApiDataSource();
-  const { accessToken } = useAuthSession();
+  const { accessToken, isReady, reinitializeSession } = useAuthSession();
   const [ownedPieces, setOwnedPieces] = useState<OwnedPiece[]>([]);
   const [savedDecks, setSavedDecks] = useState<SavedDeck[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -485,67 +485,60 @@ export function useDeckBuilderScreen() {
   const [loadModalOpen, setLoadModalOpen] = useState(false);
   const [defaultModalOpen, setDefaultModalOpen] = useState(false);
   const [deckName, setDeckName] = useState('');
-  const [token, setToken] = useState<string | undefined>(undefined);
-  const [isSessionResolved, setIsSessionResolved] = useState(false);
   const [selectedPieceForPlacement, setSelectedPieceForPlacement] = useState<OwnedPiece | null>(
     null,
   );
   const [boardPlacements, setBoardPlacements] = useState<BoardPlacement[]>([]);
 
-  useEffect(() => {
-    let active = true;
-    setToken(accessToken ?? undefined);
-    setIsSessionResolved(true);
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!active) return;
-      setToken(session?.access_token);
-      setIsSessionResolved(true);
-    });
-
-    return () => {
-      active = false;
-      authListener.subscription.unsubscribe();
-    };
-  }, [accessToken]);
-
   const reloadDeckSnapshot = useCallback(() => {
-    if (isApiMode && !isSessionResolved) {
+    if (!isReady) {
       return;
     }
 
-    if (isApiMode && !token) {
+    if (isApiMode && !accessToken) {
       setIsLoading(true);
       return;
     }
 
     let active = true;
-    const loadDeckUseCase = createLoadDeckBuilderUseCase(token);
+    const loadDeckUseCase = createLoadDeckBuilderUseCase(accessToken ?? undefined);
     const loadCatalogUseCase = createLoadPieceCatalogUseCase();
     setIsLoading(true);
+
     Promise.all([loadDeckUseCase.execute(), loadCatalogUseCase.execute()])
       .then(([snapshot, catalog]) => {
+        if (!active) return;
+        const catalogByChar = buildPieceCatalogByCharMap(catalog);
+        const normalizedOwnedPieces = sortOwnedPiecesForDeckBuilder(
+          filterOwnedPiecesForDeckBuilder(
+            enrichOwnedPiecesWithCatalog(
+              snapshot.ownedPieces.map(normalizeOwnedPieceText),
+              catalogByChar,
+            ),
+          ),
+        );
+        setOwnedPieces(normalizedOwnedPieces);
+        setSavedDecks(snapshot.savedDecks);
+        const initial = initialBoardPlacementsFromDecks(snapshot.savedDecks, normalizedOwnedPieces);
+        setBoardPlacements(
+          filterBannedPiecesOutOfDeckArea(
+            initial.length > 0 ? initial : createDefaultBoardPlacements(normalizedOwnedPieces),
+          ),
+        );
+      })
+      .catch(async (error: unknown) => {
+        if (
+          active &&
+          error instanceof ApiClientError &&
+          (error.code === 'UNAUTHORIZED' || error.status === 401)
+        ) {
+          await reinitializeSession();
+          return;
+        }
         if (active) {
-          const catalogByChar = buildPieceCatalogByCharMap(catalog);
-          const normalizedOwnedPieces = sortOwnedPiecesForDeckBuilder(
-            filterOwnedPiecesForDeckBuilder(
-              enrichOwnedPiecesWithCatalog(
-                snapshot.ownedPieces.map(normalizeOwnedPieceText),
-                catalogByChar,
-              ),
-            ),
-          );
-          setOwnedPieces(normalizedOwnedPieces);
-          setSavedDecks(snapshot.savedDecks);
-          const initial = initialBoardPlacementsFromDecks(
-            snapshot.savedDecks,
-            normalizedOwnedPieces,
-          );
-          setBoardPlacements(
-            filterBannedPiecesOutOfDeckArea(
-              initial.length > 0 ? initial : createDefaultBoardPlacements(normalizedOwnedPieces),
-            ),
-          );
+          setOwnedPieces([]);
+          setSavedDecks([]);
+          setBoardPlacements([]);
         }
       })
       .finally(() => {
@@ -555,7 +548,7 @@ export function useDeckBuilderScreen() {
     return () => {
       active = false;
     };
-  }, [isApiMode, isSessionResolved, token]);
+  }, [accessToken, isApiMode, isReady, reinitializeSession]);
 
   useFocusEffect(reloadDeckSnapshot);
 
@@ -582,7 +575,7 @@ export function useDeckBuilderScreen() {
       savedAt: new Date().toLocaleString('ja-JP', { hour12: false }),
     };
 
-    const saveDeckUseCase = createSaveDeckUseCase(token);
+    const saveDeckUseCase = createSaveDeckUseCase(accessToken ?? undefined);
     saveDeckUseCase
       .execute({ name: newDeck.name, placements: apiPlacements })
       .then((result) => {
@@ -611,7 +604,7 @@ export function useDeckBuilderScreen() {
       }))
       .filter((placement) => placement.rowNo >= 0 && placement.rowNo < DECK_ROWS);
 
-    const saveDeckUseCase = createSaveDeckUseCase(token);
+    const saveDeckUseCase = createSaveDeckUseCase(accessToken ?? undefined);
 
     try {
       const result = await saveDeckUseCase.execute({
@@ -648,7 +641,7 @@ export function useDeckBuilderScreen() {
 
     const numericId = parseInt(id, 10);
     if (!isNaN(numericId)) {
-      const deleteDeckUseCase = createDeleteDeckUseCase(token);
+      const deleteDeckUseCase = createDeleteDeckUseCase(accessToken ?? undefined);
       deleteDeckUseCase.execute({ deckId: numericId }).catch(() => {
         // ignore: UI already updated optimistically
       });

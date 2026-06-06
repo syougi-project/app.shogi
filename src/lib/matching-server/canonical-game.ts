@@ -9,6 +9,7 @@ import {
   type Side,
 } from '@/features/stage-shogi/domain/game-rules';
 import { resolveWirePieceChar } from '@/lib/matching-server/piece-display';
+import { normalizeGachaSkillPieceCode } from '@/lib/matching-server/gacha-piece-code';
 import { formatMatchingSquare, parseMatchingSquare } from '@/lib/matching-server/square';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 
@@ -46,12 +47,13 @@ export function matchingWireToCanonicalPosition(
     const { serverSide, code, promoted } = decodeEncodedBoardPiece(encoded);
     const { row, col } = parseMatchingSquare(square);
     const side = serverSideToCanonicalSide(serverSide);
+    const displayChar = resolveWirePieceChar(code, side, promoted, pieceDefsByCode);
     pieces.push({
       row,
       col,
       side,
-      pieceCode: code,
-      char: resolveWirePieceChar(code, side, promoted, pieceDefsByCode),
+      pieceCode: normalizeGachaSkillPieceCode(code, displayChar),
+      char: displayChar,
       promoted,
     });
   }

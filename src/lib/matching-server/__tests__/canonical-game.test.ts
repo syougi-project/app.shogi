@@ -60,7 +60,42 @@ describe('matching-server canonical-game', () => {
       (position.boardState as { pieces?: Array<{ pieceCode?: string; char: string }> }).pieces ??
       [];
 
-    expect(pieces.find((piece) => piece.pieceCode === 'PIECE_GACHA_KO')?.char).toBe('膠');
+    expect(pieces.find((piece) => piece.pieceCode === 'GACHA_KOU')?.char).toBe('膠');
+  });
+
+  it('normalizes BFF gacha baku wire code to engine skill code', () => {
+    const wire: MatchingGameState = {
+      version: 1,
+      turn: 'black',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '5e': 'black:PIECE_GACHA_BAKU',
+      },
+      hands: { black: {}, white: {} },
+    };
+    const catalog = [
+      {
+        pieceId: 120,
+        pieceCode: 'piece_gacha_baku',
+        canonicalCode: 'GACHA_BAKU',
+        char: '爆',
+        name: '爆',
+        unlock: 'test',
+        desc: '',
+        skill: '',
+        move: '',
+        moveVectors: [],
+        isRepeatable: false,
+      },
+    ];
+
+    const position = matchingWireToCanonicalPosition(wire, catalog);
+    const pieces =
+      (position.boardState as { pieces?: Array<{ pieceCode?: string; char: string }> }).pieces ??
+      [];
+
+    expect(pieces.find((piece) => piece.char === '爆')?.pieceCode).toBe('GACHA_BAKU');
   });
 
   it('preserves server skill state on wire sync for online battle parity', () => {

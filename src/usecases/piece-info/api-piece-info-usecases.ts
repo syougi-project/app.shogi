@@ -13,3 +13,12 @@ export class ApiLoadPieceCatalogUseCase implements LoadPieceCatalogUseCase {
     return preparePieceCatalogForBattleAndDisplay(await this.repository.listCatalog());
   }
 }
+
+/** マッチングサーバーと同じ BFF 生カタログ（合法手生成・着手検証用） */
+export class ApiLoadRawPieceCatalogUseCase implements LoadPieceCatalogUseCase {
+  constructor(private readonly repository: PieceRepository = new ApiPieceRepository()) {}
+
+  async execute(): Promise<PieceCatalogItem[]> {
+    return this.repository.listCatalog();
+  }
+}

@@ -50,7 +50,11 @@ jest.mock('@/usecases/piece-info/create-piece-info-usecases', () => ({
 }));
 
 jest.mock('@/hooks/common/auth-session-context', () => ({
-  useAuthSession: () => ({ accessToken: null, user: null }),
+  useAuthSession: () => ({
+    accessToken: null,
+    isReady: true,
+    reinitializeSession: jest.fn(),
+  }),
 }));
 
 describe('useDeckBuilderScreen', () => {

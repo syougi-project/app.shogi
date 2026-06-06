@@ -52,7 +52,10 @@ import {
   legalMovesToTarget,
   uniqueTargetsFromMoves,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
-import { createLoadPieceCatalogUseCase } from '@/usecases/piece-info/create-piece-info-usecases';
+import {
+  createLoadPieceCatalogUseCase,
+  createLoadRawPieceCatalogUseCase,
+} from '@/usecases/piece-info/create-piece-info-usecases';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
 import type { OnlineBattleSession } from '@/usecases/online-battle/load-online-battle-session-usecase';
@@ -171,7 +174,9 @@ export function useOnlineBattleGame(matchId?: string) {
   }, []);
 
   const client = useMemo(() => getMatchingServerClient(), []);
-  const loadCatalogUseCase = useMemo(() => createLoadPieceCatalogUseCase(), []);
+  const loadDisplayCatalogUseCase = useMemo(() => createLoadPieceCatalogUseCase(), []);
+  const loadEngineCatalogUseCase = useMemo(() => createLoadRawPieceCatalogUseCase(), []);
+  const enginePieceCatalogRef = useRef<PieceCatalogItem[]>([]);
   const pieceDefsByCode = useMemo(() => catalogDefsByCode(pieceCatalog), [pieceCatalog]);
   const pieceDefsByChar = useMemo(() => pieceDefsByCharFromCatalog(pieceCatalog), [pieceCatalog]);
   const promotedPieceDefsByCode = useMemo(
@@ -265,15 +270,19 @@ export function useOnlineBattleGame(matchId?: string) {
 
   useEffect(() => {
     let active = true;
-    void loadCatalogUseCase.execute().then((catalog) => {
+    void Promise.all([
+      loadDisplayCatalogUseCase.execute(),
+      loadEngineCatalogUseCase.execute(),
+    ]).then(([displayCatalog, engineCatalog]) => {
       if (!active) return;
-      setPieceCatalog(catalog);
-      setOnlineBattlePieceCatalog(catalog);
+      enginePieceCatalogRef.current = engineCatalog;
+      setPieceCatalog(displayCatalog);
+      setOnlineBattlePieceCatalog(engineCatalog, displayCatalog);
     });
     return () => {
       active = false;
     };
-  }, [loadCatalogUseCase]);
+  }, [loadDisplayCatalogUseCase, loadEngineCatalogUseCase]);
 
   const appendLog = useCallback((line: string) => {
     setSession((current) => ({
@@ -294,20 +303,23 @@ export function useOnlineBattleGame(matchId?: string) {
       });
       setGame(nextGame);
       setRole(nextRole);
-      if (pieceCatalog.length > 0) {
+      const engineCatalog = enginePieceCatalogRef.current;
+      if (pieceCatalog.length > 0 && engineCatalog.length > 0) {
         if (!getOnlineBattleGame(matchIdValue)) {
           createOnlineBattleGame({
             matchId: matchIdValue,
             myRole: nextRole,
             wire: nextGame,
-            pieceCatalog,
+            pieceCatalog: engineCatalog,
+            displayPieceCatalog: pieceCatalog,
           });
         } else {
           syncFromServerWire({
             matchId: matchIdValue,
             myRole: nextRole,
             wire: nextGame,
-            pieceCatalog,
+            pieceCatalog: engineCatalog,
+            displayPieceCatalog: pieceCatalog,
           });
         }
         refreshLocalFromRegistry(matchIdValue);
@@ -348,13 +360,34 @@ export function useOnlineBattleGame(matchId?: string) {
   roleRef.current = role;
 
   useEffect(() => {
-    const serverWire = getAuthoritativeMatchGame() ?? authoritativeServerGameRef.current ?? game;
-    if (!matchId || !role || !serverWire || pieceCatalog.length === 0) return;
+    const serverWire = getAuthoritativeMatchGame() ?? authoritativeServerGameRef.current;
+    const engineCatalog = enginePieceCatalogRef.current;
+    if (
+      !matchId ||
+      !role ||
+      !serverWire ||
+      pieceCatalog.length === 0 ||
+      engineCatalog.length === 0
+    ) {
+      return;
+    }
     const existing = getOnlineBattleGame(matchId);
     if (!existing) {
-      createOnlineBattleGame({ matchId, myRole: role, wire: serverWire, pieceCatalog });
+      createOnlineBattleGame({
+        matchId,
+        myRole: role,
+        wire: serverWire,
+        pieceCatalog: engineCatalog,
+        displayPieceCatalog: pieceCatalog,
+      });
     } else {
-      syncFromServerWire({ matchId, myRole: role, wire: serverWire, pieceCatalog });
+      syncFromServerWire({
+        matchId,
+        myRole: role,
+        wire: serverWire,
+        pieceCatalog: engineCatalog,
+        displayPieceCatalog: pieceCatalog,
+      });
     }
     refreshLocalFromRegistry(matchId);
   }, [matchId, role, game, pieceCatalog, refreshLocalFromRegistry]);
@@ -372,7 +405,7 @@ export function useOnlineBattleGame(matchId?: string) {
 
     const stored = getActiveMatchSession();
     if (stored && stored.matchId === matchId) {
-      applyServerGameRef.current(matchId, stored.role, stored.game);
+      applyServerGameRef.current(matchId, stored.role, stored.authoritativeGame ?? stored.game);
     }
 
     const handleMessage = (payload: WebSocketServerMessage) => {
@@ -486,7 +519,9 @@ export function useOnlineBattleGame(matchId?: string) {
         await client.connect(userId, { matchId, ticket: ticket.ticket });
         if (!active) return;
         const nextRole = client.getRole() ?? getActiveMatchSession()?.role ?? stored?.role;
-        const nextGame = getActiveMatchSession()?.game ?? stored?.game;
+        const session = getActiveMatchSession();
+        const nextGame =
+          session?.authoritativeGame ?? session?.game ?? stored?.authoritativeGame ?? stored?.game;
         if (nextRole && nextGame) {
           applyServerGameRef.current(
             matchId,
@@ -531,7 +566,7 @@ export function useOnlineBattleGame(matchId?: string) {
   const commitMove = useCallback(
     (move: BattleMove) => {
       if (!userId || !matchId || !role) return;
-      const serverWire = authoritativeServerGameRef.current ?? getAuthoritativeMatchGame() ?? game;
+      const serverWire = getAuthoritativeMatchGame() ?? authoritativeServerGameRef.current;
       if (!serverWire) return;
       setMoveError(null);
       try {
@@ -573,7 +608,6 @@ export function useOnlineBattleGame(matchId?: string) {
       applyServerGame,
       clearSkillUiState,
       client,
-      game,
       matchId,
       playMoveAudio,
       playSkillAudio,
