@@ -9,7 +9,7 @@ import {
   type Side,
 } from '@/features/stage-shogi/domain/game-rules';
 import { resolveWirePieceChar } from '@/lib/matching-server/piece-display';
-import { normalizeGachaSkillPieceCode } from '@/lib/matching-server/gacha-piece-code';
+import { normalizeSkillPieceCode } from '@/lib/matching-server/skill-piece-code';
 import { formatMatchingSquare, parseMatchingSquare } from '@/lib/matching-server/square';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 
@@ -52,7 +52,7 @@ export function matchingWireToCanonicalPosition(
       row,
       col,
       side,
-      pieceCode: normalizeGachaSkillPieceCode(code, displayChar),
+      pieceCode: normalizeSkillPieceCode(code, displayChar),
       char: displayChar,
       promoted,
     });

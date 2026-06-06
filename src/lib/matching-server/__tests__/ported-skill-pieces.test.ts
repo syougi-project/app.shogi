@@ -1,6 +1,7 @@
 import { applyMove } from '@/ai/engine';
 import type { AiBattlePosition, AiPieceDefinition } from '@/ai/model';
 import { matchingWireToCanonicalPosition } from '@/lib/matching-server/canonical-game';
+import { normalizeSkillPieceCode } from '@/lib/matching-server/skill-piece-code';
 import type { MatchingGameState } from '@/domain/matching-server/protocol';
 import fixture from '../../../../test-fixtures/online-skill-parity/ported-skill-cases.json';
 
@@ -45,11 +46,18 @@ describe('matching-server online skill pieces', () => {
     };
 
     const position = matchingWireToCanonicalPosition(wire, []);
-    const pieces = (position.boardState as { pieces?: Array<{ pieceCode?: string }> }).pieces ?? [];
+    const pieces =
+      (
+        position.boardState as {
+          pieces?: Array<{ pieceCode?: string; char?: string; row?: number; col?: number }>;
+        }
+      ).pieces ?? [];
     const skillState = (position.boardState as { skill_state?: MatchingGameState['skillState'] })
       .skill_state;
+    const placed = pieces.find((piece) => piece.row === 4 && piece.col === 4);
+    const expectedCode = normalizeSkillPieceCode(pieceCode, placed?.char ?? pieceCode);
 
-    expect(pieces.some((piece) => piece.pieceCode === pieceCode)).toBe(true);
+    expect(placed?.pieceCode).toBe(expectedCode);
     expect(skillState?.movement_modifiers?.[0]?.side).toBe('player');
   });
 
