@@ -18,10 +18,15 @@ import {
   piecesForDisplay,
   handsForDisplay,
 } from '@/lib/matching-server/canonical-game';
+import { resolveWinnerSideFromWire } from '@/lib/matching-server/online-battle-outcome';
+import { buildPromotedPieceDefsByCode } from '@/lib/battle/battle-move-audio';
 import { battleMoveToServerPayload } from '@/lib/matching-server/game-bridge';
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
 import {
+  getDisplayChar,
   normalizeBoardPieceForDisplay,
+  pieceCharFromCode,
+  preferBundledPromotedImageOverRemoteUrl,
   type BoardPiece as UiBoardPiece,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
@@ -138,16 +143,36 @@ export function getBoardPieces(matchId: string) {
 export function getDisplayBoardPieces(matchId: string): UiBoardPiece[] {
   const record = games.get(matchId);
   if (!record) return [];
-  const { pieceDefsByChar } = buildPieceLookups(normalizePieceCatalog(record.displayPieceCatalog));
-  return piecesForDisplay(piecesFromBoardState(record.position), record.myRole).map((piece) =>
-    normalizeBoardPieceForDisplay(
+  const catalog = normalizePieceCatalog(record.displayPieceCatalog);
+  const { pieceDefsByChar } = buildPieceLookups(catalog);
+  const promotedPieceDefsByCode = buildPromotedPieceDefsByCode(
+    record.displayPieceCatalog,
+    pieceDefsByChar,
+  );
+  return piecesForDisplay(piecesFromBoardState(record.position), record.myRole).map((piece) => {
+    const normalized = normalizeBoardPieceForDisplay(
       {
         ...piece,
         imageSignedUrl: null,
       },
       pieceDefsByChar,
-    ),
-  );
+    );
+    const codeKey = normalized.pieceCode?.toUpperCase() ?? '';
+    const promotedDef = normalized.promoted ? promotedPieceDefsByCode[codeKey] : undefined;
+    const displayChar =
+      normalized.promoted && codeKey
+        ? pieceCharFromCode(codeKey, normalized.side, true)
+        : getDisplayChar(normalized);
+    return {
+      ...normalized,
+      char: displayChar,
+      imageSignedUrl: preferBundledPromotedImageOverRemoteUrl(
+        codeKey || null,
+        Boolean(normalized.promoted),
+        promotedDef?.imageSignedUrl ?? null,
+      ),
+    };
+  });
 }
 
 export function getDisplayHands(matchId: string) {
@@ -173,13 +198,23 @@ export function syncFromServerWire(input: {
       )
     : matchingWireToCanonicalPosition(input.wire, displayPieceCatalog);
   const existing = games.get(input.matchId);
+  const winnerFromWire = resolveWinnerSideFromWire(input.wire, input.myRole);
+  const resolvedGame =
+    input.game ??
+    (winnerFromWire
+      ? {
+          status: 'finished' as const,
+          result: winnerFromWire === 'player' ? ('player_win' as const) : ('enemy_win' as const),
+          winnerSide: winnerFromWire,
+        }
+      : (existing?.game ?? { status: 'in_progress' as const, result: null, winnerSide: null }));
   const record: OnlineBattleGameRecord = {
     matchId: input.matchId,
     myRole: input.myRole,
     pieceCatalog,
     displayPieceCatalog,
     position,
-    game: input.game ?? existing?.game ?? { status: 'in_progress', result: null, winnerSide: null },
+    game: resolvedGame,
   };
   games.set(input.matchId, record);
   return record;

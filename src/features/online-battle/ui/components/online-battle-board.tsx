@@ -9,9 +9,16 @@ import {
   BOARD_VIEWBOX,
   KING_PIECE_SIZE_PERCENT,
   NORMAL_PIECE_SIZE_PERCENT,
+  collectStandardBaseCodesForLocalPromotedImage,
+  getDisplayChar,
   getPieceImageSource,
   isEnemySide,
   isKingChar,
+  isPromotedVisualPiece,
+  localPromotedModuleFromBaseCodeCandidates,
+  pieceCharFromCode,
+  preferBundledPromotedImageOverRemoteUrl,
+  resolvePromotedImageSource,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
 import { OnlineBattleSkillParticleLayer } from '@/features/online-battle/ui/components/online-battle-skill-particle-layer';
 import type { SkillVisualEffect } from '@/domain/battle/skill-visual-effect';
@@ -35,6 +42,7 @@ export function OnlineBattleBoard(props: {
   legalTargets: BoardCell[];
   enemyPreviewTargets?: BoardCell[];
   pieceDefsByCode: Record<string, PieceCatalogItem>;
+  promotedPieceDefsByCode?: Record<string, PieceCatalogItem>;
   canInteract: boolean;
   skillVisualEffects?: SkillVisualEffect[];
   onSkillVisualEffectFinished?: (effect: SkillVisualEffect) => void;
@@ -49,6 +57,7 @@ export function OnlineBattleBoard(props: {
     legalTargets,
     enemyPreviewTargets = [],
     pieceDefsByCode,
+    promotedPieceDefsByCode = {},
     canInteract,
     skillVisualEffects = [],
     onSkillVisualEffectFinished,
@@ -112,16 +121,43 @@ export function OnlineBattleBoard(props: {
         )}
         {piecesByView.map((piece) => {
           const pieceCode = piece.pieceCode?.toUpperCase();
+          const baseCode = pieceCode ?? '';
+          const promotedDef =
+            piece.promoted && baseCode ? promotedPieceDefsByCode[baseCode] : undefined;
           const pieceDef = pieceCode
-            ? (pieceDefsByCode[pieceCode] ?? pieceDefsByCode[normalizeWirePieceCode(pieceCode)])
+            ? (promotedDef ??
+              pieceDefsByCode[pieceCode] ??
+              pieceDefsByCode[normalizeWirePieceCode(pieceCode)])
             : undefined;
-          const displayChar = piece.char && piece.char !== '?' ? piece.char : pieceDef?.char;
-          const source = getPieceImageSource({
-            pieceId: pieceDef?.pieceId,
-            pieceCode: piece.pieceCode ?? pieceDef?.pieceCode,
+          const displayChar =
+            piece.promoted && baseCode
+              ? pieceCharFromCode(baseCode, piece.side, true)
+              : getDisplayChar(piece);
+          const imageSignedUrl = preferBundledPromotedImageOverRemoteUrl(
+            baseCode || null,
+            Boolean(piece.promoted),
+            promotedDef?.imageSignedUrl ?? pieceDef?.imageSignedUrl ?? piece.imageSignedUrl ?? null,
+          );
+          const bundledPromoted =
+            piece.promoted || isPromotedVisualPiece(piece)
+              ? localPromotedModuleFromBaseCodeCandidates(
+                  collectStandardBaseCodesForLocalPromotedImage(piece),
+                )
+              : null;
+          const promotedRemote = resolvePromotedImageSource({
+            ...piece,
             char: displayChar,
-            imageSignedUrl: pieceDef?.imageSignedUrl ?? null,
+            imageSignedUrl,
           });
+          const source =
+            bundledPromoted ??
+            promotedRemote ??
+            getPieceImageSource({
+              pieceId: pieceDef?.pieceId,
+              pieceCode: piece.pieceCode ?? pieceDef?.pieceCode,
+              char: displayChar,
+              imageSignedUrl,
+            });
           const enemy = isEnemySide(piece.side);
           const king = piece.pieceCode === 'OU' || isKingChar(displayChar ?? piece.char);
           const pieceScalePercent =

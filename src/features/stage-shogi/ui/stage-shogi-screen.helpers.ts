@@ -645,10 +645,14 @@ export function normalizeBoardPieceForDisplay(
         ? pieceCharFromCode(resolvedCode, piece.side, promoted)
         : piece.char;
   const canonical = canonicalizeBoardPieceIdentity(resolvedCode ?? piece.pieceCode, resolvedChar);
+  const canonicalCode = canonical.pieceCode ?? resolvedCode ?? piece.pieceCode;
+  const displayChar =
+    promoted && canonicalCode ? pieceCharFromCode(canonicalCode, piece.side, true) : canonical.char;
   return {
     ...piece,
-    pieceCode: canonical.pieceCode ?? resolvedCode ?? piece.pieceCode,
-    char: canonical.char,
+    pieceCode: canonicalCode,
+    char: displayChar,
+    promoted,
   };
 }
 

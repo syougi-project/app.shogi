@@ -4,6 +4,7 @@ import {
   CODE_TO_CHAR,
   PROMOTED_CODE_TO_CHAR,
 } from '@/features/stage-shogi/domain/piece-conversion';
+import { pieceCharFromCode } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
 import type { Side } from '@/features/stage-shogi/domain/game-rules';
 import { getDisplayCharFromPieceCode } from '@/lib/piece-image-registry';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
@@ -46,12 +47,20 @@ export function resolveWirePieceChar(
   defsByCode: Record<string, PieceCatalogItem>,
 ): string {
   const upper = normalizeWirePieceCode(pieceCode);
+  const baseCode = toBasePieceCode(upper) ?? upper;
+
+  if (promoted) {
+    if (PROMOTED_CODE_TO_CHAR[baseCode]) {
+      return PROMOTED_CODE_TO_CHAR[baseCode];
+    }
+    if (PROMOTED_CODE_TO_CHAR[upper]) {
+      return PROMOTED_CODE_TO_CHAR[upper];
+    }
+    return pieceCharFromCode(baseCode, side, true);
+  }
+
   const fromCatalog = lookupCatalogDef(upper, defsByCode)?.char?.trim();
   if (fromCatalog) return fromCatalog;
-
-  if (promoted && PROMOTED_CODE_TO_CHAR[upper]) {
-    return PROMOTED_CODE_TO_CHAR[upper];
-  }
   if (upper === 'OU') {
     return side === 'enemy' ? '玉' : '王';
   }

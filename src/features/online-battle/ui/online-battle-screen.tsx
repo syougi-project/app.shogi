@@ -52,6 +52,7 @@ export function OnlineBattleScreen() {
     role,
     pieceCatalog,
     pieceDefsByCode,
+    promotedPieceDefsByCode,
     pieceSfenMapping,
     selectedCell,
     selectedDropPieceCode,
@@ -196,6 +197,7 @@ export function OnlineBattleScreen() {
                     legalTargets={legalTargets}
                     enemyPreviewTargets={enemyPreviewTargets}
                     pieceDefsByCode={pieceDefsByCode}
+                    promotedPieceDefsByCode={promotedPieceDefsByCode}
                     canInteract={
                       canInteract ||
                       Boolean(pendingSatoriEnemyPick?.length) ||

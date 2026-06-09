@@ -39,4 +39,47 @@ describe('ai model piece', () => {
     expect(lookups.promotedPieceDefsByCode.FU?.char).toBe('と');
     expect(lookups.pieceDefsByChar['歩']?.pieceCode).toBe('FU');
   });
+
+  it('synthesizes gold-like promoted defs when catalog lacks explicit promoted rows', () => {
+    const catalog = normalizePieceCatalog([
+      {
+        pieceCode: 'FU',
+        canonicalCode: 'FU',
+        sfenCode: 'P',
+        char: '歩',
+        name: '歩',
+        unlock: 'default',
+        desc: '',
+        skill: '',
+        move: '',
+        moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+        isRepeatable: true,
+      },
+      {
+        pieceCode: 'KI',
+        canonicalCode: 'KI',
+        sfenCode: 'G',
+        char: '金',
+        name: '金',
+        unlock: 'default',
+        desc: '',
+        skill: '',
+        move: '',
+        moveVectors: [
+          { dx: -1, dy: -1, maxStep: 1 },
+          { dx: 0, dy: -1, maxStep: 1 },
+          { dx: 1, dy: -1, maxStep: 1 },
+          { dx: -1, dy: 0, maxStep: 1 },
+          { dx: 1, dy: 0, maxStep: 1 },
+          { dx: 0, dy: 1, maxStep: 1 },
+        ],
+        isRepeatable: true,
+      },
+    ]);
+
+    const lookups = buildPieceLookups(catalog);
+
+    expect(lookups.promotedPieceDefsByCode.FU?.char).toBe('と');
+    expect(lookups.promotedPieceDefsByCode.FU?.moveVectors.length).toBeGreaterThan(1);
+  });
 });

@@ -98,6 +98,39 @@ describe('matching-server canonical-game', () => {
     expect(pieces.find((piece) => piece.char === '爆')?.pieceCode).toBe('GACHA_BAKU');
   });
 
+  it('preserves promoted pieces from wire board encoding', () => {
+    const wire: MatchingGameState = {
+      version: 2,
+      turn: 'white',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '3f': 'black:FU+',
+      },
+      hands: { black: {}, white: {} },
+    };
+
+    const position = matchingWireToCanonicalPosition(wire, []);
+    const pieces =
+      (
+        position.boardState as {
+          pieces?: Array<{
+            pieceCode?: string;
+            char?: string;
+            promoted?: boolean;
+            row?: number;
+            col?: number;
+          }>;
+        }
+      ).pieces ?? [];
+
+    const promoted = pieces.find((piece) => piece.row === 5 && piece.col === 6);
+    expect(promoted?.pieceCode).toBe('FU');
+    expect(promoted?.promoted).toBe(true);
+    expect(promoted?.char).toBe('と');
+    expect(canonicalToMatchingWire(position).board['3f']).toBe('black:FU+');
+  });
+
   it('preserves server skill state on wire sync for online battle parity', () => {
     const wire: MatchingGameState = {
       version: 2,

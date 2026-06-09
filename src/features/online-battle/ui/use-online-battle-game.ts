@@ -18,6 +18,7 @@ import {
   fromViewCoord,
 } from '@/lib/matching-server/game-bridge';
 import { canonicalToMatchingWire, isMyTurnInCanonical } from '@/lib/matching-server/canonical-game';
+import { resolveWinnerSideFromWire } from '@/lib/matching-server/online-battle-outcome';
 import {
   formatMatchPlayerLabel,
   getActiveMatchProfile,
@@ -329,16 +330,31 @@ export function useOnlineBattleGame(matchId?: string) {
       setLegalTargets([]);
       setPendingPromotion(null);
       clearSkillUiState();
-      setSession((current) =>
-        buildSession(
+      setSession((current) => {
+        const winnerFromWire = resolveWinnerSideFromWire(nextGame, nextRole);
+        const winnerSide =
+          winnerFromWire ??
+          getOnlineBattleGame(matchIdValue)?.game.winnerSide ??
+          current.winnerSide;
+        const endLogLine =
+          winnerSide === 'enemy'
+            ? '対局終了: 王を取られました'
+            : winnerSide === 'player'
+              ? '対局終了: 王を取りました'
+              : null;
+        return buildSession(
           matchIdValue,
           nextRole,
           nextGame,
-          '接続状態: 対局中',
-          logLine ? [...current.logLines, logLine].slice(-20) : current.logLines,
-          getOnlineBattleGame(matchIdValue)?.game.winnerSide ?? current.winnerSide,
-        ),
-      );
+          winnerSide ? '接続状態: 終了' : '接続状態: 対局中',
+          endLogLine
+            ? [...current.logLines, endLogLine].slice(-20)
+            : logLine
+              ? [...current.logLines, logLine].slice(-20)
+              : current.logLines,
+          winnerSide,
+        );
+      });
       setIsLoading(false);
     },
     [clearSkillUiState, pieceCatalog, refreshLocalFromRegistry, userId],
@@ -944,6 +960,7 @@ export function useOnlineBattleGame(matchId?: string) {
     role,
     pieceCatalog,
     pieceDefsByCode,
+    promotedPieceDefsByCode,
     pieceSfenMapping,
     selectedCell,
     selectedDropPieceCode,

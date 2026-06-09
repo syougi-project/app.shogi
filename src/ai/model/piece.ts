@@ -1,6 +1,9 @@
 import { applyGachaPieceCatalogOverrides } from '@/constants/gacha-piece-metadata';
+import { PROMOTED_CODE_TO_CHAR } from '@/features/stage-shogi/domain/piece-conversion';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 import { normalizePieceCode, toBasePieceCode } from '@/ai/model/move';
+
+const GOLD_LIKE_PROMOTED_CODES = new Set(['FU', 'KY', 'KE', 'GI']);
 
 /** API やフォント由来の互換文字を駒ルール判定用に揃える。 */
 function normKanjiForPieceRules(ch: string | null | undefined): string {
@@ -170,6 +173,25 @@ export function buildPieceLookups(pieceCatalog: AiPieceDefinition[]): AiPieceLoo
   }
   if (pieceDefsByChar['玉'] && !pieceDefsByChar['王']) {
     pieceDefsByChar['王'] = pieceDefsByChar['玉']!;
+  }
+
+  const goldDef = pieceDefsByCode.KI;
+  for (const [baseCode, promotedChar] of Object.entries(PROMOTED_CODE_TO_CHAR)) {
+    if (promotedPieceDefsByCode[baseCode]) continue;
+    const fromChar = pieceDefsByChar[promotedChar];
+    if (fromChar) {
+      promotedPieceDefsByCode[baseCode] = fromChar;
+      continue;
+    }
+    if (GOLD_LIKE_PROMOTED_CODES.has(baseCode) && goldDef) {
+      promotedPieceDefsByCode[baseCode] = {
+        ...goldDef,
+        pieceCode: baseCode,
+        canonicalCode: baseCode,
+        char: promotedChar,
+        isPromoted: true,
+      };
+    }
   }
 
   return {
