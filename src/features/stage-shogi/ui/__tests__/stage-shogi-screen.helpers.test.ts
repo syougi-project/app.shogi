@@ -202,7 +202,18 @@ describe('legal move coordinates', () => {
         toCol: 3,
       },
     ];
-    expect(legalMovesForBoardPiece(moves, 6, 2)).toEqual(moves);
+    const boardPiece = {
+      side: 'player' as const,
+      row: 6,
+      col: 2,
+      pieceCode: 'FU',
+      char: '歩',
+      promoted: false,
+    };
+    const aligned = alignLegalMovesToBoardPieces([boardPiece], moves);
+    expect(legalMovesForBoardPiece(aligned, 6, 2)).toEqual(aligned);
+    expect(aligned[0]?.fromRow).toBe(6);
+    expect(aligned[0]?.fromCol).toBe(2);
   });
 
   it('normalizes move targets to 0-based cells', () => {
