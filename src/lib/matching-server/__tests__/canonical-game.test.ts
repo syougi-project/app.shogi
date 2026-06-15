@@ -125,7 +125,7 @@ describe('matching-server canonical-game', () => {
         }
       ).pieces ?? [];
 
-    const cow = pieces.find((piece) => piece.row === 5 && piece.col === 5);
+    const cow = pieces.find((piece) => piece.row === 5 && piece.col === 4);
     expect(cow?.pieceCode).toBe('COW');
     expect(cow?.char).toBe('牛');
     expect(cow?.cowChargeCount).toBe(1);

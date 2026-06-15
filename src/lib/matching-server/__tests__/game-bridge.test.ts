@@ -62,7 +62,7 @@ describe('matching-server game-bridge', () => {
       hands: { black: { FU: 1 }, white: {} },
     };
     const pieces = matchingGameToBoardPieces(game, 'black');
-    const pig = pieces.find((p) => p.row === 4 && p.col === 4);
+    const pig = pieces.find((p) => p.row === 3 && p.col === 4);
     expect(pig?.pieceCode).toBe('PIG');
     expect(pig?.char).toBe('豚');
     expect(pig?.pigInheritedPieceCode).toBe('FU');
