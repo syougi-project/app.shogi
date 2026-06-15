@@ -1,13 +1,15 @@
-import { applyMove } from '@/ai/engine';
+import { applyMove, generateLegalMoves } from '@/ai/engine';
 import type { AiBattlePosition, AiPieceDefinition } from '@/ai/model';
 import { matchingWireToCanonicalPosition } from '@/lib/matching-server/canonical-game';
 import { normalizeSkillPieceCode } from '@/lib/matching-server/skill-piece-code';
 import type { MatchingGameState } from '@/domain/matching-server/protocol';
+import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
 import fixture from '../../../../test-fixtures/online-skill-parity/ported-skill-cases.json';
 
 const cases = fixture.cases.map((entry) => ({
   pieceCode: entry.pieceCode,
   actorPieceCode: entry.actorPieceCode ?? entry.pieceCode,
+  hasExplicitAppMove: Boolean(entry.appMove),
   appMove: {
     ...fixture.defaults.appMove,
     pieceCode: entry.actorPieceCode ?? entry.pieceCode,
@@ -64,18 +66,24 @@ describe('matching-server online skill pieces', () => {
   it.each(cases)('runs $pieceCode through the app vsAI rule engine', ({
     pieceCode,
     actorPieceCode,
+    hasExplicitAppMove,
     appMove,
   }) => {
     Math.random = deterministicRandom([0, 0.37, 0.73, 0.11, 0.91, 0.23]);
+    const position = createAppSkillPosition(pieceCode, actorPieceCode);
+    const pieceCatalog = createPieceCatalog();
+    const resolvedMove = hasExplicitAppMove
+      ? appMove
+      : resolveDefaultAppMove(position, pieceCatalog, appMove);
     const committed = applyMove({
-      position: createAppSkillPosition(pieceCode, actorPieceCode),
-      pieceCatalog: createPieceCatalog(),
+      position,
+      pieceCatalog,
       move: {
-        fromRow: appMove.fromRow,
-        fromCol: appMove.fromCol,
-        toRow: appMove.toRow,
-        toCol: appMove.toCol,
-        pieceCode: appMove.pieceCode,
+        fromRow: resolvedMove.fromRow,
+        fromCol: resolvedMove.fromCol,
+        toRow: resolvedMove.toRow,
+        toCol: resolvedMove.toCol,
+        pieceCode: resolvedMove.pieceCode ?? appMove.pieceCode,
         promote: false,
         dropPieceCode: null,
         capturedPieceCode: null,
@@ -90,6 +98,47 @@ describe('matching-server online skill pieces', () => {
     expect(pieces.some((piece) => piece.pieceCode === actorPieceCode)).toBe(true);
   });
 });
+
+function resolveDefaultAppMove(
+  position: AiBattlePosition,
+  pieceCatalog: AiPieceDefinition[],
+  fallback: (typeof cases)[number]['appMove'],
+): (typeof cases)[number]['appMove'] {
+  const legal = generateLegalMoves({ position, pieceCatalog });
+  const matched =
+    legal.legalMoves.find(
+      (move) =>
+        move.dropPieceCode === null &&
+        move.fromRow === fallback.fromRow &&
+        move.fromCol === fallback.fromCol &&
+        isPlainBoardMove(move),
+    ) ??
+    legal.legalMoves.find(
+      (move) =>
+        move.dropPieceCode === null &&
+        move.fromRow === fallback.fromRow &&
+        move.fromCol === fallback.fromCol,
+    );
+  if (!matched || matched.fromRow == null || matched.fromCol == null) {
+    throw new Error(
+      `no legal move from (${fallback.fromRow},${fallback.fromCol}) for ${fallback.pieceCode}`,
+    );
+  }
+  return {
+    fromRow: matched.fromRow,
+    fromCol: matched.fromCol,
+    toRow: matched.toRow,
+    toCol: matched.toCol,
+    pieceCode: matched.pieceCode ?? fallback.pieceCode,
+  };
+}
+
+function isPlainBoardMove(move: BattleMove): boolean {
+  const notation = move.notation ?? '';
+  if (notation === 'house_skill_only' || notation === 'time_skill_only') return false;
+  if (notation.startsWith('satori_stun:') || notation.startsWith('heart_protect:')) return false;
+  return true;
+}
 
 function deterministicRandom(values: number[]): () => number {
   let index = 0;
