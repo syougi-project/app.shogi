@@ -277,6 +277,38 @@ function isFieldPieceForPeopleMovePreview(piece: BoardPiece): boolean {
   return CHAR_TO_CODE[piece.char] === 'FIELD';
 }
 
+/** 家・畑など盤上で移動できない固定駒（UI タップ時の誤選択防止） */
+export function isFixedHouseFieldPieceForUi(piece: BoardPiece): boolean {
+  const code = toBasePieceCode(piece.pieceCode ?? null);
+  if (code === 'HOUSE' || code === 'FIELD') return true;
+  if (piece.char === '家' || piece.char === '畑') return true;
+  const mapped = CHAR_TO_CODE[piece.char];
+  return mapped === 'HOUSE' || mapped === 'FIELD';
+}
+
+/** 敵駒プレビュー用：岩障害を空マス上の仮想駒として足す（スライド打ち切りをエンジンと揃える） */
+export function appendRockObstacleVirtualPiecesForPreview(
+  pieces: BoardPiece[],
+  rockObstacleCells: BoardCell[],
+  rockSide: Side,
+): BoardPiece[] {
+  const occupied = new Set(pieces.map((piece) => `${piece.row}:${piece.col}`));
+  const out = [...pieces];
+  for (const cell of rockObstacleCells) {
+    const key = `${cell.row}:${cell.col}`;
+    if (occupied.has(key)) continue;
+    out.push({
+      side: rockSide,
+      row: cell.row,
+      col: cell.col,
+      pieceCode: 'ROCK_OBSTACLE',
+      char: '岩障',
+      promoted: false,
+    });
+  }
+  return out;
+}
+
 function isPeoplePieceForFieldMovePreview(piece: BoardPiece): boolean {
   const code = toBasePieceCode(piece.pieceCode ?? null);
   if (code === 'PEOPLE') return true;
@@ -939,11 +971,7 @@ function moveOriginMatchesBoardCell(move: BattleMove, row: number, col: number):
   }
   const nFr = normalizeCellIndex(move.fromRow);
   const nFc = normalizeCellIndex(move.fromCol);
-  return (
-    (move.fromRow === row && move.fromCol === col) ||
-    (move.fromRow === row + 1 && move.fromCol === col + 1) ||
-    (nFr === row && nFc === col)
-  );
+  return (move.fromRow === row && move.fromCol === col) || (nFr === row && nFc === col);
 }
 
 function moveUsesOneBasedCoordsForBoard(move: BattleMove, boardOrigin?: BoardCell | null): boolean {

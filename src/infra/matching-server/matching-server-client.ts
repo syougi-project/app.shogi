@@ -137,14 +137,22 @@ export class MatchingServerClient {
       ws.addEventListener('error', onError, { once: true });
 
       ws.addEventListener('message', (event) => {
+        let payload: WebSocketServerMessage;
         try {
-          const payload = JSON.parse(String(event.data)) as WebSocketServerMessage;
+          payload = JSON.parse(String(event.data)) as WebSocketServerMessage;
+        } catch {
+          this.emitSyntheticError('INVALID_JSON', 'サーバー応答の解析に失敗しました');
+          return;
+        }
+        try {
           this.handleServerMessage(payload);
           for (const listener of this.listeners) {
             listener(payload);
           }
-        } catch {
-          this.emitSyntheticError('INVALID_JSON', 'サーバー応答の解析に失敗しました');
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'サーバー応答の処理に失敗しました';
+          this.emitSyntheticError('MESSAGE_HANDLER_ERROR', message);
         }
       });
 

@@ -200,6 +200,77 @@ describe('matching-server game-bridge', () => {
     });
   });
 
+  it('maps display drop code to opaque server hand key', () => {
+    const pawnCatalog = [
+      {
+        pieceId: 1,
+        pieceCode: 'piece_c518b11858f2',
+        canonicalCode: 'pawn',
+        char: '歩',
+        name: 'Pawn',
+        unlock: 'test',
+        desc: '',
+        skill: '',
+        move: '',
+        moveVectors: [],
+        isRepeatable: false,
+      },
+    ];
+    const wire: MatchingGameState = {
+      version: 1,
+      turn: 'black',
+      board: { '5i': 'black:OU', '5a': 'white:OU' },
+      hands: { black: { PIECE_C518B11858F2: 1 }, white: {} },
+    };
+    expect(
+      battleMoveToServerPayload(
+        {
+          fromRow: null,
+          fromCol: null,
+          toRow: 4,
+          toCol: 4,
+          pieceCode: 'FU',
+          promote: false,
+          dropPieceCode: 'FU',
+          capturedPieceCode: null,
+          notation: null,
+        },
+        'black',
+        wire,
+        pawnCatalog,
+      ),
+    ).toEqual({
+      to: '5e',
+      piece: 'PIECE_C518B11858F2',
+      drop: true,
+      promote: false,
+    });
+  });
+
+  it('rejects drop when server hand does not contain the piece', () => {
+    const wire = {
+      board: { '5i': 'black:OU', '5a': 'white:OU' },
+      hands: { black: {}, white: {} },
+    };
+    expect(() =>
+      battleMoveToServerPayload(
+        {
+          fromRow: null,
+          fromCol: null,
+          toRow: 4,
+          toCol: 4,
+          pieceCode: 'FU',
+          promote: false,
+          dropPieceCode: 'FU',
+          capturedPieceCode: null,
+          notation: null,
+        },
+        'black',
+        wire,
+      ),
+    ).toThrow('サーバー持ち駒と打ち駒が一致しません');
+  });
+
   it('indexes catalog definitions by canonical code for special pieces', () => {
     const mist = {
       pieceId: 54,

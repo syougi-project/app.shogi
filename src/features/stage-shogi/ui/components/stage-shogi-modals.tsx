@@ -3,6 +3,7 @@ import { Modal, Pressable, Text, View } from 'react-native';
 
 import { BattleEndResultOverlay } from '@/features/stage-shogi/ui/components/battle-end-result-overlay';
 import { Side } from '@/features/stage-shogi/domain/game-rules';
+import type { StageClearGrantedCurrency } from '@/lib/stage/stage-clear-currency-reward';
 import { resolvePieceImageSource } from '@/lib/piece-image';
 import { InspectingPieceState } from '@/features/stage-shogi/ui/stage-shogi-screen.presenters';
 import { getPieceImageSource } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
@@ -11,9 +12,15 @@ import type {
   TimeActionMode,
 } from '@/features/stage-shogi/ui/use-stage-shogi-screen';
 
-export function StageShogiResultOverlay({ winner }: { winner: Side | null }) {
+export function StageShogiResultOverlay({
+  winner,
+  clearReward,
+}: {
+  winner: Side | null;
+  clearReward?: StageClearGrantedCurrency | null;
+}) {
   if (!winner) return null;
-  return <BattleEndResultOverlay winner={winner} />;
+  return <BattleEndResultOverlay winner={winner} clearReward={clearReward} />;
 }
 
 export function StageShogiPromotionModal({

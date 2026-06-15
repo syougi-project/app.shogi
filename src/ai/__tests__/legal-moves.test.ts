@@ -677,7 +677,7 @@ describe('ai engine legal moves', () => {
     ).toBe(false);
   });
 
-  it('mirror piece copies movement vectors from one enemy piece', () => {
+  it('mirror piece copies movement vectors from front-facing enemy', () => {
     const position: AiBattlePosition = {
       sideToMove: 'player',
       turnNumber: 7,
@@ -697,8 +697,33 @@ describe('ai engine legal moves', () => {
     const legal = generateLegalMoves({ position, pieceCatalog });
     const mirrorMoves = legal.legalMoves.filter((move) => move.fromRow === 5 && move.fromCol === 4);
     const targets = mirrorMoves.map((m) => `${m.toRow}:${m.toCol}`);
-    expect(targets).toContain('3:3');
-    expect(targets).toContain('3:5');
+    expect(targets).toContain('4:3');
+    expect(targets).toContain('4:4');
+    expect(targets).toContain('4:5');
+    expect(targets).not.toContain('3:2');
+    expect(targets).not.toContain('3:6');
+  });
+
+  it('mirror piece moves orthogonally when no enemy is directly in front', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/9/4]4/9/9/4K4 b - 1',
+      stateHash: 'seed',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 0, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 5, col: 4, pieceCode: 'MIRROR', char: '鏡', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog });
+    const mirrorMoves = legal.legalMoves.filter((move) => move.fromRow === 5 && move.fromCol === 4);
+    const targets = new Set(mirrorMoves.map((m) => `${m.toRow}:${m.toCol}`));
+    expect(targets).toEqual(new Set(['4:4', '5:3', '5:5', '6:4']));
   });
 
   it('prevents capturing dark_blind covered enemy piece', () => {
@@ -969,6 +994,94 @@ describe('ai engine legal moves', () => {
     expect(taneMoves.some((m) => m.toRow === 5 && m.toCol === 4)).toBe(true);
     expect(taneMoves.some((m) => m.toRow === 5 && m.toCol === 3)).toBe(true);
     expect(taneMoves.some((m) => m.toRow === 5 && m.toCol === 5)).toBe(true);
+  });
+
+  it('copper piece generates knight jump and forward slide even when catalog vectors are gold-like', () => {
+    const copperCatalog: AiPieceDefinition = {
+      pieceCode: 'COPPER',
+      canonicalCode: 'COPPER',
+      sfenCode: 'A',
+      char: '銅',
+      name: '銅',
+      unlock: 'default',
+      desc: '',
+      skill: '',
+      move: '',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+      isRepeatable: false,
+    };
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '9/9/9/9/9/9/9/9/4K4 b - 1',
+      stateHash: 'copper-move',
+      boardState: {
+        pieces: [
+          {
+            side: 'player',
+            row: 6,
+            col: 4,
+            pieceCode: 'COPPER',
+            char: '銅',
+            promoted: false,
+          },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog: [...pieceCatalog, copperCatalog] });
+    const copperMoves = legal.legalMoves.filter((m) => m.fromRow === 6 && m.fromCol === 4);
+    expect(copperMoves.some((m) => m.toRow === 5 && m.toCol === 4)).toBe(true);
+    expect(copperMoves.some((m) => m.toRow === 4 && m.toCol === 4)).toBe(true);
+    expect(copperMoves.some((m) => m.toRow === 4 && m.toCol === 3)).toBe(true);
+    expect(copperMoves.some((m) => m.toRow === 4 && m.toCol === 5)).toBe(true);
+    expect(copperMoves.some((m) => m.toRow === 6 && m.toCol === 5)).toBe(false);
+  });
+
+  it('wave piece generates 2-square orthogonal moves even when catalog vectors are pawn-like', () => {
+    const waveCatalog: AiPieceDefinition = {
+      pieceCode: 'NAM',
+      canonicalCode: 'NAM',
+      sfenCode: 'Q',
+      char: '波',
+      name: '波',
+      unlock: 'default',
+      desc: '',
+      skill: '',
+      move: '',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+      isRepeatable: false,
+    };
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '9/9/9/9/9/9/9/9/4K4 b - 1',
+      stateHash: 'wave-move',
+      boardState: {
+        pieces: [
+          {
+            side: 'player',
+            row: 6,
+            col: 4,
+            pieceCode: 'NAM',
+            char: '波',
+            promoted: false,
+          },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog: [...pieceCatalog, waveCatalog] });
+    const waveMoves = legal.legalMoves.filter((m) => m.fromRow === 6 && m.fromCol === 4);
+    expect(waveMoves.some((m) => m.toRow === 5 && m.toCol === 4)).toBe(true);
+    expect(waveMoves.some((m) => m.toRow === 4 && m.toCol === 4)).toBe(true);
+    expect(waveMoves.some((m) => m.toRow === 6 && m.toCol === 3)).toBe(true);
+    expect(waveMoves.some((m) => m.toRow === 6 && m.toCol === 2)).toBe(true);
+    expect(waveMoves.some((m) => m.toRow === 3 && m.toCol === 4)).toBe(false);
   });
 
   it('run piece moves up to 2 squares forward when path is clear', () => {
@@ -1536,5 +1649,99 @@ describe('ai engine legal moves', () => {
     expect(pawnMoves.some((m) => m.toRow === 5 && m.toCol === 5)).toBe(true);
     expect(pawnMoves.some((m) => m.toRow === 5 && m.toCol === 4)).toBe(false);
     expect(pawnMoves).toHaveLength(2);
+  });
+
+  it('phantom piece generates orthogonal one-step and knight jump even when catalog vectors are gold-like', () => {
+    const phantomCatalog: AiPieceDefinition = {
+      pieceId: 9001,
+      pieceCode: 'PHANTOM',
+      canonicalCode: 'PHANTOM',
+      char: '幻',
+      name: '幻',
+      unlock: 'test',
+      desc: '',
+      skill: '',
+      move: 'phantom',
+      isRepeatable: false,
+      moveVectors: [
+        { dx: -1, dy: -1, maxStep: 1 },
+        { dx: 0, dy: -1, maxStep: 1 },
+        { dx: 1, dy: -1, maxStep: 1 },
+        { dx: -1, dy: 0, maxStep: 1 },
+        { dx: 1, dy: 0, maxStep: 1 },
+        { dx: 0, dy: 1, maxStep: 1 },
+      ],
+      canJump: false,
+      isPromoted: false,
+      moveConstraints: null,
+      moveRules: [],
+      skillDefinitionsV2: null,
+    };
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/9/9/9/9/4K4 b - 1',
+      stateHash: 'phantom-move',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 6, col: 4, pieceCode: 'PHANTOM', char: '幻', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog: [...pieceCatalog, phantomCatalog] });
+    const phantomMoves = legal.legalMoves.filter((m) => m.fromRow === 6 && m.fromCol === 4);
+    expect(phantomMoves.some((m) => m.toRow === 5 && m.toCol === 4)).toBe(true);
+    expect(phantomMoves.some((m) => m.toRow === 6 && m.toCol === 3)).toBe(true);
+    expect(phantomMoves.some((m) => m.toRow === 4 && m.toCol === 3)).toBe(true);
+    expect(phantomMoves.some((m) => m.toRow === 4 && m.toCol === 5)).toBe(true);
+    expect(phantomMoves.some((m) => m.toRow === 5 && m.toCol === 3)).toBe(false);
+  });
+
+  it('yama piece generates diagonal one-step moves even when catalog vectors are forward-only', () => {
+    const yamaCatalog: AiPieceDefinition = {
+      pieceId: 9002,
+      pieceCode: 'YAMA',
+      canonicalCode: 'YAMA',
+      char: '山',
+      name: '山',
+      unlock: 'test',
+      desc: '',
+      skill: '',
+      move: 'yama',
+      isRepeatable: false,
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+      canJump: false,
+      isPromoted: false,
+      moveConstraints: null,
+      moveRules: [],
+      skillDefinitionsV2: null,
+    };
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/9/9/9/9/4K4 b - 1',
+      stateHash: 'yama-move',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 4, col: 4, pieceCode: 'YAMA', char: '山', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog: [...pieceCatalog, yamaCatalog] });
+    const yamaMoves = legal.legalMoves.filter((m) => m.fromRow === 4 && m.fromCol === 4);
+    expect(yamaMoves.some((m) => m.toRow === 3 && m.toCol === 3)).toBe(true);
+    expect(yamaMoves.some((m) => m.toRow === 3 && m.toCol === 5)).toBe(true);
+    expect(yamaMoves.some((m) => m.toRow === 5 && m.toCol === 3)).toBe(true);
+    expect(yamaMoves.some((m) => m.toRow === 5 && m.toCol === 5)).toBe(true);
+    expect(yamaMoves.some((m) => m.toRow === 3 && m.toCol === 4)).toBe(false);
+    expect(yamaMoves).toHaveLength(4);
   });
 });

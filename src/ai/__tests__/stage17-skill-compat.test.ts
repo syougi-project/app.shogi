@@ -752,7 +752,7 @@ describe('stage17 skill compatibility', () => {
                 {
                   type: 'modify_movement',
                   target: { group: 'adjacent', selector: 'adjacent_enemy' },
-                  params: { movementRule: 'orthogonal_step_only', durationTurns: 2 },
+                  params: { movementRule: 'orthogonal_step_only', durationTurns: 4 },
                 },
               ],
             },

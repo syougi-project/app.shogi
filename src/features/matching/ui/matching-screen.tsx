@@ -78,7 +78,7 @@ export function MatchingScreen() {
               />
             </View>
 
-            {needsBattleSetup ? (
+            {needsBattleSetup || snapshot.status.includes('対戦準備が無効') ? (
               <Pressable
                 onPress={() => {
                   void playSe('tap');

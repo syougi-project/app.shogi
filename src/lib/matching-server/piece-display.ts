@@ -59,6 +59,14 @@ export function resolveWirePieceChar(
     return pieceCharFromCode(baseCode, side, true);
   }
 
+  // 旧 wire が小竜を飛成り RY として送る互換（小竜 RYU と飛成り RY の区別）
+  if (upper === 'RY') {
+    const smallDragon = lookupCatalogDef('RYU', defsByCode);
+    if (smallDragon?.char?.trim() === '竜') {
+      return '竜';
+    }
+  }
+
   const fromCatalog = lookupCatalogDef(upper, defsByCode)?.char?.trim();
   if (fromCatalog) return fromCatalog;
   if (upper === 'OU') {

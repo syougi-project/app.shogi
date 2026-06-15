@@ -32,4 +32,25 @@ describe('resolveWirePieceChar', () => {
       }),
     ).toBe('膠');
   });
+
+  it('maps legacy RY wire code to small dragon 竜 when catalog defines RYU', () => {
+    const ryuCatalog: PieceCatalogItem = {
+      pieceId: 1,
+      pieceCode: 'RYU',
+      canonicalCode: 'RYU',
+      char: '竜',
+      name: '小竜',
+      unlock: 'test',
+      desc: '',
+      skill: '',
+      move: '',
+      moveVectors: [],
+      isRepeatable: false,
+    };
+    expect(
+      resolveWirePieceChar('RY', 'player', false, {
+        RYU: ryuCatalog,
+      }),
+    ).toBe('竜');
+  });
 });

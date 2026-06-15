@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { BoardCell, BoardPiece } from '@/features/stage-shogi/domain/game-rules';
+import type { BoardCell } from '@/features/stage-shogi/domain/game-rules';
+import type { BoardPiece } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
 import {
   BOARD_INNER,
   BOARD_PIECE_SIZE_OVERRIDES,
@@ -17,6 +18,10 @@ import {
   isPromotedVisualPiece,
   localPromotedModuleFromBaseCodeCandidates,
   pieceCharFromCode,
+  POISON_CELL_IMAGE_SOURCE,
+  PRISON_CHAIN_IMAGE_SOURCE,
+  ROCK_OBSTACLE_IMAGE_SOURCE,
+  BATSU_CELL_IMAGE_SOURCE,
   preferBundledPromotedImageOverRemoteUrl,
   resolvePromotedImageSource,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
@@ -44,9 +49,13 @@ export function OnlineBattleBoard(props: {
   pieceDefsByCode: Record<string, PieceCatalogItem>;
   promotedPieceDefsByCode?: Record<string, PieceCatalogItem>;
   canInteract: boolean;
+  poisonHazardCells?: BoardCell[];
+  rockObstacleCells?: BoardCell[];
+  batsuHazardCells?: BoardCell[];
   skillVisualEffects?: SkillVisualEffect[];
   onSkillVisualEffectFinished?: (effect: SkillVisualEffect) => void;
   onCellPress: (viewRow: number, viewCol: number) => void;
+  onCellLongPress: (viewRow: number, viewCol: number) => void;
 }) {
   const {
     boardSize,
@@ -59,9 +68,13 @@ export function OnlineBattleBoard(props: {
     pieceDefsByCode,
     promotedPieceDefsByCode = {},
     canInteract,
+    poisonHazardCells = [],
+    rockObstacleCells = [],
+    batsuHazardCells = [],
     skillVisualEffects = [],
     onSkillVisualEffectFinished,
     onCellPress,
+    onCellLongPress,
   } = props;
   const boardInnerRatio = BOARD_INNER / BOARD_VIEWBOX;
   const boardInnerSize = boardSize * boardInnerRatio;
@@ -77,6 +90,18 @@ export function OnlineBattleBoard(props: {
     : null;
   const targetsView = legalTargets.map((t) => toViewCoord(t.row, t.col, myRole));
   const enemyTargetsView = enemyPreviewTargets.map((t) => toViewCoord(t.row, t.col, myRole));
+  const poisonHazardsView = poisonHazardCells.map((cell) => ({
+    ...cell,
+    ...toViewCoord(cell.row, cell.col, myRole),
+  }));
+  const rockObstaclesView = rockObstacleCells.map((cell) => ({
+    ...cell,
+    ...toViewCoord(cell.row, cell.col, myRole),
+  }));
+  const batsuHazardsView = batsuHazardCells.map((cell) => ({
+    ...cell,
+    ...toViewCoord(cell.row, cell.col, myRole),
+  }));
 
   return (
     <View style={[styles.frame, { width: boardSize, height: boardSize }]}>
@@ -101,8 +126,12 @@ export function OnlineBattleBoard(props: {
             return (
               <Pressable
                 key={`cell-${viewRow}-${viewCol}`}
-                disabled={!canInteract}
-                onPress={() => onCellPress(viewRow, viewCol)}
+                onPress={() => {
+                  if (!canInteract) return;
+                  onCellPress(viewRow, viewCol);
+                }}
+                onLongPress={() => onCellLongPress(viewRow, viewCol)}
+                delayLongPress={350}
                 style={[
                   styles.cell,
                   {
@@ -119,6 +148,27 @@ export function OnlineBattleBoard(props: {
             );
           }),
         )}
+        {poisonHazardsView.map((cell) => (
+          <View
+            key={`poison-${cell.row}-${cell.col}`}
+            pointerEvents="none"
+            style={[
+              styles.poisonCell,
+              {
+                left: cell.col * cellSize,
+                top: cell.row * cellSize,
+                width: cellSize,
+                height: cellSize,
+              },
+            ]}
+          >
+            <Image
+              source={POISON_CELL_IMAGE_SOURCE}
+              contentFit="cover"
+              style={styles.poisonCellImage}
+            />
+          </View>
+        ))}
         {piecesByView.map((piece) => {
           const pieceCode = piece.pieceCode?.toUpperCase();
           const baseCode = pieceCode ?? '';
@@ -160,6 +210,9 @@ export function OnlineBattleBoard(props: {
             });
           const enemy = isEnemySide(piece.side);
           const king = piece.pieceCode === 'OU' || isKingChar(displayChar ?? piece.char);
+          const darkVeiled = Boolean(piece.darkVeiled);
+          const stunnedAura = Boolean(piece.stunnedAura);
+          const prisonChained = Boolean(piece.prisonChained);
           const pieceScalePercent =
             BOARD_PIECE_SIZE_OVERRIDES[displayChar ?? piece.char] ??
             (king ? KING_PIECE_SIZE_PERCENT : NORMAL_PIECE_SIZE_PERCENT);
@@ -194,12 +247,67 @@ export function OnlineBattleBoard(props: {
                     { transform: [{ rotate: enemy ? '180deg' : '0deg' }] },
                   ]}
                 >
-                  {displayChar ?? piece.char}
+                  {darkVeiled ? '' : (displayChar ?? piece.char)}
                 </Text>
               )}
+              {darkVeiled ? <View pointerEvents="none" style={styles.darkVeilOverlay} /> : null}
+              {prisonChained && !darkVeiled ? (
+                <View pointerEvents="none" style={styles.prisonChainOverlay}>
+                  <Image
+                    source={PRISON_CHAIN_IMAGE_SOURCE}
+                    contentFit="contain"
+                    style={styles.prisonChainImage}
+                  />
+                </View>
+              ) : null}
+              {stunnedAura && !darkVeiled ? (
+                <View pointerEvents="none" style={styles.stunAuraOverlay} />
+              ) : null}
             </View>
           );
         })}
+        {rockObstaclesView.map((cell) => (
+          <View
+            key={`rock-obstacle-${cell.row}-${cell.col}`}
+            pointerEvents="none"
+            style={[
+              styles.rockObstacleCell,
+              {
+                left: cell.col * cellSize,
+                top: cell.row * cellSize,
+                width: cellSize,
+                height: cellSize,
+              },
+            ]}
+          >
+            <Image
+              source={ROCK_OBSTACLE_IMAGE_SOURCE}
+              contentFit="cover"
+              style={styles.rockObstacleCellImage}
+            />
+          </View>
+        ))}
+        {batsuHazardsView.map((cell) => (
+          <View
+            key={`batsu-hazard-${cell.row}-${cell.col}`}
+            pointerEvents="none"
+            style={[
+              styles.batsuHazardCell,
+              {
+                left: cell.col * cellSize,
+                top: cell.row * cellSize,
+                width: cellSize,
+                height: cellSize,
+              },
+            ]}
+          >
+            <Image
+              source={BATSU_CELL_IMAGE_SOURCE}
+              contentFit="cover"
+              style={styles.batsuHazardCellImage}
+            />
+          </View>
+        ))}
         {onSkillVisualEffectFinished ? (
           <OnlineBattleSkillParticleLayer
             effects={skillVisualEffects}
@@ -236,11 +344,67 @@ const styles = StyleSheet.create({
   cellEnemyTarget: {
     backgroundColor: 'rgba(59, 130, 246, 0.45)',
   },
+  poisonCell: {
+    position: 'absolute',
+    backgroundColor: '#7c3aed33',
+    zIndex: 1,
+  },
+  poisonCellImage: {
+    width: '100%',
+    height: '100%',
+  },
+  rockObstacleCell: {
+    position: 'absolute',
+    zIndex: 22,
+  },
+  rockObstacleCellImage: {
+    width: '100%',
+    height: '100%',
+  },
+  batsuHazardCell: {
+    position: 'absolute',
+    zIndex: 21,
+  },
+  batsuHazardCellImage: {
+    width: '100%',
+    height: '100%',
+  },
   pieceWrap: {
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
+  },
+  darkVeilOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#000000',
+  },
+  prisonChainOverlay: {
+    position: 'absolute',
+    left: '6%',
+    right: '6%',
+    top: '8%',
+    bottom: '8%',
+    opacity: 0.88,
+  },
+  prisonChainImage: {
+    width: '100%',
+    height: '100%',
+  },
+  stunAuraOverlay: {
+    position: 'absolute',
+    left: '10%',
+    right: '10%',
+    top: '10%',
+    bottom: '10%',
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: 'rgba(34, 197, 94, 0.95)',
+    backgroundColor: 'rgba(34, 197, 94, 0.16)',
   },
   pieceImage: {
     width: '100%',

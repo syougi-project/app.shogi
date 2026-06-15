@@ -1,5 +1,19 @@
-import type { AiBoardPiece, AiPieceLookups } from '@/ai/model';
+import type { AiBoardPiece, AiPieceDefinition, AiPieceLookups } from '@/ai/model';
 import { toBasePieceCode } from '@/ai/model';
+
+/** 小竜（HTML: dragonMoves）— 斜め何マスでも + 前後左右1マス。 */
+export const RYU_DRAGON_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: -1, dy: -1, maxStep: 8 },
+  { dx: 0, dy: -1, maxStep: 1 },
+  { dx: 1, dy: -1, maxStep: 8 },
+  { dx: -1, dy: 0, maxStep: 1 },
+  { dx: 1, dy: 0, maxStep: 1 },
+  { dx: -1, dy: 1, maxStep: 8 },
+  { dx: 0, dy: 1, maxStep: 1 },
+  { dx: 1, dy: 1, maxStep: 8 },
+];
+
+export const RYU_MOVE_DESCRIPTION_JA = '斜めに何マスでも進める。前後左右に1マス進める。';
 
 export function hasAllySpringPieceOnBoard(
   pieces: readonly { side: string; char: string; [key: string]: unknown }[],

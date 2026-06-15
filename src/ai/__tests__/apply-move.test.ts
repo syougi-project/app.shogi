@@ -1344,7 +1344,7 @@ describe('ai engine apply move', () => {
     expect(committed.position.hands.player.GI).toBeUndefined();
   });
 
-  it('electric skill stuns one adjacent enemy for 3 turns when 20% proc succeeds', () => {
+  it('electric skill stuns all adjacent enemies for 1 turn when 20% proc succeeds', () => {
     const position: AiBattlePosition = {
       sideToMove: 'player',
       turnNumber: 1,
@@ -1365,7 +1365,6 @@ describe('ai engine apply move', () => {
 
     const randomSpy = jest.spyOn(Math, 'random');
     randomSpy.mockReturnValueOnce(0.05); // 20% 発動成功
-    randomSpy.mockReturnValueOnce(0.0); // adjacent target index
     const committed = applyMove({
       position,
       pieceCatalog,
@@ -1388,8 +1387,8 @@ describe('ai engine apply move', () => {
       | undefined;
     const statuses = skillState?.piece_statuses ?? [];
     const stuns = statuses.filter((s) => (s.status_type as string) === 'stun');
-    expect(stuns).toHaveLength(1);
-    expect(stuns[0]?.remaining_turns).toBe(3);
+    expect(stuns).toHaveLength(2);
+    expect(stuns[0]?.remaining_turns).toBe(2);
   });
 
   it('thunder skill removes up to two random enemy hand pieces when 10% proc succeeds', () => {
@@ -1820,7 +1819,7 @@ describe('ai engine apply move', () => {
     const modifiers = skillState?.movement_modifiers ?? [];
     const ortho = modifiers.filter((m) => (m.movement_rule as string) === 'orthogonal_step_only');
     expect(ortho.length).toBeGreaterThanOrEqual(1);
-    expect(ortho.every((m) => (m.remaining_turns as number) === 2)).toBe(true);
+    expect(ortho.every((m) => (m.remaining_turns as number) === 4)).toBe(true);
   });
 
   it('mai move applies diagonal-forward restriction to adjacent enemies at that moment', () => {
@@ -2799,6 +2798,62 @@ describe('ai engine apply move', () => {
     const phantom = boardPieces(committed.position).find((p) => p.char === '幻');
     expect(phantom).toBeTruthy();
     expect(phantom?.row === 4 && phantom?.col === 4).toBe(false);
+  });
+
+  it('phantom is captured on optimistic online apply when suppressRandomSkillProcs is true', () => {
+    const phantomSkillDef = {
+      skillId: 38,
+      pieceChars: ['幻'],
+      trigger: { type: 'continuous_rule' },
+      conditions: [{ type: 'chance_roll', params: { procChance: 0.5 } }],
+      effects: [
+        {
+          type: 'defense_or_immunity',
+          target: { group: 'self', selector: 'self_piece' },
+          params: { mode: 'evade_capture' },
+        },
+      ],
+    };
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/3H4/4P4/9/9/4K4 b - 1',
+      stateHash: 'seed',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'enemy', row: 4, col: 4, pieceCode: 'PHANTOM', char: '幻', promoted: false },
+          { side: 'player', row: 5, col: 4, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+        skill_definitions_v2: {
+          definitions: [phantomSkillDef],
+        },
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.1);
+    const committed = applyMove({
+      position,
+      pieceCatalog,
+      move: {
+        fromRow: 5,
+        fromCol: 4,
+        toRow: 4,
+        toCol: 4,
+        pieceCode: 'FU',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: 'PHANTOM',
+        notation: null,
+      },
+      options: { suppressRandomSkillProcs: true },
+    });
+    randomSpy.mockRestore();
+
+    expect(committed.position.hands.player?.PHANTOM ?? 0).toBe(1);
+    expect(boardPieces(committed.position).some((p) => p.char === '幻')).toBe(false);
   });
 
   it('phantom is captured normally when 50% evade proc fails', () => {

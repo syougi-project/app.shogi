@@ -94,11 +94,47 @@ export const AN_MOVE_DESCRIPTION_JA = '前後左右1マス+桂馬飛び';
 
 export const AN_SKILL_DESCRIPTION_JA = '移動時10%の確率で、相手の特殊駒を1体「歩」に変える。';
 
+export const COPPER_MOVE_DESCRIPTION_JA = '桂馬飛び+前方に何マスでも';
+
+/** 銅 — 桂馬飛び + 前方に何マスでも（HTML copperMoves 準拠）。 */
+export const COPPER_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: -1, dy: -2, maxStep: 1 },
+  { dx: 1, dy: -2, maxStep: 1 },
+  { dx: 0, dy: -1, maxStep: 8 },
+];
+
+export const WAVE_MOVE_DESCRIPTION_JA = '前後左右に各2マスまで移動できる。';
+
+/** 波（HTML: waveMoves）— 前後左右に各2マスまで。 */
+export const WAVE_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: 0, dy: -1, maxStep: 2 },
+  { dx: 0, dy: 1, maxStep: 2 },
+  { dx: -1, dy: 0, maxStep: 2 },
+  { dx: 1, dy: 0, maxStep: 2 },
+];
+
 /** 安（ガチャ）— 縦横1マス + 桂馬跳び。 */
 export const AN_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
   ...P_MOVE_VECTORS,
   { dx: -1, dy: -2, maxStep: 1 },
   { dx: 1, dy: -2, maxStep: 1 },
+];
+
+export const PHANTOM_MOVE_DESCRIPTION_JA = '前後左右1マス＋桂馬飛び';
+
+/** 幻（HTML: phantomMoves）— 前後左右1マス + 桂馬飛び。 */
+export const PHANTOM_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [...AN_MOVE_VECTORS];
+
+export const PEAK_SKILL_DESCRIPTION_JA = '画数10画以上の敵特殊駒を無効化する。';
+
+export const YAMA_MOVE_DESCRIPTION_JA = '斜め4方向に1マス移動できる。';
+
+/** 山（HTML: mountainMoves）— 斜め4方向に各1マス。 */
+export const YAMA_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: -1, dy: -1, maxStep: 1 },
+  { dx: 1, dy: -1, maxStep: 1 },
+  { dx: -1, dy: 1, maxStep: 1 },
+  { dx: 1, dy: 1, maxStep: 1 },
 ];
 
 export const SO_MOVE_DESCRIPTION_JA = '前後何マスでも+左右1マス';

@@ -23,3 +23,12 @@ export function computeStageClearCurrencyGrant(
     gold: 0,
   };
 }
+
+export type StageClearGrantedCurrency = {
+  pawn: number;
+  gold: number;
+};
+
+export function hasStageClearCurrencyGrant(granted: StageClearGrantedCurrency): boolean {
+  return granted.pawn > 0 || granted.gold > 0;
+}

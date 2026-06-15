@@ -78,7 +78,7 @@ function countPeople(p: AiBattlePosition): number {
 }
 
 describe('legal moves: 家・畑', () => {
-  it('家と畑は移動手が生成されない（固定駒）', () => {
+  test('家と畑は移動手が生成されない（固定駒）', () => {
     const position: AiBattlePosition = {
       sideToMove: 'player',
       turnNumber: 1,
@@ -100,6 +100,39 @@ describe('legal moves: 家・畑', () => {
     const fromField = legal.legalMoves.filter((m) => m.fromRow === 4 && m.fromCol === 5);
     expect(fromHouse.every((m) => m.notation === 'house_skill_only')).toBe(true);
     expect(fromField.length).toBe(0);
+  });
+
+  it('ZTAコードの畑も桂馬相当のカタログベクトルがあっても移動手が出ない', () => {
+    const ztaCatalog: AiPieceDefinition = {
+      ...catalog.find((p) => p.char === '畑')!,
+      pieceCode: 'ZTA',
+      canonicalCode: 'FIELD',
+      sfenCode: 'ZTA',
+      moveVectors: [
+        { dx: -1, dy: -2, maxStep: 1 },
+        { dx: 1, dy: -2, maxStep: 1 },
+      ],
+    };
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: 'x',
+      stateHash: 's',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 4, col: 4, pieceCode: 'ZTA', char: '畑', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({
+      position,
+      pieceCatalog: [...catalog.filter((p) => p.char !== '畑'), ztaCatalog],
+    });
+    expect(legal.legalMoves.some((m) => m.fromRow === 4 && m.fromCol === 4)).toBe(false);
   });
 
   it('民が5体いると家の house_skill_only が出ない', () => {
@@ -196,9 +229,12 @@ describe('legal moves: 家・畑', () => {
     };
     const legalNoField = generateLegalMoves({ position: withoutField, pieceCatalog: catalog });
     const movesNoField = legalNoField.legalMoves.filter((m) => m.fromRow === 4 && m.fromCol === 4);
-    expect(movesNoField.length).toBe(1);
-    expect(movesNoField[0]?.toRow).toBe(4);
-    expect(movesNoField[0]?.toCol).toBe(5);
+    expect(movesNoField.length).toBe(4);
+    const destNoField = new Set(movesNoField.map((m) => `${m.toRow},${m.toCol}`));
+    expect(destNoField.has('4,5')).toBe(true);
+    expect(destNoField.has('4,3')).toBe(true);
+    expect(destNoField.has('3,4')).toBe(true);
+    expect(destNoField.has('5,4')).toBe(true);
 
     const withAllyField: AiBattlePosition = {
       ...withoutField,
@@ -211,7 +247,7 @@ describe('legal moves: 家・畑', () => {
     };
     const legalWithField = generateLegalMoves({ position: withAllyField, pieceCatalog: catalog });
     const movesWith = legalWithField.legalMoves.filter((m) => m.fromRow === 4 && m.fromCol === 4);
-    expect(movesWith.length).toBe(5);
+    expect(movesWith.length).toBe(8);
     const dest = new Set(movesWith.map((m) => `${m.toRow},${m.toCol}`));
     expect(dest.has('4,5')).toBe(true);
     expect(dest.has('3,3')).toBe(true);
@@ -232,6 +268,6 @@ describe('legal moves: 家・畑', () => {
     const movesEnemyField = legalEnemyField.legalMoves.filter(
       (m) => m.fromRow === 4 && m.fromCol === 4,
     );
-    expect(movesEnemyField.length).toBe(1);
+    expect(movesEnemyField.length).toBe(4);
   });
 });

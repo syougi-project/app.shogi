@@ -827,6 +827,13 @@ function removeCapturedPieceFromBoard(
   return pieces.filter((p) => !(p.row === captureRow && p.col === captureCol));
 }
 
+function shouldSkipProcCaptureEvasions(input: {
+  skipProcCaptureEvasions?: boolean;
+  suppressRandomSkillProcs?: boolean;
+}): boolean {
+  return input.skipProcCaptureEvasions === true || input.suppressRandomSkillProcs === true;
+}
+
 function applyHostileCaptureAtCell(input: {
   boardState: Record<string, unknown> | undefined;
   nextPieces: AiBoardPiece[];
@@ -838,6 +845,8 @@ function applyHostileCaptureAtCell(input: {
   capturer?: AiBoardPiece | null;
   /** 巨の 2×2 同時取りなど: 剣回避・朧・幻影の取り逃がしを無効化する。 */
   skipProcCaptureEvasions?: boolean;
+  /** オンライン楽観更新: 幻・剣など確率/自動回避をサーバー結果待ちにする。 */
+  suppressRandomSkillProcs?: boolean;
 }): {
   nextPieces: AiBoardPiece[];
   hands: HandsBag;
@@ -850,6 +859,7 @@ function applyHostileCaptureAtCell(input: {
   let starReturnProcTriggered = false;
   let rebuffKboss = false;
   let deathCapturedByActor = false;
+  const skipProcCaptureEvasions = shouldSkipProcCaptureEvasions(input);
   const captured = findPieceAt(nextPieces, input.row, input.col);
   if (!captured || captured.side === input.actorSide) {
     return {
@@ -885,7 +895,7 @@ function applyHostileCaptureAtCell(input: {
     throw new Error('cannot capture king while soul remains');
   }
 
-  if (!input.skipProcCaptureEvasions && isKenSwordPieceForApply(captured)) {
+  if (!skipProcCaptureEvasions && isKenSwordPieceForApply(captured)) {
     const horiz = collectHorizontalAdjacentEmptyCells(nextPieces, input.row, input.col);
     if (horiz.length > 0) {
       const pick = horiz[Math.floor(Math.random() * horiz.length)]!;
@@ -908,7 +918,7 @@ function applyHostileCaptureAtCell(input: {
     }
   }
 
-  const oboroEvadeTo = input.skipProcCaptureEvasions
+  const oboroEvadeTo = skipProcCaptureEvasions
     ? null
     : resolveOboroEvadeWarpCell({
         captured,
@@ -937,11 +947,11 @@ function applyHostileCaptureAtCell(input: {
 
   let phantomEvaded = false;
   let adjacentEmpty: { row: number; col: number }[] = [];
-  const evadeChance = input.skipProcCaptureEvasions
+  const evadeChance = skipProcCaptureEvasions
     ? null
     : resolveEvadeCaptureProcChanceForPiece(input.boardState, captured);
   adjacentEmpty = collectAdjacentEmptyCells(nextPieces, input.row, input.col);
-  if (!input.skipProcCaptureEvasions && evadeChance != null && adjacentEmpty.length > 0) {
+  if (!skipProcCaptureEvasions && evadeChance != null && adjacentEmpty.length > 0) {
     const roll = Math.random();
     phantomEvaded = roll <= evadeChance;
   }
@@ -1311,6 +1321,7 @@ export function applyMove(input: {
   position: BattleCanonicalPosition;
   pieceCatalog: AiPieceDefinition[];
   move: AiBattleMove;
+  options?: { suppressRandomSkillProcs?: boolean };
 }): BattleCommittedMove {
   const current = normalizeBattlePosition(input.position);
   const move = normalizeBattleMove(input.move);
@@ -1321,6 +1332,7 @@ export function applyMove(input: {
     enemy: sanitizeHandsBag(current.hands.enemy),
   });
   const actorSide = current.sideToMove;
+  const suppressProcCaptureEvasions = input.options?.suppressRandomSkillProcs === true;
   const otsuFollowupBefore = readFollowupCellForSide(
     current.boardState as Record<string, unknown> | undefined,
     actorSide,
@@ -1609,7 +1621,12 @@ export function applyMove(input: {
         let phantomEvaded = false;
         let adjacentEmpty: { row: number; col: number }[] = [];
         let kenSwordEvadeTo: { row: number; col: number } | null = null;
-        if (!shieldAbortedMove && !captureOwnPiece && isKenSwordPieceForApply(captured)) {
+        if (
+          !shieldAbortedMove &&
+          !captureOwnPiece &&
+          !suppressProcCaptureEvasions &&
+          isKenSwordPieceForApply(captured)
+        ) {
           const horizKen = collectHorizontalAdjacentEmptyCells(nextPieces, move.toRow, move.toCol);
           if (horizKen.length > 0) {
             kenSwordEvadeTo = horizKen[Math.floor(Math.random() * horizKen.length)]!;
@@ -1617,7 +1634,12 @@ export function applyMove(input: {
           }
         }
         let oboroEvadeTo: { row: number; col: number } | null = null;
-        if (!shieldAbortedMove && !captureOwnPiece && !kenSwordEvadeTo) {
+        if (
+          !shieldAbortedMove &&
+          !captureOwnPiece &&
+          !kenSwordEvadeTo &&
+          !suppressProcCaptureEvasions
+        ) {
           oboroEvadeTo = resolveOboroEvadeWarpCell({
             captured,
             pieces: nextPieces,
@@ -1625,7 +1647,12 @@ export function applyMove(input: {
             captureCol: move.toCol,
           });
         }
-        if (!shieldAbortedMove && !captureOwnPiece && !kenSwordEvadeTo) {
+        if (
+          !shieldAbortedMove &&
+          !captureOwnPiece &&
+          !kenSwordEvadeTo &&
+          !suppressProcCaptureEvasions
+        ) {
           const evadeChance = resolveEvadeCaptureProcChanceForPiece(
             current.boardState as Record<string, unknown> | undefined,
             captured,
@@ -1661,6 +1688,7 @@ export function applyMove(input: {
           }
         } else if (phantomEvaded) {
           didCapture = false;
+          intrinsicCombatSkillTriggered = true;
           const pick = adjacentEmpty[Math.floor(Math.random() * adjacentEmpty.length)]!;
           const phIdx = nextPieces.findIndex(
             (p) => p.row === move.toRow && p.col === move.toCol && p.side === captured.side,
@@ -2143,6 +2171,7 @@ export function applyMove(input: {
         movedPiece: movedPieceAfterApply,
         pieces: nextPieces,
         didCapture,
+        suppressRandomSkillProcs: input.options?.suppressRandomSkillProcs === true,
       });
       moveSkillEffectTriggeredFromMoveEffects = moveSkillEffectTriggered;
       skillVisualEffectsFromMoveEffects = skillVisualEffects;

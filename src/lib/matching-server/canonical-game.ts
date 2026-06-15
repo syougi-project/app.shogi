@@ -85,6 +85,40 @@ export function matchingWireToCanonicalPosition(
   return injectSkillDefinitionsIntoPosition(position, pieceCatalog);
 }
 
+/** オンライン対戦: wire.board を盤面の正とし、skillState は wire を優先する */
+export function resolveOnlineBattlePositionFromWire(
+  wire: MatchingGameState,
+  pieceCatalog: PieceCatalogItem[],
+): AiBattlePosition {
+  const position = matchingWireToCanonicalPosition(wire, pieceCatalog);
+  if (wire.canonicalState?.boardState) {
+    const supplemental = { ...(wire.canonicalState.boardState as Record<string, unknown>) };
+    delete supplemental.pieces;
+    delete supplemental.skill_state;
+    delete supplemental.skillState;
+    position.boardState = {
+      ...(position.boardState as Record<string, unknown>),
+      ...supplemental,
+    };
+  }
+  return injectSkillDefinitionsIntoPosition(position, pieceCatalog);
+}
+
+function normalizeBattlePositionFromWireCanonical(
+  raw: MatchingGameState['canonicalState'],
+): AiBattlePosition {
+  const canonical = raw as AiBattlePosition;
+  return {
+    sideToMove: canonical.sideToMove === 'enemy' ? 'enemy' : 'player',
+    turnNumber: Math.max(1, canonical.turnNumber ?? 1),
+    moveCount: Math.max(0, canonical.moveCount ?? 0),
+    sfen: canonical.sfen ?? 'online-match',
+    stateHash: canonical.stateHash ?? null,
+    boardState: canonical.boardState ?? {},
+    hands: canonical.hands ?? { player: {}, enemy: {} },
+  };
+}
+
 export function injectSkillDefinitionsIntoPosition(
   position: AiBattlePosition,
   pieceCatalog: PieceCatalogItem[],

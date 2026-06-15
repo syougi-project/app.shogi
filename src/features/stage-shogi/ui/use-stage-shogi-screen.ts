@@ -67,6 +67,8 @@ import {
   localPromotedModuleFromBaseCodeCandidates,
   mergePeopleFieldDiagonalMoveVectors,
   applyAdjacentMedicineMoveRangeBuff,
+  appendRockObstacleVirtualPiecesForPreview,
+  isFixedHouseFieldPieceForUi,
   patchHandsForStarReturnSkill,
   pieceCodeFromPlacement,
   pieceCharFromCode,
@@ -85,6 +87,8 @@ import {
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
 import { createLoadPieceCatalogUseCase } from '@/usecases/piece-info/create-piece-info-usecases';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
+import { patchHomeSnapshotCurrency } from '@/hooks/common/home-snapshot-store';
+import type { StageClearGrantedCurrency } from '@/lib/stage/stage-clear-currency-reward';
 import { createClaimStageClearRewardUseCase } from '@/usecases/stage-battle/create-stage-battle-usecases';
 import { CommitGameMoveUseCase } from '@/usecases/stage-battle/commit-game-move-usecase';
 import { CreateGameUseCase } from '@/usecases/stage-battle/create-game-usecase';
@@ -327,6 +331,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
   const [stateHash, setStateHash] = useState<string | null>(null);
   const [pieceCatalog, setPieceCatalog] = useState<PieceCatalogItem[]>([]);
   const [winner, setWinner] = useState<Side | null>(null);
+  const [clearReward, setClearReward] = useState<StageClearGrantedCurrency | null>(null);
   const [skillActivationText, setSkillActivationText] = useState<string | null>(null);
   const [skillVisualEffects, setSkillVisualEffects] = useState<SkillVisualEffect[]>([]);
   const [inspectingPiece, setInspectingPiece] = useState<InspectingPieceState>(null);
@@ -666,6 +671,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     setStateHash(null);
     aiPositionRef.current = null;
     setWinner(null);
+    setClearReward(null);
     setSkillActivationText(null);
     if (skillToastTimeoutRef.current) {
       clearTimeout(skillToastTimeoutRef.current);
@@ -913,7 +919,15 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     clearRewardClaimedRef.current = true;
     battleSessionSettledRef.current = true;
     try {
-      await claimStageClearRewardUseCase.execute({ stageId: stageParam });
+      const result = await claimStageClearRewardUseCase.execute({ stageId: stageParam });
+      if (!result) return;
+      if (isMountedRef.current) {
+        setClearReward({
+          pawn: result.granted.pawn,
+          gold: result.granted.gold,
+        });
+      }
+      patchHomeSnapshotCurrency(result.wallet);
     } catch (error: unknown) {
       battleSessionSettledRef.current = false;
       setAiError(toUserFacingBattleError(error));
@@ -1989,8 +2003,13 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
             previewVectorsWithField,
             pieces,
           );
+          const pathPieces = appendRockObstacleVirtualPiecesForPreview(
+            pieces,
+            rockObstacleCells,
+            piece.side,
+          );
           const rawTargets = previewVectors.length
-            ? getLegalTargetsFromVectors(pieces, piece, previewVectors, BOARD_SIZE, {
+            ? getLegalTargetsFromVectors(pathPieces, piece, previewVectors, BOARD_SIZE, {
                 canJump: enemyPieceDef?.canJump === true,
               })
             : [];
@@ -2015,6 +2034,16 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
 
     if (!piece || piece.side !== 'player') {
       setSelectedCell(null);
+      setLegalTargets([]);
+      setEnemyPreviewTargets([]);
+      setPendingTimeActionCell(null);
+      setTimeActionMode(null);
+      return;
+    }
+
+    if (isFixedHouseFieldPieceForUi(piece) && piece.char === '畑') {
+      setSelectedCell(null);
+      setSelectedDropPieceCode(null);
       setLegalTargets([]);
       setEnemyPreviewTargets([]);
       setPendingTimeActionCell(null);
@@ -2330,6 +2359,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     pieceDefsByCode,
     pieceSfenMapping,
     winner,
+    clearReward,
     skillActivationText,
     skillVisualEffects,
     handleSkillVisualEffectFinished,

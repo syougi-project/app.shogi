@@ -490,6 +490,26 @@ export function isSoPiece(piece: PieceLike): boolean {
   return raw.includes('GACHA_SO') && !raw.includes('GACHA_SOU');
 }
 
+/** 銅: 桂馬飛び + 前方に何マスでも。 */
+export function isCopperPiece(piece: PieceLike): boolean {
+  const char = normKanjiForEngineRules(piece.char);
+  if (char === '銅') return true;
+  const base = toBasePieceCode(piece.pieceCode);
+  if (base === 'COPPER') return true;
+  const raw = pieceRawUpper(piece);
+  return raw.includes('COPPER');
+}
+
+/** 波: 前後左右に各2マスまで。 */
+export function isWavePiece(piece: PieceLike): boolean {
+  const char = normKanjiForEngineRules(piece.char);
+  if (char === '波') return true;
+  const base = toBasePieceCode(piece.pieceCode);
+  if (base === 'NAM' || base === 'WAVE') return true;
+  const raw = pieceRawUpper(piece);
+  return raw.includes('NAM') || raw.includes('WAVE');
+}
+
 /** ガチャ「安」: 前後左右1マス+桂馬飛び。 */
 export function isAnPiece(piece: PieceLike): boolean {
   const char = normKanjiForEngineRules(piece.char);
@@ -498,6 +518,26 @@ export function isAnPiece(piece: PieceLike): boolean {
   if (base === 'GACHA_AN') return true;
   const raw = pieceRawUpper(piece);
   return raw.includes('GACHA_AN');
+}
+
+/** 幻: 前後左右1マス+桂馬飛び。 */
+export function isPhantomPiece(piece: PieceLike): boolean {
+  const char = normKanjiForEngineRules(piece.char);
+  if (char === '幻') return true;
+  const base = toBasePieceCode(piece.pieceCode);
+  if (base === 'PHANTOM') return true;
+  const raw = pieceRawUpper(piece);
+  return raw.includes('PHANTOM');
+}
+
+/** 山: 斜め4方向に各1マス（嶺スキル召喚駒）。 */
+export function isYamaPiece(piece: PieceLike): boolean {
+  const char = normKanjiForEngineRules(piece.char);
+  if (char === '山') return true;
+  const base = toBasePieceCode(piece.pieceCode);
+  if (base === 'YAMA') return true;
+  const raw = pieceRawUpper(piece);
+  return raw.includes('YAMA');
 }
 
 /** ガチャ「室」: 前後左右斜め前1マス。 */

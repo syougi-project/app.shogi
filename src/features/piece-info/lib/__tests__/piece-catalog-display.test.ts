@@ -96,6 +96,48 @@ describe('piece-catalog-display', () => {
     );
   });
 
+  it('葉は10%で周囲ランダム1マスに葉召喚のスキル説明に差し替える', () => {
+    const piece = catalogItem({
+      char: '葉',
+      pieceCode: 'HAA',
+      skill: '各敵駒ごとに10%の確率で、ランダムな方向に1マス移動させる。',
+    });
+    expect(normalizeCatalogSkillText(piece)).toBe(
+      '移動時10％の確率で周囲のランダム1マスに「葉」駒を召喚する。',
+    );
+    expect(normalizePieceCatalogItemForDisplay(piece).skill).toBe(
+      '移動時10％の確率で周囲のランダム1マスに「葉」駒を召喚する。',
+    );
+  });
+
+  it('氷は30%凍結のスキル説明に差し替える', () => {
+    const piece = catalogItem({
+      char: '氷',
+      pieceCode: 'ICE',
+      skill: '周囲の敵を凍らせ2ターン動けなくする。',
+    });
+    expect(normalizeCatalogSkillText(piece)).toBe(
+      '移動時30%の確率で周囲8マスの敵駒（玉除く）1体を2ターン行動不能にする。',
+    );
+    expect(normalizePieceCatalogItemForDisplay(piece).skill).toBe(
+      '移動時30%の確率で周囲8マスの敵駒（玉除く）1体を2ターン行動不能にする。',
+    );
+  });
+
+  it('苔は30%召喚のスキル説明に差し替える', () => {
+    const piece = catalogItem({
+      char: '苔',
+      pieceCode: 'MOSS',
+      skill: '移動時増殖する。',
+    });
+    expect(normalizeCatalogSkillText(piece)).toBe(
+      '移動時30%の確率で周囲8マスのランダムな空きマス1マスに「苔」駒を1体召喚する。',
+    );
+    expect(normalizePieceCatalogItemForDisplay(piece).skill).toBe(
+      '移動時30%の確率で周囲8マスのランダムな空きマス1マスに「苔」駒を1体召喚する。',
+    );
+  });
+
   it('走は前方最大2マスの移動説明に差し替える', () => {
     const piece = catalogItem({
       char: '走',
@@ -331,5 +373,31 @@ describe('piece-catalog-display', () => {
     expect(display.skill).toBe('なし。');
     expect(display.move).toContain('斜め前・左右・後ろ');
     expect(display.moveVectors.length).toBeGreaterThan(0);
+  });
+
+  it('峰は特殊駒無効化のスキル説明に差し替える', () => {
+    const piece = catalogItem({
+      char: '峰',
+      pieceCode: 'PEAK',
+      skill: '画数が10画以上の敵駒を無効化する。',
+    });
+    expect(normalizeCatalogSkillText(piece)).toBe('画数10画以上の敵特殊駒を無効化する。');
+  });
+
+  it('山は斜め4方向1マスの移動説明とベクトルに差し替える', () => {
+    const piece = catalogItem({
+      char: '山',
+      pieceCode: 'YAMA',
+      move: '前方1マス',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('斜め4方向に1マス移動できる。');
+    expect(display.moveVectors).toEqual([
+      { dx: -1, dy: -1, maxStep: 1 },
+      { dx: 1, dy: -1, maxStep: 1 },
+      { dx: -1, dy: 1, maxStep: 1 },
+      { dx: 1, dy: 1, maxStep: 1 },
+    ]);
   });
 });

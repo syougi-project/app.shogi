@@ -215,7 +215,7 @@ export function StageShogiScreen() {
             </View>
           ) : null}
 
-          <StageShogiResultOverlay winner={vm.winner} />
+          <StageShogiResultOverlay winner={vm.winner} clearReward={vm.clearReward} />
         </View>
       </UiScreenShell>
       <StageShogiBackButton

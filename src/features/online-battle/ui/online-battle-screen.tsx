@@ -26,6 +26,7 @@ import { homeAssets } from '@/constants/home-assets';
 import { OnlineBattleBoard } from '@/features/online-battle/ui/components/online-battle-board';
 import {
   StageShogiHouseSkillModal,
+  StageShogiInspectModal,
   StageShogiTimeActionModal,
 } from '@/features/stage-shogi/ui/components/stage-shogi-modals';
 import { parseOnlineBattleDisplay } from '@/features/online-battle/lib/parse-session-labels';
@@ -49,6 +50,9 @@ export function OnlineBattleScreen() {
     disconnect,
     pieces,
     hands,
+    poisonHazardCells,
+    rockObstacleCells,
+    batsuHazardCells,
     role,
     pieceCatalog,
     pieceDefsByCode,
@@ -66,7 +70,11 @@ export function OnlineBattleScreen() {
     moveError,
     canInteract,
     handleCellPress,
+    handleCellLongPress,
     handleHandPiecePress,
+    handleHandPieceLongPress,
+    closeInspectingPiece,
+    inspectingPiece,
     commitMove,
     setPendingPromotion,
     confirmTimeAction,
@@ -198,12 +206,16 @@ export function OnlineBattleScreen() {
                     enemyPreviewTargets={enemyPreviewTargets}
                     pieceDefsByCode={pieceDefsByCode}
                     promotedPieceDefsByCode={promotedPieceDefsByCode}
+                    poisonHazardCells={poisonHazardCells}
+                    rockObstacleCells={rockObstacleCells}
+                    batsuHazardCells={batsuHazardCells}
                     canInteract={
                       canInteract ||
                       Boolean(pendingSatoriEnemyPick?.length) ||
                       Boolean(pendingHeartAllyPick?.length)
                     }
                     onCellPress={handleCellPress}
+                    onCellLongPress={handleCellLongPress}
                     skillVisualEffects={skillVisualEffects}
                     onSkillVisualEffectFinished={handleSkillVisualEffectFinished}
                   />
@@ -253,6 +265,7 @@ export function OnlineBattleScreen() {
                       pieceCatalog={pieceCatalog}
                       compact
                       onPressPiece={handleHandPiecePress}
+                      onLongPressPiece={handleHandPieceLongPress}
                     />
                     <StageShogiHandSkillParticleLayer
                       effects={skillVisualEffects}
@@ -283,6 +296,7 @@ export function OnlineBattleScreen() {
                       pieceCatalog={pieceCatalog}
                       compact
                       onPressPiece={() => undefined}
+                      onLongPressPiece={handleHandPieceLongPress}
                     />
                     <StageShogiHandSkillParticleLayer
                       effects={skillVisualEffects}
@@ -313,8 +327,14 @@ export function OnlineBattleScreen() {
               </View>
             </View>
 
-            {session.winnerSide ? <BattleEndResultOverlay winner={session.winnerSide} /> : null}
+            {session.winnerSide ? (
+              <BattleEndResultOverlay winner={session.winnerSide} onPress={openExitConfirm} />
+            ) : null}
 
+            <StageShogiInspectModal
+              inspectingPiece={inspectingPiece}
+              onClose={closeInspectingPiece}
+            />
             <StageShogiTimeActionModal
               pending={pendingTimeActionCell}
               onConfirm={confirmTimeAction}

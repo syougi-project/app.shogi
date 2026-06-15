@@ -1,6 +1,7 @@
 import {
   canonicalToMatchingWire,
   matchingWireToCanonicalPosition,
+  resolveOnlineBattlePositionFromWire,
 } from '@/lib/matching-server/canonical-game';
 import type { MatchingGameState } from '@/domain/matching-server/protocol';
 
@@ -204,5 +205,51 @@ describe('matching-server canonical-game', () => {
     const roundTrip = canonicalToMatchingWire(position);
     expect(roundTrip.skillState?.movement_modifiers?.[0]?.side).toBe('white');
     expect(roundTrip.skillState?.board_hazards?.[0]?.affects_side).toBe('white');
+  });
+
+  it('resolveOnlineBattlePositionFromWire prefers wire.board over stale canonicalState pieces', () => {
+    const wire: MatchingGameState = {
+      version: 3,
+      turn: 'white',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '4e': 'white:PHANTOM',
+        '5f': 'black:GI',
+      },
+      hands: { black: {}, white: {} },
+      skillState: {},
+      canonicalState: {
+        sideToMove: 'enemy',
+        turnNumber: 3,
+        moveCount: 2,
+        sfen: 'online-match',
+        stateHash: 'v3',
+        boardState: {
+          pieces: [
+            { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+            { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+            { side: 'player', row: 5, col: 4, pieceCode: 'GI', char: '銀', promoted: false },
+            { side: 'enemy', row: 4, col: 4, pieceCode: 'FU', char: '歩', promoted: false },
+          ],
+        },
+        hands: { player: {}, enemy: {} },
+      },
+    };
+
+    const position = resolveOnlineBattlePositionFromWire(wire, []);
+    const pieces =
+      (position.boardState as { pieces?: Array<{ pieceCode?: string; row: number; col: number }> })
+        .pieces ?? [];
+
+    expect(
+      pieces.some((piece) => piece.pieceCode === 'PHANTOM' && piece.row === 4 && piece.col === 5),
+    ).toBe(true);
+    expect(
+      pieces.some((piece) => piece.pieceCode === 'GI' && piece.row === 5 && piece.col === 4),
+    ).toBe(true);
+    expect(
+      pieces.some((piece) => piece.pieceCode === 'FU' && piece.row === 4 && piece.col === 4),
+    ).toBe(false);
   });
 });

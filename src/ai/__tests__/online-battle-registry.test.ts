@@ -140,4 +140,35 @@ describe('online-battle-registry display pieces', () => {
     const definitions = boardState.skill_definitions_v2?.definitions ?? [];
     expect(definitions.some((def) => Number(def.skillId) > 0)).toBe(true);
   });
+
+  it('marks dark_blind enemies with darkVeiled for online board display', () => {
+    const wire: MatchingGameState = {
+      version: 2,
+      turn: 'white',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '5d': 'black:YAM',
+        '4e': 'white:FU',
+      },
+      hands: { black: {}, white: {} },
+      skillState: {
+        piece_statuses: [
+          { row: 4, col: 5, side: 'white', status_type: 'dark_blind', remaining_turns: 1 },
+        ],
+      },
+    };
+    const catalog = [catalogItem('YAM', '闇'), catalogItem('FU', '歩'), catalogItem('OU', '王')];
+
+    createOnlineBattleGame({
+      matchId: 'match-display',
+      myRole: 'white',
+      wire,
+      pieceCatalog: catalog,
+    });
+
+    const pieces = getDisplayBoardPieces('match-display');
+    const veiled = pieces.find((piece) => piece.row === 4 && piece.col === 5);
+    expect(veiled?.darkVeiled).toBe(true);
+  });
 });

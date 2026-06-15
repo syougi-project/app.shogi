@@ -31,6 +31,11 @@ import {
   isGiantPieceForEngine,
 } from '@/ai/engine/giant-piece';
 import {
+  listSpringImmunityAllyCandidates,
+  SPRING_ALLY_IMMUNITY_TURNS,
+  upsertCaptureImmunityDefense,
+} from '@/ai/engine/spring-random-ally-immunity';
+import {
   HEN_BOARD_EDGES,
   pieceOnHenBoardEdge,
   type HenBoardEdge,
@@ -1048,6 +1053,13 @@ function sideOpposite(side: Side): Side {
   return side === 'player' ? 'enemy' : 'player';
 }
 
+function resolveSkillAffectsSide(value: unknown): Side {
+  const raw = asString(value);
+  if (raw === 'enemy' || raw === 'white') return 'enemy';
+  if (raw === 'player' || raw === 'black') return 'player';
+  return 'player';
+}
+
 function cellKey(side: Side, row: number, col: number): string {
   return `${side}:${row}:${col}`;
 }
@@ -1195,10 +1207,18 @@ function incrementHand(position: AiBattlePosition, side: Side, pieceCode: string
   };
 }
 
-function decrementFirstHandPiece(position: AiBattlePosition, side: Side): string | null {
+function decrementFirstHandPiece(
+  position: AiBattlePosition,
+  side: Side,
+  preferredKey?: string,
+): string | null {
   const bag = { ...(position.hands[side] ?? {}) };
   const keys = Object.keys(bag).sort();
-  for (const key of keys) {
+  const ordered =
+    preferredKey && (bag[preferredKey] ?? 0) > 0
+      ? [preferredKey, ...keys.filter((key) => key !== preferredKey)]
+      : keys;
+  for (const key of ordered) {
     const current = typeof bag[key] === 'number' ? Math.max(0, Math.floor(bag[key] as number)) : 0;
     if (current <= 0) continue;
     const next = current - 1;
@@ -1314,10 +1334,7 @@ export function pieceHasActiveCaptureImmunityFromBoardState(
       if (type !== 'safe_room_cell') continue;
       const remaining = asNumber(entry.remaining_turns ?? entry.remainingTurns) ?? 0;
       if (remaining <= 0) continue;
-      const affectsSide =
-        (asString(entry.affects_side ?? entry.affectsSide) ?? 'player') === 'enemy'
-          ? 'enemy'
-          : 'player';
+      const affectsSide = resolveSkillAffectsSide(entry.affects_side ?? entry.affectsSide);
       if (affectsSide !== side) continue;
       const r = asNumber(entry.row);
       const c = asNumber(entry.col);
@@ -1359,6 +1376,31 @@ export function passiveAuraImmobilizedCellKeys(boardPieces: AiBoardPiece[]): Set
       if (target.row !== piece.row && target.col !== piece.col) continue;
       if (isKingPiece(target) || isGiantPieceForEngine(target)) continue;
       immobilizedCells.add(cellKey(target.side, target.row, target.col));
+    }
+  }
+  return immobilizedCells;
+}
+
+function isSaintPieceForAura(piece: AiBoardPiece): boolean {
+  const char = (piece.char ?? '').normalize('NFKC');
+  return char === '聖' || toBasePieceCode(piece.pieceCode) === 'SAINT';
+}
+
+/** 聖の周囲8マスにいる駒は移動・スキル不可（HTML isNearSaintGlobal 準拠）。 */
+function saintAdjacentImmobilizedCellKeys(boardPieces: AiBoardPiece[]): Set<string> {
+  const immobilizedCells = new Set<string>();
+  for (const saint of boardPieces) {
+    if (!isSaintPieceForAura(saint)) continue;
+    for (let dr = -1; dr <= 1; dr += 1) {
+      for (let dc = -1; dc <= 1; dc += 1) {
+        if (dr === 0 && dc === 0) continue;
+        const row = saint.row + dr;
+        const col = saint.col + dc;
+        if (row < 0 || row > 8 || col < 0 || col > 8) continue;
+        const target = findPieceCoveringCell(boardPieces, row, col);
+        if (!target) continue;
+        immobilizedCells.add(cellKey(target.side, target.row, target.col));
+      }
     }
   }
   return immobilizedCells;
@@ -1431,16 +1473,16 @@ export function createSkillRuntimeView(position: AiBattlePosition): SkillRuntime
   for (const key of passiveAuraImmobilizedCellKeys(boardPieces)) {
     immobilizedCells.add(key);
   }
+  for (const key of saintAdjacentImmobilizedCellKeys(boardPieces)) {
+    immobilizedCells.add(key);
+  }
 
   for (const entry of state.board_hazards) {
     const type = asString(entry.hazard_type ?? entry.hazardType);
     const row = asNumber(entry.row);
     const col = asNumber(entry.col);
     const remaining = asNumber(entry.remaining_turns ?? entry.remainingTurns) ?? 0;
-    const affectsSide =
-      (asString(entry.affects_side ?? entry.affectsSide) ?? 'player') === 'enemy'
-        ? 'enemy'
-        : 'player';
+    const affectsSide = resolveSkillAffectsSide(entry.affects_side ?? entry.affectsSide);
     if (type !== 'poison_cell' && type !== 'poison') continue;
     if (row == null || col == null || remaining <= 0) continue;
     if (anyGiantFootprintContainsCell(boardPieces, row, col)) continue;
@@ -1487,10 +1529,7 @@ export function createSkillRuntimeView(position: AiBattlePosition): SkillRuntime
     const row = asNumber(entry.row);
     const col = asNumber(entry.col);
     const remaining = asNumber(entry.remaining_turns ?? entry.remainingTurns) ?? 0;
-    const affectsSide =
-      (asString(entry.affects_side ?? entry.affectsSide) ?? 'player') === 'enemy'
-        ? 'enemy'
-        : 'player';
+    const affectsSide = resolveSkillAffectsSide(entry.affects_side ?? entry.affectsSide);
     if (row == null || col == null || remaining <= 0) continue;
     const kingOnCell = boardPieces.find(
       (p) => p.side === affectsSide && p.row === row && p.col === col && isKingPiece(p),
@@ -1508,10 +1547,7 @@ export function createSkillRuntimeView(position: AiBattlePosition): SkillRuntime
     const row = asNumber(entry.row);
     const col = asNumber(entry.col);
     const remaining = asNumber(entry.remaining_turns ?? entry.remainingTurns) ?? 0;
-    const affectsSide =
-      (asString(entry.affects_side ?? entry.affectsSide) ?? 'player') === 'enemy'
-        ? 'enemy'
-        : 'player';
+    const affectsSide = resolveSkillAffectsSide(entry.affects_side ?? entry.affectsSide);
     if (row == null || col == null || remaining <= 0) continue;
     if (anyGiantFootprintContainsCell(boardPieces, row, col)) continue;
     thornDropBlockedCells.add(cellKey(affectsSide, row, col));
@@ -1645,16 +1681,13 @@ export function applyBoardHazardsOnLanding(input: {
     const row = asNumber(entry.row);
     const col = asNumber(entry.col);
     const remaining = asNumber(entry.remaining_turns ?? entry.remainingTurns) ?? 0;
-    const affectsSide =
-      (asString(entry.affects_side ?? entry.affectsSide) ?? 'player') === 'enemy'
-        ? 'enemy'
-        : 'player';
+    const affectsSide = resolveSkillAffectsSide(entry.affects_side ?? entry.affectsSide);
     return (
       remaining > 0 &&
       affectsSide === input.actorSide &&
       row === input.movedTo.row &&
       col === input.movedTo.col &&
-      type === 'poison_cell'
+      (type === 'poison_cell' || type === 'poison')
     );
   });
   if (!lethal) return;
@@ -1743,6 +1776,7 @@ export function applyMoveSkillEffects(input: {
   movedPiece: AiBoardPiece | null;
   pieces: AiBoardPiece[];
   didCapture: boolean;
+  suppressRandomSkillProcs?: boolean;
 }): { moveSkillEffectTriggered: boolean; skillVisualEffects: SkillVisualEffect[] } {
   const skillVisualEffects: SkillVisualEffect[] = [];
   let skillFxSeq = 0;
@@ -1761,6 +1795,7 @@ export function applyMoveSkillEffects(input: {
     movedPiece,
   );
   const skillProcRoll = (p: number): boolean => {
+    if (input.suppressRandomSkillProcs) return false;
     if (yinEnemySuppressesSkills) return false;
     const eff = applyYangAllySkillProcMultiplier(p, yangSkillProcFactor);
     return Math.random() <= eff;
@@ -1903,15 +1938,14 @@ export function applyMoveSkillEffects(input: {
     if (triggered) {
       const targetSide = sideOpposite(input.actorSide);
       const bag = input.position.hands[targetSide] ?? {};
-      const firstKey = Object.keys(bag)
-        .sort()
-        .find((key) => {
-          const qty = bag[key];
-          return typeof qty === 'number' && Number.isFinite(qty) && qty > 0;
-        });
-      if (firstKey) {
-        const slotIndex = handSlotIndexBeforeRemoval(input.position.hands, targetSide, firstKey);
-        const removedKey = decrementFirstHandPiece(input.position, targetSide);
+      const candidateKeys = Object.keys(bag).filter((key) => {
+        const qty = bag[key];
+        return typeof qty === 'number' && Number.isFinite(qty) && qty > 0;
+      });
+      if (candidateKeys.length > 0) {
+        const selectedKey = candidateKeys[Math.floor(Math.random() * candidateKeys.length)]!;
+        const slotIndex = handSlotIndexBeforeRemoval(input.position.hands, targetSide, selectedKey);
+        const removedKey = decrementFirstHandPiece(input.position, targetSide, selectedKey);
         if (removedKey) {
           markMoveSkillFx();
           skillFxSeq = appendHandSkillVisualEffects(skillVisualEffects, {
@@ -2071,6 +2105,37 @@ export function applyMoveSkillEffects(input: {
       }
     }
   }
+  // 泉: 移動時、盤上の味方駒からランダムに1体を5ターン、敵から取られないようにする。
+  if (
+    input.move.fromRow != null &&
+    input.move.fromCol != null &&
+    movedPiece &&
+    !input.move.dropPieceCode &&
+    (movedCode === 'SPRING' || movedPiece.char === '泉')
+  ) {
+    const allies = listSpringImmunityAllyCandidates({
+      pieces: input.pieces,
+      actorSide: input.actorSide,
+      movedPiece,
+    });
+    if (allies.length > 0) {
+      const target = allies[Math.floor(Math.random() * allies.length)]!;
+      upsertCaptureImmunityDefense(
+        state.piece_defenses,
+        target.side,
+        target.row,
+        target.col,
+        SPRING_ALLY_IMMUNITY_TURNS,
+      );
+      markMoveSkillFx();
+      skillFxSeq = appendBoardSkillVisualEffects(skillVisualEffects, {
+        idPrefix: skillFxIdPrefix,
+        seq: skillFxSeq,
+        pieceChar: '泉',
+        cells: [{ row: target.row, col: target.col }],
+      });
+    }
+  }
   // 心: 選んだ味方駒を2ターン、敵の捕獲から守る（piece_defenses / mode=immunity）。
   {
     const heartProtectCell = parseHeartProtectTargetNotation(input.move.notation ?? null);
@@ -2189,9 +2254,11 @@ export function applyMoveSkillEffects(input: {
       }
     }
   }
-  // 虹/青鬼: 周囲8マスの敵駒の移動範囲を上下左右1マスに制限する。
+  // 虹: 移動時、周囲8マスの敵駒の移動範囲を4ターン縦横1マスに制限する。
+  // 青鬼: 移動時、周囲8マスの敵駒の移動範囲を2ターン縦横1マスに制限する。
+  const adjacentOrthogonalRestrictDuration = isRainbowMover ? 4 : isBlueOniMover ? 2 : 0;
   if (
-    (isRainbowMover || isBlueOniMover) &&
+    adjacentOrthogonalRestrictDuration > 0 &&
     input.move.fromRow != null &&
     input.move.fromCol != null &&
     input.movedPiece
@@ -2210,7 +2277,7 @@ export function applyMoveSkillEffects(input: {
           col,
           side: target.side,
           movement_rule: 'orthogonal_step_only',
-          remaining_turns: 2,
+          remaining_turns: adjacentOrthogonalRestrictDuration,
         });
         rainbowMods += 1;
       }
@@ -2461,7 +2528,7 @@ export function applyMoveSkillEffects(input: {
     const procChance = 0.1;
     const triggered = skillProcRoll(procChance);
     if (triggered) {
-      let tinStuns = 0;
+      const stunnedCells: { row: number; col: number }[] = [];
       for (let dr = -1; dr <= 1; dr += 1) {
         for (let dc = -1; dc <= 1; dc += 1) {
           if (dr === 0 && dc === 0) continue;
@@ -2484,44 +2551,58 @@ export function applyMoveSkillEffects(input: {
             status_type: 'stun',
             remaining_turns: 2,
           });
-          tinStuns += 1;
+          stunnedCells.push({ row, col });
         }
       }
-      if (tinStuns > 0) {
+      if (stunnedCells.length > 0) {
         markMoveSkillFx();
+        skillFxSeq = appendBoardSkillVisualEffects(skillVisualEffects, {
+          idPrefix: skillFxIdPrefix,
+          seq: skillFxSeq,
+          pieceChar: '錫',
+          cells: stunnedCells,
+        });
       }
     }
   }
-  // 電: 移動時20%で周囲8マスの敵駒1体（玉除く）を3ターン行動不能（stun）。
+  // 電: 移動時20%で周囲8マスの敵駒（玉除く）を1ターン行動不能（stun）。
   if (isElectricMover && input.move.fromRow != null && input.move.fromCol != null && movedPiece) {
     const procChance = 0.2;
     const triggered = skillProcRoll(procChance);
     if (triggered) {
-      const candidates = input.pieces.filter((piece) => {
-        if (piece.side === input.actorSide) return false;
-        if (Math.abs(piece.row - movedPiece.row) > 1 || Math.abs(piece.col - movedPiece.col) > 1) {
-          return false;
+      const stunnedCells: { row: number; col: number }[] = [];
+      for (let dr = -1; dr <= 1; dr += 1) {
+        for (let dc = -1; dc <= 1; dc += 1) {
+          if (dr === 0 && dc === 0) continue;
+          const row = movedPiece.row + dr;
+          const col = movedPiece.col + dc;
+          if (row < 0 || row > 8 || col < 0 || col > 8) continue;
+          const targetPiece = input.pieces.find((piece) => piece.row === row && piece.col === col);
+          if (!targetPiece || targetPiece.side === input.actorSide) continue;
+          if (
+            targetPiece.char === '王' ||
+            targetPiece.char === '玉' ||
+            toBasePieceCode(targetPiece.pieceCode) === 'OU'
+          ) {
+            continue;
+          }
+          state.piece_statuses.push({
+            row,
+            col,
+            side: targetPiece.side,
+            status_type: 'stun',
+            remaining_turns: 2,
+          });
+          stunnedCells.push({ row, col });
         }
-        if (piece.row === movedPiece.row && piece.col === movedPiece.col) return false;
-        const base = toBasePieceCode(piece.pieceCode);
-        if (base === 'OU' || piece.char === '王' || piece.char === '玉') return false;
-        return true;
-      });
-      if (candidates.length > 0) {
-        const target = candidates[Math.floor(Math.random() * candidates.length)]!;
-        state.piece_statuses.push({
-          row: target.row,
-          col: target.col,
-          side: target.side,
-          status_type: 'stun',
-          remaining_turns: 3,
-        });
+      }
+      if (stunnedCells.length > 0) {
         markMoveSkillFx();
         skillFxSeq = appendBoardSkillVisualEffects(skillVisualEffects, {
           idPrefix: skillFxIdPrefix,
           seq: skillFxSeq,
           pieceChar: '電',
-          cells: [{ row: target.row, col: target.col }],
+          cells: stunnedCells,
         });
       }
     }
@@ -4275,10 +4356,7 @@ export function applyMoveSkillEffects(input: {
           state.board_hazards = state.board_hazards.filter((entry) => {
             const type = asString(entry.hazard_type ?? entry.hazardType) ?? '';
             if (type !== 'safe_room_cell') return true;
-            const side =
-              (asString(entry.affects_side ?? entry.affectsSide) ?? 'player') === 'enemy'
-                ? 'enemy'
-                : 'player';
+            const side = resolveSkillAffectsSide(entry.affects_side ?? entry.affectsSide);
             const er = asNumber(entry.row);
             const ec = asNumber(entry.col);
             return !(side === input.actorSide && er === king.row && ec === king.col);

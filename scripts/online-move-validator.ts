@@ -62,7 +62,8 @@ function actorRoleToSide(role: PlayerSide): 'player' | 'enemy' {
 
 function movePayloadToBattleMove(payload: MovePayload): BattleMove {
   const piece = toBasePieceCode(payload.piece) ?? payload.piece.toUpperCase();
-  if (payload.drop) {
+  const isDrop = payload.drop === true || payload.from == null || payload.from === '';
+  if (isDrop) {
     const { row, col } = parseMatchingSquare(payload.to);
     return {
       fromRow: null,

@@ -1,5 +1,6 @@
 import { generateLegalMoves } from '@/ai/engine';
 import { normalizePieceCatalog } from '@/ai/model';
+import { toBasePieceCode } from '@/ai/model/move';
 import { buildPieceLookups } from '@/ai/model/piece';
 import type { AiBattlePosition } from '@/ai/model';
 import type { MovePayload, MatchingGameState, PlayerSide } from '@/domain/matching-server/protocol';
@@ -11,6 +12,7 @@ import {
 } from '@/features/stage-shogi/domain/game-rules';
 import {
   buildBoardState,
+  handKeyToDisplayPieceCode,
   pieceCharFromCode,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
 import { formatMatchingSquare, parseMatchingSquare } from '@/lib/matching-server/square';
@@ -141,10 +143,11 @@ export function filterBattleMovesForServerWire(
   moves: BattleMove[],
   wire: Pick<MatchingGameState, 'board' | 'hands'>,
   myRole: PlayerSide,
+  catalog?: readonly PieceCatalogItem[],
 ): BattleMove[] {
   return moves.filter((move) => {
     try {
-      battleMoveToServerPayload(move, myRole, wire);
+      battleMoveToServerPayload(move, myRole, wire, catalog);
       return true;
     } catch {
       return false;
@@ -164,24 +167,54 @@ export function serverPieceCodesEquivalent(left: string, right: string): boolean
   return stripPiecePrefix(a) === stripPiecePrefix(b);
 }
 
+function handPieceCodesEquivalent(
+  left: string,
+  right: string,
+  catalog?: readonly PieceCatalogItem[],
+): boolean {
+  if (serverPieceCodesEquivalent(left, right)) return true;
+  const leftBase = toBasePieceCode(left.trim().toUpperCase());
+  const rightBase = toBasePieceCode(right.trim().toUpperCase());
+  if (leftBase && rightBase && leftBase === rightBase) return true;
+  if (!catalog) return false;
+  const leftDisplay = handKeyToDisplayPieceCode(left, catalog).toUpperCase();
+  const rightDisplay = handKeyToDisplayPieceCode(right, catalog).toUpperCase();
+  if (leftDisplay === rightDisplay) return true;
+  if (leftBase && leftDisplay === rightBase) return true;
+  if (rightBase && rightDisplay === leftBase) return true;
+  return false;
+}
+
+function findHandBagKey(
+  bag: Record<string, number>,
+  pieceCode: string,
+  catalog?: readonly PieceCatalogItem[],
+): string | null {
+  const want = pieceCode.trim().toUpperCase();
+  if ((bag[want] ?? 0) > 0) return want;
+  for (const [key, count] of Object.entries(bag)) {
+    if (count > 0 && handPieceCodesEquivalent(key, want, catalog)) {
+      return key.toUpperCase();
+    }
+  }
+  return null;
+}
+
 /** サーバー wire 上の盤面/持ち駒キーを優先して move.piece を決める（toBasePieceCode による不一致を防ぐ） */
 export function resolveServerMovePieceCode(
   move: BattleMove,
   myRole: PlayerSide,
   wire?: Pick<MatchingGameState, 'board' | 'hands'>,
+  catalog?: readonly PieceCatalogItem[],
 ): string {
   if (move.dropPieceCode) {
-    const dropRaw = move.dropPieceCode.trim().toUpperCase();
     const bag = wire?.hands?.[myRole];
     if (bag) {
-      if ((bag[dropRaw] ?? 0) > 0) return dropRaw;
-      for (const [key, count] of Object.entries(bag)) {
-        if (count > 0 && serverPieceCodesEquivalent(key, dropRaw)) {
-          return key.toUpperCase();
-        }
-      }
+      const resolved = findHandBagKey(bag, move.dropPieceCode, catalog);
+      if (resolved) return resolved;
+      throw new Error('サーバー持ち駒と打ち駒が一致しません。再接続してください。');
     }
-    return dropRaw;
+    return move.dropPieceCode.trim().toUpperCase();
   }
 
   if (move.fromRow != null && move.fromCol != null && wire?.board) {
@@ -200,8 +233,9 @@ export function battleMoveToServerPayload(
   move: BattleMove,
   myRole: PlayerSide,
   wire?: Pick<MatchingGameState, 'board' | 'hands'>,
+  catalog?: readonly PieceCatalogItem[],
 ): MovePayload {
-  const piece = resolveServerMovePieceCode(move, myRole, wire);
+  const piece = resolveServerMovePieceCode(move, myRole, wire, catalog);
   const to = formatMatchingSquare(move.toRow, move.toCol).toLowerCase();
   if (move.dropPieceCode) {
     return {
@@ -215,13 +249,17 @@ export function battleMoveToServerPayload(
     throw new Error('盤上の着手に移動元がありません');
   }
   const from = formatMatchingSquare(move.fromRow, move.fromCol).toLowerCase();
-  return {
+  const payload: MovePayload = {
     from,
     to,
     piece,
     promote: move.promote === true,
     drop: false,
   };
+  if (move.notation) {
+    payload.notation = move.notation;
+  }
+  return payload;
 }
 
 /** 表示用に盤を180度回転（後手プレイヤー向け） */

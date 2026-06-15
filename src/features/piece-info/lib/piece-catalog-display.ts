@@ -2,6 +2,11 @@ import type { PieceCatalogItem } from '@/domain/models/piece';
 import {
   AN_MOVE_DESCRIPTION_JA,
   AN_MOVE_VECTORS,
+  PHANTOM_MOVE_DESCRIPTION_JA,
+  PHANTOM_MOVE_VECTORS,
+  PEAK_SKILL_DESCRIPTION_JA,
+  YAMA_MOVE_DESCRIPTION_JA,
+  YAMA_MOVE_VECTORS,
   AORI_MOVE_DESCRIPTION_JA,
   AORI_MOVE_VECTORS,
   BAKU_MOVE_DESCRIPTION_JA,
@@ -39,13 +44,17 @@ import {
   SOU_MOVE_VECTORS,
   TANE_MOVE_DESCRIPTION_JA,
   TANE_SILVER_MOVE_VECTORS,
+  WAVE_MOVE_DESCRIPTION_JA,
+  WAVE_MOVE_VECTORS,
 } from '@/ai/engine/shop-piece-moves';
+import { RYU_DRAGON_MOVE_VECTORS, RYU_MOVE_DESCRIPTION_JA } from '@/ai/engine/spring-ryu-awakening';
 import {
   applyGachaPieceCatalogOverrides,
   gachaCollectibleMoveText,
   gachaCollectibleSkillText,
   isGachaCollectibleChar,
 } from '@/constants/gacha-piece-metadata';
+import { resolveIntrinsicPortedMoveVectors } from '@/ai/engine/ported-app-move-vectors';
 
 /** `legal-moves.ts` の CONCAVE_SLIDE_VECTORS と同一（図鑑グリッド用）。 */
 const CONCAVE_CATALOG_MOVE_VECTORS: PieceCatalogItem['moveVectors'] = [
@@ -65,6 +74,17 @@ const RUN_CATALOG_MOVE_TEXT = '前方に最大2マス進める。1マス目に�
 
 const TANE_CATALOG_SKILL_TEXT =
   '移動時20%の確率で、周囲8マスのランダムな空きマス1マスに「葉」駒を召喚する。';
+
+const LEAF_CATALOG_SKILL_TEXT = '移動時10％の確率で周囲のランダム1マスに「葉」駒を召喚する。';
+
+const ICE_CATALOG_SKILL_TEXT =
+  '移動時30%の確率で周囲8マスの敵駒（玉除く）1体を2ターン行動不能にする。';
+
+const MOSS_CATALOG_SKILL_TEXT =
+  '移動時30%の確率で周囲8マスのランダムな空きマス1マスに「苔」駒を1体召喚する。';
+
+const RAINBOW_CATALOG_SKILL_TEXT =
+  '移動時、周囲8マスにいる敵駒の行動範囲を4ターン縦横1マスに制限する。';
 
 const RUN_CATALOG_MOVE_VECTORS: PieceCatalogItem['moveVectors'] = [
   { dx: 0, dy: -1, maxStep: 1 },
@@ -121,6 +141,11 @@ function isTaneCatalogPiece(piece: PieceCatalogItem): boolean {
   );
 }
 
+function isLeafCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '葉' || code === 'HAA' || code === 'LEAF' || code.includes('HAA');
+}
+
 function isMaiCatalogPiece(piece: PieceCatalogItem): boolean {
   const code = (piece.pieceCode ?? '').toUpperCase();
   return (
@@ -161,6 +186,21 @@ function isSadameCatalogPiece(piece: PieceCatalogItem): boolean {
 function isAnCatalogPiece(piece: PieceCatalogItem): boolean {
   const code = (piece.pieceCode ?? '').toUpperCase();
   return piece.char === '安' || code.includes('GACHA_AN') || code.includes('PIECE_GACHA_AN');
+}
+
+function isPhantomCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '幻' || code === 'PHANTOM' || code.includes('PHANTOM');
+}
+
+function isYamaCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '山' || code === 'YAMA' || code.includes('YAMA');
+}
+
+function isPeakCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '峰' || code === 'PEAK' || code.includes('PEAK');
 }
 
 function isSoCatalogPiece(piece: PieceCatalogItem): boolean {
@@ -240,6 +280,31 @@ function isNakuCatalogPiece(piece: PieceCatalogItem): boolean {
   );
 }
 
+function isWaveCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '波' || code === 'NAM' || code === 'WAVE' || code.includes('NAM');
+}
+
+function isRyuCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '竜' || code === 'RYU' || code.includes('RYU');
+}
+
+function isIceCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '氷' || code === 'ICE' || code.includes('ICE');
+}
+
+function isMossCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '苔' || code === 'MOSS' || code.includes('MOSS');
+}
+
+function isRainbowCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '虹' || code === 'RAINBOW';
+}
+
 /** API カタログを図鑑表示・ローカル対戦の合法手生成向けに正規化する。 */
 export function preparePieceCatalogForBattleAndDisplay(
   items: readonly PieceCatalogItem[],
@@ -263,8 +328,23 @@ export function normalizeCatalogSkillText(piece: PieceCatalogItem): string {
   if (isTaneCatalogPiece(piece)) {
     return TANE_CATALOG_SKILL_TEXT;
   }
+  if (isLeafCatalogPiece(piece)) {
+    return LEAF_CATALOG_SKILL_TEXT;
+  }
+  if (isIceCatalogPiece(piece)) {
+    return ICE_CATALOG_SKILL_TEXT;
+  }
+  if (isMossCatalogPiece(piece)) {
+    return MOSS_CATALOG_SKILL_TEXT;
+  }
   if (isNakuCatalogPiece(piece)) {
     return NAKU_SKILL_DESCRIPTION_JA;
+  }
+  if (isRainbowCatalogPiece(piece)) {
+    return RAINBOW_CATALOG_SKILL_TEXT;
+  }
+  if (isPeakCatalogPiece(piece)) {
+    return PEAK_SKILL_DESCRIPTION_JA;
   }
   if (isShopPCatalogPiece(piece)) {
     return P_SKILL_DESCRIPTION_JA;
@@ -345,6 +425,12 @@ export function normalizeCatalogMoveText(piece: PieceCatalogItem): string {
   if (isAnCatalogPiece(piece)) {
     return AN_MOVE_DESCRIPTION_JA;
   }
+  if (isPhantomCatalogPiece(piece)) {
+    return PHANTOM_MOVE_DESCRIPTION_JA;
+  }
+  if (isYamaCatalogPiece(piece)) {
+    return YAMA_MOVE_DESCRIPTION_JA;
+  }
   if (isSouCatalogPiece(piece)) {
     return SOU_MOVE_DESCRIPTION_JA;
   }
@@ -374,6 +460,12 @@ export function normalizeCatalogMoveText(piece: PieceCatalogItem): string {
   }
   if (isNakuCatalogPiece(piece)) {
     return NAKU_MOVE_DESCRIPTION_JA;
+  }
+  if (isWaveCatalogPiece(piece)) {
+    return WAVE_MOVE_DESCRIPTION_JA;
+  }
+  if (isRyuCatalogPiece(piece)) {
+    return RYU_MOVE_DESCRIPTION_JA;
   }
   if (isRunCatalogPiece(piece)) {
     return RUN_CATALOG_MOVE_TEXT;
@@ -430,6 +522,12 @@ export function normalizeCatalogMoveVectors(
   if (isAnCatalogPiece(piece)) {
     return AN_MOVE_VECTORS;
   }
+  if (isPhantomCatalogPiece(piece)) {
+    return PHANTOM_MOVE_VECTORS;
+  }
+  if (isYamaCatalogPiece(piece)) {
+    return YAMA_MOVE_VECTORS;
+  }
   if (isSouCatalogPiece(piece)) {
     return SOU_MOVE_VECTORS;
   }
@@ -459,6 +557,19 @@ export function normalizeCatalogMoveVectors(
   }
   if (isNakuCatalogPiece(piece)) {
     return NAKU_MOVE_VECTORS;
+  }
+  if (isWaveCatalogPiece(piece)) {
+    return WAVE_MOVE_VECTORS;
+  }
+  if (isRyuCatalogPiece(piece)) {
+    return RYU_DRAGON_MOVE_VECTORS;
+  }
+  const portedVectors = resolveIntrinsicPortedMoveVectors({
+    char: piece.char,
+    pieceCode: piece.pieceCode ?? null,
+  });
+  if (portedVectors) {
+    return portedVectors;
   }
   return piece.moveVectors;
 }

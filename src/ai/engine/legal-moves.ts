@@ -28,13 +28,19 @@ import {
   isGiantPieceForEngine,
   isValidGiantAnchor,
 } from '@/ai/engine/giant-piece';
-import { effectivePieceForRulesAfterSpring } from '@/ai/engine/spring-ryu-awakening';
+import {
+  effectivePieceForRulesAfterSpring,
+  isUnpromotedSmallDragonPiece,
+  RYU_DRAGON_MOVE_VECTORS,
+} from '@/ai/engine/spring-ryu-awakening';
 import {
   KIRIN_MOVE_VECTORS,
   MAI_MOVE_VECTORS,
   NAKU_MOVE_VECTORS,
   P_MOVE_VECTORS,
   AN_MOVE_VECTORS,
+  PHANTOM_MOVE_VECTORS,
+  YAMA_MOVE_VECTORS,
   AORI_MOVE_VECTORS,
   HEN_MOVE_VECTORS,
   ITSU_MOVE_VECTORS,
@@ -48,7 +54,10 @@ import {
   KOU_MOVE_VECTORS,
   SHITSU_MOVE_VECTORS,
   TANE_SILVER_MOVE_VECTORS,
+  COPPER_MOVE_VECTORS,
+  WAVE_MOVE_VECTORS,
 } from '@/ai/engine/shop-piece-moves';
+import { resolveIntrinsicPortedMoveVectors } from '@/ai/engine/ported-app-move-vectors';
 import {
   deckBuilderCostForBoardPiece,
   deckBuilderCostForHandPieceCode,
@@ -83,6 +92,10 @@ import {
   isNakuPiece,
   isRunPiece,
   isAnPiece,
+  isPhantomPiece,
+  isYamaPiece,
+  isCopperPiece,
+  isWavePiece,
   isAoriPiece,
   isBakuPiece,
   isHenPiece,
@@ -1403,7 +1416,17 @@ function normalizeVectorsForFixedHouseField(
   vectors: AiPieceDefinition['moveVectors'],
 ): AiPieceDefinition['moveVectors'] {
   const baseCode = toBasePieceCode(piece.pieceCode);
-  if (baseCode === 'HOUSE' || baseCode === 'FIELD' || piece.char === '家' || piece.char === '畑') {
+  const mappedCode = CHAR_TO_CODE[piece.char];
+  if (
+    baseCode === 'HOUSE' ||
+    baseCode === 'FIELD' ||
+    piece.char === '家' ||
+    piece.char === '畑' ||
+    mappedCode === 'HOUSE' ||
+    mappedCode === 'FIELD' ||
+    piece.pieceCode?.trim().toUpperCase() === 'ZIE' ||
+    piece.pieceCode?.trim().toUpperCase() === 'ZTA'
+  ) {
     return [];
   }
   return vectors;
@@ -1435,15 +1458,20 @@ function normalizeVectorsForPeopleWithAllyField(
   allPieces: AiBoardPiece[],
 ): AiPieceDefinition['moveVectors'] {
   if (!isPeoplePieceForFieldBuff(piece)) return vectors;
-  const hasAllyField = hasPeopleFieldBuffOnBoard(piece, allPieces);
-  if (!hasAllyField) return vectors;
+  const base: AiPieceDefinition['moveVectors'] = [
+    { dx: -1, dy: 0, maxStep: 1 },
+    { dx: 1, dy: 0, maxStep: 1 },
+    { dx: 0, dy: -1, maxStep: 1 },
+    { dx: 0, dy: 1, maxStep: 1 },
+  ];
+  if (!hasPeopleFieldBuffOnBoard(piece, allPieces)) return base;
   const diagonals: AiPieceDefinition['moveVectors'] = [
     { dx: -1, dy: -1, maxStep: 1 },
     { dx: 1, dy: -1, maxStep: 1 },
     { dx: -1, dy: 1, maxStep: 1 },
     { dx: 1, dy: 1, maxStep: 1 },
   ];
-  return [...vectors, ...diagonals];
+  return [...base, ...diagonals];
 }
 
 function normalizeVectorsForTime(piece: AiBoardPiece, vectors: AiPieceDefinition['moveVectors']) {
@@ -1712,10 +1740,14 @@ function resolveEffectiveVectorsForPiece(
         }
       }
     }
-    // 「書」はデフォルト移動を持たず、毎回「相手の直前移動駒」の移動範囲のみを継承する。
-    // 参照元を解決できないターンは移動不可にする。
+    // 「書」は相手の直前着手を模倣。参照できないターンは前後左右1マス。
     if (!didResolveBookCopiedVectors) {
-      return [];
+      return [
+        { dx: 0, dy: -1, maxStep: 1 },
+        { dx: 0, dy: 1, maxStep: 1 },
+        { dx: -1, dy: 0, maxStep: 1 },
+        { dx: 1, dy: 0, maxStep: 1 },
+      ];
     }
   }
   if (depth <= 0 && isShinPiece(piece)) {
@@ -1787,6 +1819,21 @@ function resolveEffectiveVectorsForPiece(
   if (isAnPiece(piece)) {
     return AN_MOVE_VECTORS;
   }
+  if (isPhantomPiece(piece)) {
+    return PHANTOM_MOVE_VECTORS;
+  }
+  if (isYamaPiece(piece)) {
+    return YAMA_MOVE_VECTORS;
+  }
+  if (isCopperPiece(piece)) {
+    return COPPER_MOVE_VECTORS;
+  }
+  if (isWavePiece(piece)) {
+    return WAVE_MOVE_VECTORS;
+  }
+  if (isUnpromotedSmallDragonPiece(piece)) {
+    return RYU_DRAGON_MOVE_VECTORS;
+  }
   if (isSoPiece(piece)) {
     return SO_MOVE_VECTORS;
   }
@@ -1801,6 +1848,10 @@ function resolveEffectiveVectorsForPiece(
   }
   if (isConcavePieceForLegal(piece)) {
     return CONCAVE_SLIDE_VECTORS;
+  }
+  const portedVectors = resolveIntrinsicPortedMoveVectors(piece);
+  if (portedVectors) {
+    return portedVectors;
   }
   const baseMoveVectors =
     pieceDef.moveVectors.length === 0 && (isSenPiece(piece) || isZaiPiece(piece))
@@ -1846,6 +1897,8 @@ function boardPieceNeedsMinimalCatalogDef(piece: AiBoardPiece): boolean {
     isEnPiece(piece) ||
     isKoPiece(piece) ||
     isAnPiece(piece) ||
+    isPhantomPiece(piece) ||
+    isYamaPiece(piece) ||
     isSoPiece(piece) ||
     isSouPiece(piece) ||
     isShopPPiece(piece) ||
@@ -1940,15 +1993,28 @@ function stableHash(value: string): number {
   return hash >>> 0;
 }
 
-function selectMirrorTarget(
-  position: AiBattlePosition,
+const MIRROR_ORTHOGONAL_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: -1, dy: 0, maxStep: 1 },
+  { dx: 1, dy: 0, maxStep: 1 },
+  { dx: 0, dy: -1, maxStep: 1 },
+  { dx: 0, dy: 1, maxStep: 1 },
+];
+
+function findMirrorFrontFacingEnemy(
+  pieces: AiBoardPiece[],
   mover: AiBoardPiece,
-  candidates: AiBoardPiece[],
 ): AiBoardPiece | null {
-  if (candidates.length === 0) return null;
-  const seed = `${position.stateHash ?? ''}:${position.turnNumber}:${position.moveCount}:${mover.row}:${mover.col}:${mover.side}`;
-  const idx = stableHash(seed) % candidates.length;
-  return candidates[idx] ?? null;
+  const forwardRowDelta = mover.side === 'player' ? -1 : 1;
+  for (let i = 1; i < 9; i += 1) {
+    const row = mover.row + forwardRowDelta * i;
+    const col = mover.col;
+    if (row < 0 || row > 8) break;
+    const occupied = pieces.find((piece) => piece.row === row && piece.col === col) ?? null;
+    if (!occupied) continue;
+    if (occupied.side !== mover.side) return occupied;
+    return null;
+  }
+  return null;
 }
 
 function isHousePieceForSkill(piece: AiBoardPiece): boolean {
@@ -2280,6 +2346,8 @@ function generateBoardPieceMoves(input: {
       isEnPiece(mover) ||
       isKoPiece(mover) ||
       isAnPiece(mover) ||
+      isPhantomPiece(mover) ||
+      isYamaPiece(mover) ||
       isSoPiece(mover) ||
       isSouPiece(mover) ||
       isShopPPiece(mover) ||
@@ -2327,6 +2395,8 @@ function generateBoardPieceMoves(input: {
     !isEnPiece(mover) &&
     !isKoPiece(mover) &&
     !isAnPiece(mover) &&
+    !isPhantomPiece(mover) &&
+    !isYamaPiece(mover) &&
     !isSoPiece(mover) &&
     !isSouPiece(mover) &&
     !isShopPPiece(mover) &&
@@ -2373,15 +2443,12 @@ function generateBoardPieceMoves(input: {
   }
 
   if (isMirrorPiece(mover)) {
-    const enemyCandidates = input.pieces.filter(
-      (piece) => piece.side !== input.piece.side && !isMirrorPiece(piece),
-    );
-    const selected = selectMirrorTarget(input.position, mover, enemyCandidates);
-    if (selected) {
-      const selectedDef = resolvePieceDef(selected, input.lookups);
+    const frontEnemy = findMirrorFrontFacingEnemy(input.pieces, mover);
+    if (frontEnemy) {
+      const selectedDef = resolvePieceDef(frontEnemy, input.lookups);
       if (selectedDef && selectedDef.moveVectors.length > 0) {
         effectiveVectors = resolveEffectiveVectorsForPiece(
-          selected,
+          frontEnemy,
           selectedDef,
           input.position,
           input.pieces,
@@ -2389,6 +2456,8 @@ function generateBoardPieceMoves(input: {
         );
         effectiveCanJump = selectedDef.canJump === true;
       }
+    } else {
+      effectiveVectors = MIRROR_ORTHOGONAL_MOVE_VECTORS;
     }
   }
 

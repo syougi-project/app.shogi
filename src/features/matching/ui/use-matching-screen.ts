@@ -6,7 +6,10 @@ import { useAuthSession } from '@/hooks/common/auth-session-context';
 import { getHomeSnapshotState, loadHomeSnapshot } from '@/hooks/common/home-snapshot-store';
 import { getMatchingServerClient } from '@/infra/matching-server/matching-server-client';
 import { OnlineMatchApiDataSource } from '@/infra/datasources/online-match-datasource';
-import { loadCurrentBattleSetupId } from '@/lib/online-match/current-battle-setup';
+import {
+  loadCurrentBattleSetupId,
+  clearCurrentBattleSetupId,
+} from '@/lib/online-match/current-battle-setup';
 import { normalizePvpRating } from '@/lib/online-match/pvp-rating-constants';
 
 const emptySnapshot: MatchingSnapshot = {
@@ -123,12 +126,23 @@ export function useMatchingScreen() {
             }));
             return;
           case 'error':
-            setSnapshot({
-              title: 'オンライン対戦',
-              status: payload.message,
-              progress: 0,
-            });
+            if (payload.message.includes('Battle setup not found')) {
+              void clearCurrentBattleSetupId();
+              setSnapshot({
+                title: 'オンライン対戦',
+                status: '対戦準備が無効です。作り直してから再試行してください',
+                progress: 0,
+                self: { displayName: selfName, rating: selfRating },
+              });
+            } else {
+              setSnapshot({
+                title: 'オンライン対戦',
+                status: payload.message,
+                progress: 0,
+              });
+            }
             setIsLoading(false);
+            return;
         }
       };
 

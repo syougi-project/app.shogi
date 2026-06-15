@@ -1,6 +1,6 @@
 import { ApiClientError } from '@/infra/http/api-client';
 
-const LEAF_SKILL_DESCRIPTION = '移動時10%の確率で「葉」駒を周囲1マスに召喚する。';
+const LEAF_SKILL_DESCRIPTION = '移動時10％の確率で周囲のランダム1マスに「葉」駒を召喚する。';
 const TANE_SKILL_DESCRIPTION =
   '移動時20%の確率で、周囲8マスのランダムな空きマス1マスに「葉」駒を召喚する。';
 const KIRIN_SKILL_DESCRIPTION = '「金」「銀」「歩」駒から取られない。';
@@ -8,24 +8,28 @@ const KIRIN_MOVE_DESCRIPTION = '前後左右に何マスでも進める。斜め
 const MAI_SKILL_DESCRIPTION =
   '移動時、その時点で周囲8マスにいる敵駒の移動範囲を斜め前1マスのみに制限する。';
 const MAI_MOVE_DESCRIPTION = '前・前斜め左右・左右・後に各1マス進める。';
-const ELECTRIC_SKILL_DESCRIPTION = '移動時20%の確率で周囲8マスの敵駒1体を3ターン行動不能にする。';
-const ICE_SKILL_DESCRIPTION = '移動時30%の確率で周囲の敵駒1体を2ターン行動不能にする。';
+const ELECTRIC_SKILL_DESCRIPTION =
+  '移動時20%の確率で周囲8マスの敵駒（玉除く）を1ターン行動不能にする。';
+const ICE_SKILL_DESCRIPTION =
+  '移動時30%の確率で周囲8マスの敵駒（玉除く）1体を2ターン行動不能にする。';
 const FISH_SKILL_DESCRIPTION = '移動時30%の確率で周囲の敵駒1体を3ターン行動不能にする。';
-const MOSS_SKILL_DESCRIPTION = '移動時30%の確率で周囲の空きマスに「苔」駒を1体召喚する。';
+const MOSS_SKILL_DESCRIPTION =
+  '移動時30%の確率で周囲8マスのランダムな空きマス1マスに「苔」駒を1体召喚する。';
 const MIST_SKILL_DESCRIPTION = '移動時30%の確率で周囲の敵駒1体を相手の持ち駒に送る。';
 const PHANTOM_SKILL_DESCRIPTION =
   '周囲に空きマスがあるとき、敵駒に取られるとき50%の確率で取られるのを回避して空きマスに移動する。';
 const BOAT_SKILL_DESCRIPTION =
   '移動時、移動前の真後ろ1マスにいる味方駒（玉除く）を、舟と同じ移動ベクトルで引きずって移動させる。';
 const RAINBOW_SKILL_DESCRIPTION =
-  'この駒の周囲8マスにいる敵駒の移動範囲は縦横1マスのみに制限される。';
+  '移動時、周囲8マスにいる敵駒の行動範囲を4ターン縦横1マスに制限する。';
 const SWAMP_SKILL_DESCRIPTION =
   'この駒の周囲8マスにいる敵駒の移動範囲は上下1マスのみに制限される。';
 const POISON_SKILL_DESCRIPTION =
   'この駒が移動したとき移動前のマスは4ターン毒マスになる。毒マスを敵駒が通るとその駒は消滅する。';
 const PRISON_FENCE_SKILL_DESCRIPTION =
   '移動時、盤上の敵駒のうちランダムで1体を2ターン行動不能にする。';
-const PEAK_SKILL_DESCRIPTION = 'この駒が盤面にいる間、敵の10画以上の特殊駒は移動できない。';
+const PEAK_SKILL_DESCRIPTION =
+  'この駒が盤面にいる間、敵の特殊駒（画数10画以上）のみ移動できなくなる。';
 const RIDGE_SKILL_DESCRIPTION = '移動時20%の確率で周囲1マスの空きマスに「山」駒を1体出現させる。';
 const ORE_SKILL_DESCRIPTION =
   '移動時20%の確率で味方の「歩」駒1体を「金」「銀」「銅」のいずれかに変化させる。';
@@ -41,12 +45,10 @@ const DEATH_SKILL_DESCRIPTION =
   'この駒を取った敵駒に呪いをかける。呪われた駒は5ターン後に消滅する。';
 const SOUL_SKILL_DESCRIPTION = 'この駒が盤面に残っている間、相手は「王」を攻撃できない。';
 const BEAST_SKILL_DESCRIPTION = '移動時、前後左右に隣接する敵駒をすべて2ターン行動不能にする。';
-const BIRD_SKILL_DESCRIPTION =
-  '移動後、真後ろ1マスが空いていればランダムな味方駒（玉以外）をそのマスへ移動させる。';
+const BIRD_SKILL_DESCRIPTION = '移動時、ランダムな味方駒を後ろ1マスに運ぶ。';
 const SATORI_SKILL_DESCRIPTION =
   '移動後、残っている敵駒から1つを選び、その駒を2ターン動けなくする。（王・玉は選べない）';
-const HEART_SKILL_DESCRIPTION =
-  '移動後、味方駒を1つ選び、その駒を2ターン、敵に取られないようにする。（王・玉は選べない）';
+const HEART_SKILL_DESCRIPTION = '移動時味方駒から1つ選択し2ターン無敵状態にする。';
 const DEPRESSION_SKILL_DESCRIPTION = '移動後、左右1マスの空きマスを2ターン侵入禁止の×マスにする。';
 
 const CONCAVE_SKILL_INSPECT = 'なし。';
@@ -91,8 +93,7 @@ const SEAL_SKILL_INSPECT = 'この駒の斜め4方向に隣接する敵駒は移
 const BIGNOISE_SKILL_INSPECT = '轟音で移動時両隣の敵駒を吹き飛ばす。';
 const RITUAL_SKILL_INSPECT =
   '他の味方駒が取られたとき、この駒が身代わりとなり消滅し、取られた味方駒は自分の持ち駒に戻る。';
-const SAINT_SKILL_INSPECT =
-  'この駒の前後左右1マスにいる味方駒の移動範囲を、各方向1マスずつ増やす。';
+const SAINT_SKILL_INSPECT = '周囲8マスにいる全ての駒のスキルと移動を無効化する。';
 const RED_ONI_SKILL_INSPECT =
   '移動時、左右の敵駒を1マス遠ざける。さらに周囲のランダムな1マスを2ターンのバツマスにする。';
 const BLUE_ONI_SKILL_INSPECT = 'この駒の周囲8マスにいる敵駒の移動範囲を前後1マスに制限する。';

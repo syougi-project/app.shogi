@@ -18,6 +18,8 @@ import {
   fromViewCoord,
 } from '@/lib/matching-server/game-bridge';
 import { canonicalToMatchingWire, isMyTurnInCanonical } from '@/lib/matching-server/canonical-game';
+import { buildFireHandSkillFxFromWireHandsDiff } from '@/lib/matching-server/online-skill-hand-fx';
+import { buildStunSkillFxFromWireSkillStateDiff } from '@/lib/matching-server/online-skill-stun-fx';
 import { resolveWinnerSideFromWire } from '@/lib/matching-server/online-battle-outcome';
 import {
   formatMatchPlayerLabel,
@@ -41,6 +43,7 @@ import {
 } from '@/ai/online-battle-registry';
 import {
   BoardCell,
+  getHandCount,
   type BoardPiece,
   type HandsState,
   type Side,
@@ -48,11 +51,22 @@ import {
 import { createPieceSfenMapping } from '@/features/stage-shogi/domain/piece-conversion';
 import {
   findPieceAt,
+  handKeyToDisplayPieceCode,
   legalMovesForBoardPiece,
   legalMovesForDropPiece,
   legalMovesToTarget,
+  poisonHazardCellsForDisplay,
+  rockObstacleCellsForDisplay,
+  batsuHazardCellsForDisplay,
+  alignLegalMovesToBoardPieces,
+  isFixedHouseFieldPieceForUi,
   uniqueTargetsFromMoves,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
+import {
+  buildHandInspectTarget,
+  resolveInspectingPieceState,
+} from '@/features/stage-shogi/ui/stage-shogi-screen.inspect';
+import type { InspectingPieceState } from '@/features/stage-shogi/ui/stage-shogi-screen.presenters';
 import {
   createLoadPieceCatalogUseCase,
   createLoadRawPieceCatalogUseCase,
@@ -164,6 +178,10 @@ export function useOnlineBattleGame(matchId?: string) {
   const [timeActionMode, setTimeActionMode] = useState<TimeActionMode | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [skillVisualEffects, setSkillVisualEffects] = useState<SkillVisualEffect[]>([]);
+  const [poisonHazardCells, setPoisonHazardCells] = useState<BoardCell[]>([]);
+  const [rockObstacleCells, setRockObstacleCells] = useState<BoardCell[]>([]);
+  const [batsuHazardCells, setBatsuHazardCells] = useState<BoardCell[]>([]);
+  const [inspectingPiece, setInspectingPiece] = useState<InspectingPieceState>(null);
 
   const queueSkillVisualEffects = useCallback((effects: SkillVisualEffect[] | undefined) => {
     if (!effects?.length) return;
@@ -189,6 +207,8 @@ export function useOnlineBattleGame(matchId?: string) {
     [pieceDefsByChar, pieceDefsByCode, promotedPieceDefsByCode],
   );
   const locallyAuditedVersionsRef = useRef<Set<number>>(new Set());
+  const preMoveWireHandsRef = useRef<MatchingGameState['hands'] | null>(null);
+  const preMoveWireSkillStateRef = useRef<MatchingGameState['skillState'] | null>(null);
   const authoritativeServerGameRef = useRef<MatchingGameState | null>(null);
   const playMoveAudio = useCallback(
     (move: BattleMove, actorSide: Side, board: BoardPiece[]) => {
@@ -249,13 +269,18 @@ export function useOnlineBattleGame(matchId?: string) {
     };
     const authoritativeWire =
       authoritativeServerGameRef.current ?? getAuthoritativeMatchGame() ?? null;
+    const displayPieces = getDisplayBoardPieces(matchIdValue);
     const legalMoves = filterBattleMovesForServerWire(
-      getMyLegalMoves(matchIdValue),
+      alignLegalMovesToBoardPieces(displayPieces, getMyLegalMoves(matchIdValue)),
       authoritativeWire ?? displayWire,
       record.myRole,
+      record.displayPieceCatalog,
     );
-    setPieces(getDisplayBoardPieces(matchIdValue));
+    setPieces(displayPieces);
     setHands(getDisplayHands(matchIdValue));
+    setPoisonHazardCells(poisonHazardCellsForDisplay(record.position));
+    setRockObstacleCells(rockObstacleCellsForDisplay(record.position));
+    setBatsuHazardCells(batsuHazardCellsForDisplay(record.position));
     setPlayerLegalMoves(legalMoves);
     setSession((current) =>
       buildSession(
@@ -456,17 +481,64 @@ export function useOnlineBattleGame(matchId?: string) {
             : '盤面が更新されました';
           setMoveError(null);
           const skipRemoteFx = locallyAuditedVersionsRef.current.delete(payload.version);
+          const wireHandsBefore =
+            (skipRemoteFx ? preMoveWireHandsRef.current : null) ??
+            authoritativeServerGameRef.current?.hands ??
+            getAuthoritativeMatchGame()?.hands ??
+            null;
+          const wireSkillStateBefore =
+            (skipRemoteFx ? preMoveWireSkillStateRef.current : null) ??
+            authoritativeServerGameRef.current?.skillState ??
+            getAuthoritativeMatchGame()?.skillState ??
+            null;
+          if (payload.lastSkillTriggered && payload.lastMove && wireHandsBefore) {
+            const catalog =
+              getOnlineBattleGame(payload.matchId)?.displayPieceCatalog ?? pieceCatalog;
+            const fireFx = buildFireHandSkillFxFromWireHandsDiff({
+              before: wireHandsBefore,
+              after: payload.hands,
+              victimServerSide: payload.turn,
+              moveCount: payload.version,
+              lastMovePieceCode: payload.lastMove.piece,
+              pieceCatalog: catalog,
+            });
+            if (fireFx.length > 0) {
+              queueSkillVisualEffectsRef.current(fireFx);
+            }
+          }
+          if (payload.lastSkillTriggered && payload.lastMove) {
+            const stunFx = buildStunSkillFxFromWireSkillStateDiff({
+              before: wireSkillStateBefore ?? undefined,
+              after: payload.skillState,
+              moveCount: payload.version,
+              lastMovePieceCode: payload.lastMove.piece,
+            });
+            if (stunFx.length > 0) {
+              queueSkillVisualEffectsRef.current(stunFx);
+            }
+          }
+          preMoveWireHandsRef.current = null;
+          preMoveWireSkillStateRef.current = null;
           if (!skipRemoteFx && payload.lastMove) {
             const record = getOnlineBattleGame(payload.matchId);
             if (record) {
-              const move = movePayloadToBattleMove(payload.lastMove);
-              const preview = applyMove({
-                position: record.position,
-                pieceCatalog: record.pieceCatalog,
-                move,
-              });
-              queueSkillVisualEffectsRef.current(preview.skillVisualEffects);
+              try {
+                const move = movePayloadToBattleMove(payload.lastMove);
+                const preview = applyMove({
+                  position: record.position,
+                  pieceCatalog: record.pieceCatalog,
+                  move,
+                  options: { suppressRandomSkillProcs: true },
+                });
+                queueSkillVisualEffectsRef.current(preview.skillVisualEffects);
+              } catch {
+                // 相手着手の FX プレビュー失敗は盤面同期を妨げない
+              }
             }
+          }
+          if (skipRemoteFx && payload.lastSkillTriggered && payload.lastMove && nextRole) {
+            const board = getDisplayBoardPieces(payload.matchId);
+            playSkillAudio(movePayloadToBattleMove(payload.lastMove), 'player', board);
           }
           applyServerGameRef.current(payload.matchId, nextRole, nextGame, moveText);
           if (nextRole && payload.lastMove) {
@@ -519,11 +591,17 @@ export function useOnlineBattleGame(matchId?: string) {
           if (matchId && activeRole && authoritativeGame) {
             applyServerGameRef.current(matchId, activeRole, authoritativeGame);
           }
-          setSession((current) => ({
-            ...current,
-            connectionStatus: `接続状態: エラー（${payload.message}）`,
-          }));
+          {
+            const moveFailureCodes = new Set(['ILLEGAL_MOVE', 'INVALID_MOVE', 'NOT_YOUR_TURN']);
+            if (!moveFailureCodes.has(payload.code)) {
+              setSession((current) => ({
+                ...current,
+                connectionStatus: `接続状態: エラー（${payload.message}）`,
+              }));
+            }
+          }
           setIsLoading(false);
+          return;
       }
     };
 
@@ -586,8 +664,11 @@ export function useOnlineBattleGame(matchId?: string) {
       if (!serverWire) return;
       setMoveError(null);
       try {
-        const payload = battleMoveToServerPayload(move, role, serverWire);
+        const catalog = getOnlineBattleGame(matchId)?.displayPieceCatalog ?? pieceCatalog;
+        const payload = battleMoveToServerPayload(move, role, serverWire, catalog);
         const expectedVersion = serverWire.version + 1;
+        preMoveWireHandsRef.current = serverWire.hands;
+        preMoveWireSkillStateRef.current = serverWire.skillState;
         const { committed } = applyOnlineBattleMove({
           matchId,
           move,
@@ -627,6 +708,7 @@ export function useOnlineBattleGame(matchId?: string) {
       matchId,
       playMoveAudio,
       playSkillAudio,
+      pieceCatalog,
       queueSkillVisualEffects,
       refreshLocalFromRegistry,
       role,
@@ -791,6 +873,14 @@ export function useOnlineBattleGame(matchId?: string) {
         return;
       }
 
+      if (isFixedHouseFieldPieceForUi(piece) && piece.char === '畑') {
+        setSelectedCell(null);
+        setSelectedDropPieceCode(null);
+        setLegalTargets([]);
+        setEnemyPreviewTargets([]);
+        return;
+      }
+
       if (isTimePiece(piece) && !selectedCell) {
         if (hasAdjacentEnemyPiece(pieces, row, col)) {
           setPendingTimeActionCell({ row, col });
@@ -933,6 +1023,46 @@ export function useOnlineBattleGame(matchId?: string) {
     [canInteract, pieceCatalog, playerLegalMoves],
   );
 
+  const handleCellLongPress = useCallback(
+    (viewRow: number, viewCol: number) => {
+      if (!role) return;
+      const { row, col } = fromViewCoord(viewRow, viewCol, role);
+      const target = findPieceAt(pieces, row, col);
+      if (!target) return;
+      setInspectingPiece(
+        resolveInspectingPieceState({
+          target,
+          pieceDefsByChar,
+          pieceDefsByCode,
+        }),
+      );
+    },
+    [pieceDefsByChar, pieceDefsByCode, pieces, role],
+  );
+
+  const handleHandPieceLongPress = useCallback(
+    (pieceCode: string, side: Side) => {
+      const codeKey = handKeyToDisplayPieceCode(pieceCode, pieceCatalog).toUpperCase();
+      if (getHandCount(hands, side, codeKey) <= 0) return;
+      setInspectingPiece(
+        resolveInspectingPieceState({
+          target: buildHandInspectTarget({
+            pieceCode: codeKey,
+            side,
+            imageSignedUrl: pieceDefsByCode[codeKey]?.imageSignedUrl ?? null,
+          }),
+          pieceDefsByChar,
+          pieceDefsByCode,
+        }),
+      );
+    },
+    [hands, pieceCatalog, pieceDefsByChar, pieceDefsByCode],
+  );
+
+  const closeInspectingPiece = useCallback(() => {
+    setInspectingPiece(null);
+  }, []);
+
   const resign = useCallback(() => {
     if (!userId || !matchId) return;
     client.resign(userId, matchId);
@@ -957,6 +1087,9 @@ export function useOnlineBattleGame(matchId?: string) {
     disconnect,
     pieces,
     hands,
+    poisonHazardCells,
+    rockObstacleCells,
+    batsuHazardCells,
     role,
     pieceCatalog,
     pieceDefsByCode,
@@ -974,7 +1107,11 @@ export function useOnlineBattleGame(matchId?: string) {
     moveError,
     canInteract,
     handleCellPress,
+    handleCellLongPress,
     handleHandPiecePress,
+    handleHandPieceLongPress,
+    closeInspectingPiece,
+    inspectingPiece,
     commitMove,
     setPendingPromotion,
     confirmTimeAction,

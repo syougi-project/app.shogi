@@ -1,4 +1,6 @@
 import { applyMove, generateLegalMoves } from '@/ai/engine';
+import { mapPiecesForSpringDragonAwakeningDisplay } from '@/ai/engine/spring-ryu-awakening';
+import { applyOnlineBattleSkillDisplayToPieces } from '@/features/online-battle/lib/online-battle-display-pieces';
 import {
   normalizeBattleGameStatus,
   normalizeBattlePosition,
@@ -17,6 +19,7 @@ import {
   matchingWireToCanonicalPosition,
   piecesForDisplay,
   handsForDisplay,
+  resolveOnlineBattlePositionFromWire,
 } from '@/lib/matching-server/canonical-game';
 import { resolveWinnerSideFromWire } from '@/lib/matching-server/online-battle-outcome';
 import { buildPromotedPieceDefsByCode } from '@/lib/battle/battle-move-audio';
@@ -27,8 +30,10 @@ import {
   normalizeBoardPieceForDisplay,
   pieceCharFromCode,
   preferBundledPromotedImageOverRemoteUrl,
+  remapHandsStateToDisplayPieceCodes,
   type BoardPiece as UiBoardPiece,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
+import { normalizeHandsStateKeys } from '@/features/stage-shogi/domain/game-rules';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 
 export type OnlineBattleGameRecord = {
@@ -63,7 +68,7 @@ export function createOnlineBattleGame(input: {
 }): OnlineBattleGameRecord {
   const pieceCatalog = normalizePieceCatalog(input.pieceCatalog);
   const displayPieceCatalog = input.displayPieceCatalog ?? input.pieceCatalog;
-  const position = matchingWireToCanonicalPosition(input.wire, displayPieceCatalog);
+  const position = resolveOnlineBattlePositionFromWire(input.wire, displayPieceCatalog);
   const record: OnlineBattleGameRecord = {
     matchId: input.matchId,
     myRole: input.myRole,
@@ -108,6 +113,7 @@ export function applyOnlineBattleMove(input: {
     position: record.position,
     pieceCatalog: record.pieceCatalog,
     move: input.move,
+    options: { suppressRandomSkillProcs: true },
   });
   const next: OnlineBattleGameRecord = {
     ...record,
@@ -119,7 +125,12 @@ export function applyOnlineBattleMove(input: {
     committed,
     record: next,
     wire: canonicalToMatchingWire(next.position),
-    payload: battleMoveToServerPayload(input.move, record.myRole, input.serverWire),
+    payload: battleMoveToServerPayload(
+      input.move,
+      record.myRole,
+      input.serverWire,
+      record.displayPieceCatalog,
+    ),
   };
 }
 
@@ -149,36 +160,47 @@ export function getDisplayBoardPieces(matchId: string): UiBoardPiece[] {
     record.displayPieceCatalog,
     pieceDefsByChar,
   );
-  return piecesForDisplay(piecesFromBoardState(record.position), record.myRole).map((piece) => {
-    const normalized = normalizeBoardPieceForDisplay(
-      {
-        ...piece,
-        imageSignedUrl: null,
-      },
-      pieceDefsByChar,
-    );
-    const codeKey = normalized.pieceCode?.toUpperCase() ?? '';
-    const promotedDef = normalized.promoted ? promotedPieceDefsByCode[codeKey] : undefined;
-    const displayChar =
-      normalized.promoted && codeKey
-        ? pieceCharFromCode(codeKey, normalized.side, true)
-        : getDisplayChar(normalized);
-    return {
-      ...normalized,
-      char: displayChar,
-      imageSignedUrl: preferBundledPromotedImageOverRemoteUrl(
-        codeKey || null,
-        Boolean(normalized.promoted),
-        promotedDef?.imageSignedUrl ?? null,
-      ),
-    };
-  });
+  const canonicalPieces = piecesFromBoardState(record.position);
+  const withSpringDisplay = mapPiecesForSpringDragonAwakeningDisplay(
+    canonicalPieces.map((piece) => {
+      const normalized = normalizeBoardPieceForDisplay(
+        {
+          ...piece,
+          imageSignedUrl: null,
+        },
+        pieceDefsByChar,
+      );
+      const codeKey = normalized.pieceCode?.toUpperCase() ?? '';
+      const promotedDef = normalized.promoted ? promotedPieceDefsByCode[codeKey] : undefined;
+      const displayChar =
+        normalized.promoted && codeKey
+          ? pieceCharFromCode(codeKey, normalized.side, true)
+          : getDisplayChar(normalized);
+      return {
+        ...normalized,
+        char: displayChar,
+        imageSignedUrl: preferBundledPromotedImageOverRemoteUrl(
+          codeKey || null,
+          Boolean(normalized.promoted),
+          promotedDef?.imageSignedUrl ?? null,
+        ),
+      };
+    }),
+    pieceDefsByChar,
+  );
+  const withDarkVeil = applyOnlineBattleSkillDisplayToPieces(withSpringDisplay, record.position);
+  return piecesForDisplay(withDarkVeil, record.myRole);
 }
 
 export function getDisplayHands(matchId: string) {
   const record = games.get(matchId);
   if (!record) return { player: {}, enemy: {} };
-  return handsForDisplay(record.position.hands, record.myRole);
+  const catalog = record.displayPieceCatalog;
+  const remapped = remapHandsStateToDisplayPieceCodes(
+    normalizeHandsStateKeys(record.position.hands),
+    catalog,
+  );
+  return handsForDisplay(remapped, record.myRole);
 }
 
 export function syncFromServerWire(input: {
@@ -191,12 +213,7 @@ export function syncFromServerWire(input: {
 }) {
   const pieceCatalog = normalizePieceCatalog(input.pieceCatalog);
   const displayPieceCatalog = input.displayPieceCatalog ?? input.pieceCatalog;
-  const position = input.wire.canonicalState
-    ? injectSkillDefinitionsIntoPosition(
-        normalizeBattlePosition(input.wire.canonicalState as AiBattlePosition),
-        displayPieceCatalog,
-      )
-    : matchingWireToCanonicalPosition(input.wire, displayPieceCatalog);
+  const position = resolveOnlineBattlePositionFromWire(input.wire, displayPieceCatalog);
   const existing = games.get(input.matchId);
   const winnerFromWire = resolveWinnerSideFromWire(input.wire, input.myRole);
   const resolvedGame =

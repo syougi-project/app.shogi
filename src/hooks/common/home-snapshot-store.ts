@@ -84,6 +84,19 @@ export function patchHomeSnapshotStamina(next: {
   notify();
 }
 
+export function patchHomeSnapshotCurrency(next: {
+  pawnCurrency: number;
+  goldCurrency: number;
+}): void {
+  snapshot = {
+    ...snapshot,
+    pawnCurrency: next.pawnCurrency,
+    goldCurrency: next.goldCurrency,
+  };
+  syncState();
+  notify();
+}
+
 export const applyHomeSnapshotStamina: ApplyHomeSnapshotStamina = (next) => {
   patchHomeSnapshotStamina(next);
 };
