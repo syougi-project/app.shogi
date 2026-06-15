@@ -1,4 +1,5 @@
 import type { MatchingGameState, PlayerSide } from '@/domain/matching-server/protocol';
+import { decodeEncodedBoardPiece } from '@/lib/matching-server/wire-piece-code';
 import { parseMatchingSquare } from '@/lib/matching-server/square';
 
 export type BoardPieceView = {
@@ -11,10 +12,9 @@ export type BoardPieceView = {
 export function boardPiecesFromState(state: MatchingGameState): BoardPieceView[] {
   const pieces: BoardPieceView[] = [];
   for (const [square, encoded] of Object.entries(state.board)) {
-    const [side, pieceCode] = encoded.split(':') as [PlayerSide | undefined, string | undefined];
-    if (!side || !pieceCode) continue;
+    const { serverSide, code } = decodeEncodedBoardPiece(encoded);
     const { row, col } = parseMatchingSquare(square);
-    pieces.push({ row, col, side, pieceCode });
+    pieces.push({ row, col, side: serverSide, pieceCode: code });
   }
   return pieces.sort((a, b) => a.row - b.row || a.col - b.col);
 }

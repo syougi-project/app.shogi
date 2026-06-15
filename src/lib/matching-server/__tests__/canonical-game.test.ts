@@ -99,6 +99,39 @@ describe('matching-server canonical-game', () => {
     expect(pieces.find((piece) => piece.char === '爆')?.pieceCode).toBe('GACHA_BAKU');
   });
 
+  it('preserves cow charge suffix from wire board encoding', () => {
+    const wire: MatchingGameState = {
+      version: 2,
+      turn: 'black',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '5f': 'black:COW@1',
+      },
+      hands: { black: {}, white: {} },
+    };
+
+    const position = matchingWireToCanonicalPosition(wire, []);
+    const pieces =
+      (
+        position.boardState as {
+          pieces?: Array<{
+            pieceCode?: string;
+            char?: string;
+            cowChargeCount?: number;
+            row?: number;
+            col?: number;
+          }>;
+        }
+      ).pieces ?? [];
+
+    const cow = pieces.find((piece) => piece.row === 5 && piece.col === 5);
+    expect(cow?.pieceCode).toBe('COW');
+    expect(cow?.char).toBe('牛');
+    expect(cow?.cowChargeCount).toBe(1);
+    expect(canonicalToMatchingWire(position).board['5f']).toBe('black:COW@1');
+  });
+
   it('preserves promoted pieces from wire board encoding', () => {
     const wire: MatchingGameState = {
       version: 2,

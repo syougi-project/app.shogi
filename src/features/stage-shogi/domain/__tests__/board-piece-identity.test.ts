@@ -13,6 +13,13 @@ describe('canonicalizeBoardPieceIdentity', () => {
     });
   });
 
+  it('strips pig inherited wire suffix from piece codes', () => {
+    expect(canonicalizeBoardPieceIdentity('PIG>FU', '豚')).toEqual({
+      pieceCode: 'PIG',
+      char: '豚',
+    });
+  });
+
   it('maps FIR + 火 for summoned fire', () => {
     expect(canonicalizeBoardPieceIdentity('FIR', '火')).toEqual({
       pieceCode: 'FIR',

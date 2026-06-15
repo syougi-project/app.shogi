@@ -11,6 +11,10 @@ import {
 import { resolveWirePieceChar } from '@/lib/matching-server/piece-display';
 import { normalizeSkillPieceCode } from '@/lib/matching-server/skill-piece-code';
 import { formatMatchingSquare, parseMatchingSquare } from '@/lib/matching-server/square';
+import {
+  decodeEncodedBoardPiece,
+  encodeWirePieceCodeBody,
+} from '@/lib/matching-server/wire-piece-code';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 
 /** 正典局面では常に先手(black)=player, 後手(white)=enemy */
@@ -22,18 +26,7 @@ export function canonicalSideToServerSide(side: Side): PlayerSide {
   return side === 'player' ? 'black' : 'white';
 }
 
-function decodeEncodedBoardPiece(encoded: string): {
-  serverSide: PlayerSide;
-  code: string;
-  promoted: boolean;
-} {
-  const [sideRaw, restRaw] = encoded.split(':');
-  const serverSide: PlayerSide = sideRaw === 'white' ? 'white' : 'black';
-  const rest = restRaw ?? '';
-  const promoted = rest.endsWith('+');
-  const code = (promoted ? rest.slice(0, -1) : rest).trim().toUpperCase();
-  return { serverSide, code, promoted };
-}
+export { decodeEncodedBoardPiece } from '@/lib/matching-server/wire-piece-code';
 
 export function matchingWireToCanonicalPosition(
   wire: MatchingGameState,
@@ -44,7 +37,14 @@ export function matchingWireToCanonicalPosition(
 
   const pieces: BoardPiece[] = [];
   for (const [square, encoded] of Object.entries(wire.board)) {
-    const { serverSide, code, promoted } = decodeEncodedBoardPiece(encoded);
+    const {
+      serverSide,
+      code,
+      promoted,
+      cowChargeCount,
+      pigInheritedPieceCode,
+      pigInheritedPromoted,
+    } = decodeEncodedBoardPiece(encoded);
     const { row, col } = parseMatchingSquare(square);
     const side = serverSideToCanonicalSide(serverSide);
     const displayChar = resolveWirePieceChar(code, side, promoted, pieceDefsByCode);
@@ -55,6 +55,13 @@ export function matchingWireToCanonicalPosition(
       pieceCode: normalizeSkillPieceCode(code, displayChar),
       char: displayChar,
       promoted,
+      ...(cowChargeCount != null ? { cowChargeCount } : {}),
+      ...(pigInheritedPieceCode
+        ? {
+            pigInheritedPieceCode,
+            ...(pigInheritedPromoted != null ? { pigInheritedPromoted } : {}),
+          }
+        : {}),
     });
   }
 
@@ -140,8 +147,7 @@ export function canonicalToMatchingWire(position: AiBattlePosition): MatchingGam
   for (const piece of pieces) {
     const square = formatMatchingSquare(piece.row, piece.col);
     const serverSide = canonicalSideToServerSide(piece.side);
-    const code = piece.pieceCode ?? 'FU';
-    board[square] = `${serverSide}:${code}${piece.promoted ? '+' : ''}`;
+    board[square] = `${serverSide}:${encodeWirePieceCodeBody(piece)}`;
   }
 
   const hands: MatchingGameState['hands'] = {

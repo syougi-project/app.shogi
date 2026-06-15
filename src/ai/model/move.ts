@@ -1,4 +1,5 @@
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
+import { decodeWirePieceCodePart } from '@/lib/matching-server/wire-piece-code';
 
 export type AiBattleMove = BattleMove;
 
@@ -20,6 +21,9 @@ function shouldPreservePrefixedPieceInstanceId(normalized: string): boolean {
 export function toBasePieceCode(pieceCode: string | null | undefined): string | null {
   const normalized = normalizePieceCode(pieceCode);
   if (!normalized) return null;
+  if (normalized.includes('>') || normalized.includes('@')) {
+    return toBasePieceCode(decodeWirePieceCodePart(normalized).code);
+  }
   if (shouldPreservePrefixedPieceInstanceId(normalized)) {
     return normalized;
   }

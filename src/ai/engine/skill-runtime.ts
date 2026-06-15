@@ -622,6 +622,11 @@ function isKingLikePieceForBoatTow(piece: AiBoardPiece): boolean {
   return base === 'OU' || piece.char === '王' || piece.char === '玉';
 }
 
+function isBirdPieceExcludedFromBirdTow(piece: AiBoardPiece): boolean {
+  const base = normalizeSkillPieceCode(toBasePieceCode(piece.pieceCode) ?? '');
+  return base === 'BIRD' || base.includes('29ECAB1EF3C3') || piece.char === '禽';
+}
+
 /** 舟: 移動前の「真後ろ1マス」の味方駒を、舟と同じベクトルで引きずる（玉は対象外） */
 function moveAllyBehindBoatOneStep(input: {
   pieces: AiBoardPiece[];
@@ -715,7 +720,7 @@ function isKingExcludedFromSatoriStun(piece: AiBoardPiece): boolean {
   return code === 'OU' || piece.char === '王' || piece.char === '玉';
 }
 
-/** 禽: 移動後、真後ろ1マスが空いていればランダムな味方駒（玉除く・自身除く）をそのマスへ移す */
+/** 禽: 移動時、真後ろ1マスが空いていればランダムな味方駒（王・玉・禽除く）をそのマスへ移す */
 function moveRandomAllyToCellBehindBird(input: {
   pieces: AiBoardPiece[];
   actorSide: Side;
@@ -730,6 +735,7 @@ function moveRandomAllyToCellBehindBird(input: {
     if (p.side !== input.actorSide) return false;
     if (p.row === input.movedBird.row && p.col === input.movedBird.col) return false;
     if (isKingLikePieceForBoatTow(p)) return false;
+    if (isBirdPieceExcludedFromBirdTow(p)) return false;
     return true;
   });
   if (candidates.length === 0) return;
@@ -967,7 +973,9 @@ export function isYinBondProtectedFromCapture(
   return allyYangSharesRowOrColumnWithYin(pieces, target);
 }
 
-/** 味方「陽」の周囲8マスにいるとき、スキル発動確率を 1.3 倍（上限1）。 */
+/** 味方「陽」の周囲8マスにいるとき、スキル発動確率を 30% 増加（×1.3、上限1）。 */
+export const YANG_ALLY_SKILL_PROC_FACTOR = 1.3;
+
 export function computeYangSkillProcFactorForMover(
   pieces: AiBoardPiece[],
   actorSide: Side,
@@ -979,7 +987,7 @@ export function computeYangSkillProcFactorForMover(
     if (!isYangAllyAuraPiece(p)) continue;
     const dr = Math.abs(p.row - movedPiece.row);
     const dc = Math.abs(p.col - movedPiece.col);
-    if (dr <= 1 && dc <= 1 && (dr !== 0 || dc !== 0)) return 1.3;
+    if (dr <= 1 && dc <= 1 && (dr !== 0 || dc !== 0)) return YANG_ALLY_SKILL_PROC_FACTOR;
   }
   return 1;
 }
@@ -1839,6 +1847,15 @@ export function applyMoveSkillEffects(input: {
       };
     });
   }
+  if (
+    yinEnemySuppressesSkills &&
+    input.move.fromRow != null &&
+    input.move.fromCol != null &&
+    !input.move.dropPieceCode
+  ) {
+    writeSkillState(input.position, state);
+    return { moveSkillEffectTriggered: false, skillVisualEffects };
+  }
   const {
     isAMover,
     isBirdMover,
@@ -2070,7 +2087,7 @@ export function applyMoveSkillEffects(input: {
       markMoveSkillFx();
     }
   }
-  // 禽: 移動後、真後ろ1マスが空いていればランダムな味方駒（玉除く）をそのマスへ。
+  // 禽: 移動時、真後ろ1マスが空いていればランダムな味方駒（王・玉・禽除く）をそのマスへ。
   if (isBirdMover && input.move.fromRow != null && input.move.fromCol != null && input.movedPiece) {
     const sigBird = boardSignatureForSkillFx(input.pieces);
     moveRandomAllyToCellBehindBird({
@@ -2082,7 +2099,7 @@ export function applyMoveSkillEffects(input: {
       markMoveSkillFx();
     }
   }
-  // 悟: 移動後にプレイヤーが選んだ敵駒（王・玉以外）を2ターン行動不能（stun）。
+  // 悟: 移動時、選択した敵駒（王・玉以外）を2ターン行動不能（stun）。
   {
     const satoriTargetCell = parseSatoriStunTargetNotation(input.move.notation ?? null);
     if (satoriTargetCell && movedPiece && isSatoriMovedPieceActor(movedPiece)) {
@@ -2136,7 +2153,7 @@ export function applyMoveSkillEffects(input: {
       });
     }
   }
-  // 心: 選んだ味方駒を2ターン、敵の捕獲から守る（piece_defenses / mode=immunity）。
+  // 心: 移動時、選択した味方駒（王・玉以外）を2ターン無敵（piece_defenses / mode=immunity）。
   {
     const heartProtectCell = parseHeartProtectTargetNotation(input.move.notation ?? null);
     if (heartProtectCell && movedPiece && isHeartMovedPieceActor(movedPiece)) {

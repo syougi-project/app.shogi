@@ -187,6 +187,20 @@ export function buildBoardState(
             mutantRevertImageSignedUrl: piece.mutantRevertImageSignedUrl ?? null,
           }
         : {}),
+      ...(typeof piece.cowChargeCount === 'number' &&
+      Number.isFinite(piece.cowChargeCount) &&
+      piece.cowChargeCount > 0
+        ? { cowChargeCount: Math.min(8, Math.floor(piece.cowChargeCount)) }
+        : {}),
+      ...(piece.pigInheritedPieceCode != null
+        ? {
+            pigInheritedPieceCode: piece.pigInheritedPieceCode,
+            ...(piece.pigInheritedChar != null ? { pigInheritedChar: piece.pigInheritedChar } : {}),
+            ...(piece.pigInheritedPromoted != null
+              ? { pigInheritedPromoted: piece.pigInheritedPromoted }
+              : {}),
+          }
+        : {}),
     })),
     skill_definitions_v2: skillDefinitionsV2,
     custom_move_vectors: Object.fromEntries(

@@ -40,6 +40,7 @@ import {
   resolveStagePlacementIdentity,
 } from '@/features/stage-shogi/domain/board-piece-identity';
 import { getDisplayCharFromPieceCode } from '@/lib/piece-image-registry';
+import { decodeWirePieceCodePart } from '@/lib/matching-server/wire-piece-code';
 import {
   CHAR_TO_CODE,
   CODE_TO_CHAR,
@@ -210,9 +211,9 @@ export type BoardPiece = {
   lightProtectionAura?: boolean;
   /** 菊の復活効果（復活.png バッジ） */
   chrysanthemumRevivalMark?: boolean;
-  /** 味方「陽」の周囲8マス内（陽自身を除く）でスキル確率バフを受けている表示 */
+  /** 味方「陽」の周囲8マス内（陽自身を除く）でスキル確率+30%を受けているオレンジハイライト */
   yangSkillSparkle?: boolean;
-  /** 敵「陰」の周囲8マス内（陰のスキル封じ圏）の表示 */
+  /** 敵「陰」の周囲8マス内（陰のスキル封じ圏）の紫色ハイライト */
   yinSkillSparkle?: boolean;
   /** 「舞」スキルで移動が斜め前1マスのみに制限されている表示（黄色×） */
   maiDanceRestrictionMark?: boolean;
@@ -703,8 +704,13 @@ export function pieceCodeFromPlacement(
   char: string,
   pieceDefsByChar: Partial<Record<string, PieceCatalogItem>>,
 ): string | null {
-  if (!isOpaquePieceInstanceId(pieceCode) && pieceCode) {
-    return toBasePieceCode(pieceCode);
+  const decoded =
+    pieceCode && (pieceCode.includes('>') || pieceCode.includes('@'))
+      ? decodeWirePieceCodePart(pieceCode)
+      : null;
+  const normalizedCode = decoded?.code ?? pieceCode;
+  if (!isOpaquePieceInstanceId(normalizedCode) && normalizedCode) {
+    return toBasePieceCode(normalizedCode);
   }
   const catalogItem = pieceDefsByChar[char];
   if (catalogItem?.pieceCode && !isOpaquePieceInstanceId(catalogItem.pieceCode)) {

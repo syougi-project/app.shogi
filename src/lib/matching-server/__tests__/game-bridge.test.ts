@@ -18,6 +18,15 @@ describe('matching-server game-bridge', () => {
     });
   });
 
+  it('decodes cow charge suffix on board cells', () => {
+    expect(decodeEncodedBoardPiece('black:COW@1')).toEqual({
+      serverSide: 'black',
+      code: 'COW',
+      promoted: false,
+      cowChargeCount: 1,
+    });
+  });
+
   it('maps server board to ui pieces for black player', () => {
     const game: MatchingGameState = {
       version: 1,
@@ -30,6 +39,33 @@ describe('matching-server game-bridge', () => {
     expect(pieces.find((p) => p.pieceCode === 'FU')?.char).toBe('歩');
     expect(pieces.find((p) => p.pieceCode === 'OU')?.side).toBe('enemy');
     expect(pieces.find((p) => p.pieceCode === 'OU')?.char).toBe('玉');
+  });
+
+  it('maps charged cow to 牛 with cowChargeCount', () => {
+    const game: MatchingGameState = {
+      version: 1,
+      turn: 'black',
+      board: { '5f': 'black:COW@1' },
+      hands: { black: {}, white: {} },
+    };
+    const pieces = matchingGameToBoardPieces(game, 'black');
+    const cow = pieces.find((p) => p.pieceCode === 'COW');
+    expect(cow?.char).toBe('牛');
+    expect(cow?.cowChargeCount).toBe(1);
+  });
+
+  it('maps pig with inherited movement suffix to 豚 with metadata', () => {
+    const game: MatchingGameState = {
+      version: 1,
+      turn: 'black',
+      board: { '5d': 'black:PIG>FU' },
+      hands: { black: { FU: 1 }, white: {} },
+    };
+    const pieces = matchingGameToBoardPieces(game, 'black');
+    const pig = pieces.find((p) => p.row === 4 && p.col === 4);
+    expect(pig?.pieceCode).toBe('PIG');
+    expect(pig?.char).toBe('豚');
+    expect(pig?.pigInheritedPieceCode).toBe('FU');
   });
 
   it('converts battle move to server payload', () => {

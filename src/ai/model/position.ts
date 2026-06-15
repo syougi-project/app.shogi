@@ -7,6 +7,7 @@ import {
 } from '@/features/stage-shogi/domain/board-piece-identity';
 import { CHAR_TO_CODE } from '@/features/stage-shogi/domain/piece-conversion';
 import { normalizePieceCode, toBasePieceCode } from '@/ai/model/move';
+import { decodeWirePieceCodePart } from '@/lib/matching-server/wire-piece-code';
 
 export type AiHandsState = HandsState;
 export type AiBattlePosition = Omit<BattleCanonicalPosition, 'hands'> & {
@@ -116,11 +117,15 @@ export function piecesFromBoardState(position: AiBattlePosition): AiBoardPiece[]
     if (row == null || col == null) continue;
 
     const rawPiece = asRecord(obj.piece);
-    const pieceCode = normalizePieceCode(
+    const rawPieceCode =
       (obj.pieceCode as string | null | undefined) ??
-        (rawPiece?.code as string | null | undefined) ??
-        CHAR_TO_CODE[String(obj.char ?? rawPiece?.char ?? '')],
-    );
+      (rawPiece?.code as string | null | undefined) ??
+      CHAR_TO_CODE[String(obj.char ?? rawPiece?.char ?? '')];
+    const wireDecoded =
+      typeof rawPieceCode === 'string' && (rawPieceCode.includes('>') || rawPieceCode.includes('@'))
+        ? decodeWirePieceCodePart(rawPieceCode)
+        : null;
+    const pieceCode = normalizePieceCode(wireDecoded?.code ?? rawPieceCode);
     const promoted = Boolean(obj.promoted ?? rawPiece?.promoted ?? false);
     const rawChar = String(obj.char ?? rawPiece?.char ?? '?') || (pieceCode ? pieceCode : '?');
     const baseCode = toBasePieceCode(pieceCode);
@@ -147,7 +152,7 @@ export function piecesFromBoardState(position: AiBattlePosition): AiBoardPiece[]
       (typeof mrpc === 'string' && mrpc.length > 0) ||
       (typeof mrch === 'string' && mrch.length > 0);
 
-    const cowChargeRaw = obj.cowChargeCount ?? obj.cow_charge_count;
+    const cowChargeRaw = obj.cowChargeCount ?? obj.cow_charge_count ?? wireDecoded?.cowChargeCount;
     const cowChargeCount =
       typeof cowChargeRaw === 'number' && Number.isFinite(cowChargeRaw)
         ? Math.max(0, Math.min(8, Math.floor(cowChargeRaw)))
@@ -158,7 +163,7 @@ export function piecesFromBoardState(position: AiBattlePosition): AiBoardPiece[]
         ? obj.pigInheritedPieceCode
         : typeof obj.pig_inherited_piece_code === 'string'
           ? obj.pig_inherited_piece_code
-          : null;
+          : (wireDecoded?.pigInheritedPieceCode ?? null);
     const pigInheritedPieceCode =
       pigCodeRaw && pigCodeRaw.trim().length > 0 ? pigCodeRaw.trim().toUpperCase() : null;
     const pigIc =
@@ -169,7 +174,8 @@ export function piecesFromBoardState(position: AiBattlePosition): AiBoardPiece[]
           : undefined;
     const pigInheritedChar =
       typeof pigIc === 'string' && pigIc.trim().length > 0 ? pigIc : undefined;
-    const pigPr = obj.pigInheritedPromoted ?? obj.pig_inherited_promoted;
+    const pigPr =
+      obj.pigInheritedPromoted ?? obj.pig_inherited_promoted ?? wireDecoded?.pigInheritedPromoted;
     const pigInheritedPromoted =
       typeof pigPr === 'boolean' ? pigPr : typeof pigPr === 'number' ? pigPr !== 0 : undefined;
 

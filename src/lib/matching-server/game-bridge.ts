@@ -15,8 +15,9 @@ import {
   handKeyToDisplayPieceCode,
   pieceCharFromCode,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
-import { formatMatchingSquare, parseMatchingSquare } from '@/lib/matching-server/square';
 import { normalizeWirePieceCode } from '@/lib/matching-server/piece-display';
+import { formatMatchingSquare, parseMatchingSquare } from '@/lib/matching-server/square';
+import { decodeEncodedBoardPiece } from '@/lib/matching-server/wire-piece-code';
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 
@@ -32,18 +33,7 @@ function oppositeRole(role: PlayerSide): PlayerSide {
   return role === 'black' ? 'white' : 'black';
 }
 
-export function decodeEncodedBoardPiece(encoded: string): {
-  serverSide: PlayerSide;
-  code: string;
-  promoted: boolean;
-} {
-  const [sideRaw, restRaw] = encoded.split(':');
-  const serverSide: PlayerSide = sideRaw === 'white' ? 'white' : 'black';
-  const rest = restRaw ?? '';
-  const promoted = rest.endsWith('+');
-  const code = (promoted ? rest.slice(0, -1) : rest).trim().toUpperCase();
-  return { serverSide, code, promoted };
-}
+export { decodeEncodedBoardPiece } from '@/lib/matching-server/wire-piece-code';
 
 export function mapServerSideToUiSide(serverSide: PlayerSide, myRole: PlayerSide): Side {
   return serverSide === myRole ? 'player' : 'enemy';
@@ -59,7 +49,14 @@ export function matchingGameToBoardPieces(
 ): BoardPiece[] {
   const pieces: BoardPiece[] = [];
   for (const [square, encoded] of Object.entries(game.board)) {
-    const { serverSide, code, promoted } = decodeEncodedBoardPiece(encoded);
+    const {
+      serverSide,
+      code,
+      promoted,
+      cowChargeCount,
+      pigInheritedPieceCode,
+      pigInheritedPromoted,
+    } = decodeEncodedBoardPiece(encoded);
     const { row, col } = parseMatchingSquare(square);
     const side = mapServerSideToUiSide(serverSide, myRole);
     pieces.push({
@@ -70,6 +67,13 @@ export function matchingGameToBoardPieces(
       char: pieceCharFromCode(code, side, promoted),
       promoted,
       imageSignedUrl: null,
+      ...(cowChargeCount != null ? { cowChargeCount } : {}),
+      ...(pigInheritedPieceCode
+        ? {
+            pigInheritedPieceCode,
+            ...(pigInheritedPromoted != null ? { pigInheritedPromoted } : {}),
+          }
+        : {}),
     });
   }
   return pieces;

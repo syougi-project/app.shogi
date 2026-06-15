@@ -364,6 +364,30 @@ export function normalizeCatalogSkillText(piece: PieceCatalogItem): string {
   if (isOtsuPiece) {
     return '敵駒を取ったあと、もう1手だけ追加で移動できる。2手目の移動では敵駒を取れない。';
   }
+  const isRitualPiece =
+    piece.char === '礼' || code.includes('RITUAL') || code.includes('4FCDDF14D08D');
+  if (isRitualPiece) {
+    return '他の味方駒が取られた時に身代わりとなる。';
+  }
+  const isBeastPiece =
+    piece.char === '獣' || code.includes('BEAST') || code.includes('05E4EFB89DAE');
+  if (isBeastPiece) {
+    return 'この駒の前後左右1マスの敵駒を行動不能にする。';
+  }
+  const isBirdPiece = piece.char === '禽' || code.includes('BIRD') || code.includes('29ECAB1EF3C3');
+  if (isBirdPiece) {
+    return '移動時、ランダムな味方駒を後ろ1マスに運ぶ。';
+  }
+  const isSatoriPiece =
+    piece.char === '悟' || code.includes('SATORI') || code.includes('6D4AFA9CDF1C');
+  if (isSatoriPiece) {
+    return '移動時、敵駒から1つ選択し2ターン行動不能にする。';
+  }
+  const isHeartPiece =
+    piece.char === '心' || code.includes('HEART') || code.includes('CA16911978FF');
+  if (isHeartPiece) {
+    return '移動時、味方駒から1つ選択し2ターン無敵状態にする。';
+  }
   if (isConcaveCatalogPiece(piece)) {
     return 'なし。';
   }

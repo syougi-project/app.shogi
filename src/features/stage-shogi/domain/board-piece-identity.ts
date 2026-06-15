@@ -1,4 +1,5 @@
 import { toBasePieceCode } from '@/ai/model/move';
+import { decodeWirePieceCodePart } from '@/lib/matching-server/wire-piece-code';
 
 import { CHAR_TO_CODE } from '@/features/stage-shogi/domain/char-to-piece-code-map';
 import { CODE_TO_CHAR } from '@/features/stage-shogi/domain/piece-conversion';
@@ -167,8 +168,30 @@ export function sanitizeBoardStatePieceRecords(
       (typeof nested.code === 'string' ? nested.code : null) ??
       (typeof entry.pieceCode === 'string' ? entry.pieceCode : null) ??
       null;
-    const { pieceCode, char } = canonicalizeBoardPieceIdentity(rawCode, rawChar);
-    const nextNested = { ...nested, pieceCode, char };
+    const wireDecoded =
+      rawCode && (rawCode.includes('>') || rawCode.includes('@'))
+        ? decodeWirePieceCodePart(rawCode)
+        : null;
+    const { pieceCode, char } = canonicalizeBoardPieceIdentity(
+      wireDecoded?.code ?? rawCode,
+      rawChar,
+    );
+    const nextNested = {
+      ...nested,
+      pieceCode,
+      char,
+      ...(wireDecoded?.pigInheritedPieceCode
+        ? {
+            pigInheritedPieceCode: wireDecoded.pigInheritedPieceCode,
+            ...(wireDecoded.pigInheritedPromoted != null
+              ? { pigInheritedPromoted: wireDecoded.pigInheritedPromoted }
+              : {}),
+          }
+        : {}),
+      ...(wireDecoded && wireDecoded.cowChargeCount > 0
+        ? { cowChargeCount: wireDecoded.cowChargeCount }
+        : {}),
+    };
     if (entry.piece && typeof entry.piece === 'object') {
       return { ...entry, piece: nextNested, char, pieceCode };
     }

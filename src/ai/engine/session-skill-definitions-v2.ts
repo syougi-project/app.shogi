@@ -97,8 +97,7 @@ const CANONICAL_FALLBACK_DEFINITIONS: readonly Record<string, unknown>[] = [
       },
     ],
     source: {
-      skillText:
-        '移動時、前後左右に隣接する敵駒をすべて2ターン行動不能にする。（skill-runtime adjacency=orthogonal）',
+      skillText: 'この駒の前後左右1マスの敵駒を行動不能にする。',
       sourceKind: 'manual',
       sourceFile: 'session-skill-definitions-v2',
       sourceFunction: 'CANONICAL_BEAST',
@@ -117,8 +116,7 @@ const CANONICAL_FALLBACK_DEFINITIONS: readonly Record<string, unknown>[] = [
     conditions: [],
     effects: [],
     source: {
-      skillText:
-        '移動後、真後ろ1マスが空いていればランダムな味方駒（玉除く）をそのマスへ移す。実装は skill-runtime（舟と同じ「後ろ」方向）。',
+      skillText: '移動時、ランダムな味方駒を後ろ1マスに運ぶ。',
       sourceKind: 'manual',
       sourceFile: 'session-skill-definitions-v2',
       sourceFunction: 'CANONICAL_BIRD',

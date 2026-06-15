@@ -44,11 +44,10 @@ const KBOSS_SKILL_DESCRIPTION =
 const DEATH_SKILL_DESCRIPTION =
   'この駒を取った敵駒に呪いをかける。呪われた駒は5ターン後に消滅する。';
 const SOUL_SKILL_DESCRIPTION = 'この駒が盤面に残っている間、相手は「王」を攻撃できない。';
-const BEAST_SKILL_DESCRIPTION = '移動時、前後左右に隣接する敵駒をすべて2ターン行動不能にする。';
+const BEAST_SKILL_DESCRIPTION = 'この駒の前後左右1マスの敵駒を行動不能にする。';
 const BIRD_SKILL_DESCRIPTION = '移動時、ランダムな味方駒を後ろ1マスに運ぶ。';
-const SATORI_SKILL_DESCRIPTION =
-  '移動後、残っている敵駒から1つを選び、その駒を2ターン動けなくする。（王・玉は選べない）';
-const HEART_SKILL_DESCRIPTION = '移動時味方駒から1つ選択し2ターン無敵状態にする。';
+const SATORI_SKILL_DESCRIPTION = '移動時、敵駒から1つ選択し2ターン行動不能にする。';
+const HEART_SKILL_DESCRIPTION = '移動時、味方駒から1つ選択し2ターン無敵状態にする。';
 const DEPRESSION_SKILL_DESCRIPTION = '移動後、左右1マスの空きマスを2ターン侵入禁止の×マスにする。';
 
 const CONCAVE_SKILL_INSPECT = 'なし。';
@@ -91,8 +90,7 @@ const GUN_SKILL_INSPECT =
 const BOOK_SKILL_INSPECT = 'なし';
 const SEAL_SKILL_INSPECT = 'この駒の斜め4方向に隣接する敵駒は移動できない。';
 const BIGNOISE_SKILL_INSPECT = '轟音で移動時両隣の敵駒を吹き飛ばす。';
-const RITUAL_SKILL_INSPECT =
-  '他の味方駒が取られたとき、この駒が身代わりとなり消滅し、取られた味方駒は自分の持ち駒に戻る。';
+const RITUAL_SKILL_INSPECT = '他の味方駒が取られた時に身代わりとなる。';
 const SAINT_SKILL_INSPECT = '周囲8マスにいる全ての駒のスキルと移動を無効化する。';
 const RED_ONI_SKILL_INSPECT =
   '移動時、左右の敵駒を1マス遠ざける。さらに周囲のランダムな1マスを2ターンのバツマスにする。';
@@ -171,8 +169,12 @@ export function resolveInspectSkillDescription(
   if (char === 'K') return KBOSS_SKILL_DESCRIPTION;
   if (char === '死') return DEATH_SKILL_DESCRIPTION;
   if (char === '魂') return SOUL_SKILL_DESCRIPTION;
-  if (char === '獣') return BEAST_SKILL_DESCRIPTION;
-  if (char === '禽') return BIRD_SKILL_DESCRIPTION;
+  if (char === '獣' || code.includes('BEAST') || code.includes('05E4EFB89DAE')) {
+    return BEAST_SKILL_DESCRIPTION;
+  }
+  if (char === '禽' || code.includes('BIRD') || code.includes('29ECAB1EF3C3')) {
+    return BIRD_SKILL_DESCRIPTION;
+  }
   if (
     char === '悟' ||
     (pieceCode && pieceCode.toUpperCase().includes('SATORI')) ||

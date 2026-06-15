@@ -30,7 +30,6 @@ export function StageShogiHandsRow(props: {
     hands,
     pieceSfenMapping,
     pieceDefsByCode,
-    selectedDropPieceCode,
     sideToMove,
     isAiThinking,
     isCreatingGame,
@@ -69,10 +68,6 @@ export function StageShogiHandsRow(props: {
           isFinished ||
           hasPendingPromotion ||
           getHandCount(hands, 'player', codeKey) <= 0;
-        const selected =
-          isPlayer &&
-          selectedDropPieceCode != null &&
-          selectedDropPieceCode.toUpperCase() === codeKey;
         const handImageSource = getPieceImageSource({
           pieceCode: codeKey,
           char:
@@ -114,11 +109,7 @@ export function StageShogiHandsRow(props: {
                   </Text>
                 )}
               </View>
-              <Text
-                className={`-ml-0.5 text-sm font-bold ${selected ? 'text-white' : 'text-white'}`}
-              >
-                {`x${entry.count}`}
-              </Text>
+              <Text className="-ml-0.5 text-sm font-bold text-black">{`x${entry.count}`}</Text>
             </View>
           </Pressable>
         );

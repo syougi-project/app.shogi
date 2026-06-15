@@ -222,6 +222,8 @@ export function OnlineBattleBoard(props: {
           const stunnedAura = Boolean(piece.stunnedAura);
           const prisonChained = Boolean(piece.prisonChained);
           const chrysanthemumRevivalMark = Boolean(piece.chrysanthemumRevivalMark);
+          const yangSkillSparkle = Boolean(piece.yangSkillSparkle);
+          const yinSkillSparkle = Boolean(piece.yinSkillSparkle);
           const pieceScalePercent =
             BOARD_PIECE_SIZE_OVERRIDES[displayChar ?? piece.char] ??
             (king ? KING_PIECE_SIZE_PERCENT : NORMAL_PIECE_SIZE_PERCENT);
@@ -280,6 +282,12 @@ export function OnlineBattleBoard(props: {
                     style={styles.chrysanthemumRevivalMarkImage}
                   />
                 </View>
+              ) : null}
+              {yangSkillSparkle && !darkVeiled ? (
+                <View pointerEvents="none" style={styles.yangSkillAuraOverlay} />
+              ) : null}
+              {yinSkillSparkle && !darkVeiled ? (
+                <View pointerEvents="none" style={styles.yinSkillAuraOverlay} />
               ) : null}
             </View>
           );
@@ -465,6 +473,28 @@ const styles = StyleSheet.create({
   chrysanthemumRevivalMarkImage: {
     width: '100%',
     height: '100%',
+  },
+  yangSkillAuraOverlay: {
+    position: 'absolute',
+    left: '4%',
+    right: '4%',
+    top: '5%',
+    bottom: '5%',
+    borderRadius: 999,
+    borderWidth: 2.5,
+    borderColor: 'rgba(249, 115, 22, 0.98)',
+    backgroundColor: 'rgba(255, 237, 213, 0.28)',
+  },
+  yinSkillAuraOverlay: {
+    position: 'absolute',
+    left: '11%',
+    right: '11%',
+    top: '12%',
+    bottom: '12%',
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: 'rgba(168, 85, 247, 0.98)',
+    backgroundColor: 'rgba(126, 34, 206, 0.24)',
   },
   pieceImage: {
     width: '100%',
