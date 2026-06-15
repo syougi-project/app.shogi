@@ -22,6 +22,8 @@ import {
   PRISON_CHAIN_IMAGE_SOURCE,
   ROCK_OBSTACLE_IMAGE_SOURCE,
   BATSU_CELL_IMAGE_SOURCE,
+  CHRYSANTHEMUM_REVIVAL_IMAGE_SOURCE,
+  THORN_CELL_IMAGE_SOURCE,
   preferBundledPromotedImageOverRemoteUrl,
   resolvePromotedImageSource,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
@@ -52,6 +54,7 @@ export function OnlineBattleBoard(props: {
   poisonHazardCells?: BoardCell[];
   rockObstacleCells?: BoardCell[];
   batsuHazardCells?: BoardCell[];
+  thornHazardCells?: BoardCell[];
   skillVisualEffects?: SkillVisualEffect[];
   onSkillVisualEffectFinished?: (effect: SkillVisualEffect) => void;
   onCellPress: (viewRow: number, viewCol: number) => void;
@@ -71,6 +74,7 @@ export function OnlineBattleBoard(props: {
     poisonHazardCells = [],
     rockObstacleCells = [],
     batsuHazardCells = [],
+    thornHazardCells = [],
     skillVisualEffects = [],
     onSkillVisualEffectFinished,
     onCellPress,
@@ -99,6 +103,10 @@ export function OnlineBattleBoard(props: {
     ...toViewCoord(cell.row, cell.col, myRole),
   }));
   const batsuHazardsView = batsuHazardCells.map((cell) => ({
+    ...cell,
+    ...toViewCoord(cell.row, cell.col, myRole),
+  }));
+  const thornHazardsView = thornHazardCells.map((cell) => ({
     ...cell,
     ...toViewCoord(cell.row, cell.col, myRole),
   }));
@@ -213,6 +221,7 @@ export function OnlineBattleBoard(props: {
           const darkVeiled = Boolean(piece.darkVeiled);
           const stunnedAura = Boolean(piece.stunnedAura);
           const prisonChained = Boolean(piece.prisonChained);
+          const chrysanthemumRevivalMark = Boolean(piece.chrysanthemumRevivalMark);
           const pieceScalePercent =
             BOARD_PIECE_SIZE_OVERRIDES[displayChar ?? piece.char] ??
             (king ? KING_PIECE_SIZE_PERCENT : NORMAL_PIECE_SIZE_PERCENT);
@@ -263,6 +272,15 @@ export function OnlineBattleBoard(props: {
               {stunnedAura && !darkVeiled ? (
                 <View pointerEvents="none" style={styles.stunAuraOverlay} />
               ) : null}
+              {chrysanthemumRevivalMark && !darkVeiled ? (
+                <View pointerEvents="none" style={styles.chrysanthemumRevivalMarkOverlay}>
+                  <Image
+                    source={CHRYSANTHEMUM_REVIVAL_IMAGE_SOURCE}
+                    contentFit="contain"
+                    style={styles.chrysanthemumRevivalMarkImage}
+                  />
+                </View>
+              ) : null}
             </View>
           );
         })}
@@ -305,6 +323,27 @@ export function OnlineBattleBoard(props: {
               source={BATSU_CELL_IMAGE_SOURCE}
               contentFit="cover"
               style={styles.batsuHazardCellImage}
+            />
+          </View>
+        ))}
+        {thornHazardsView.map((cell) => (
+          <View
+            key={`thorn-hazard-${cell.row}-${cell.col}`}
+            pointerEvents="none"
+            style={[
+              styles.thornHazardCell,
+              {
+                left: cell.col * cellSize,
+                top: cell.row * cellSize,
+                width: cellSize,
+                height: cellSize,
+              },
+            ]}
+          >
+            <Image
+              source={THORN_CELL_IMAGE_SOURCE}
+              contentFit="cover"
+              style={styles.thornHazardCellImage}
             />
           </View>
         ))}
@@ -369,6 +408,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  thornHazardCell: {
+    position: 'absolute',
+    zIndex: 23,
+  },
+  thornHazardCellImage: {
+    width: '100%',
+    height: '100%',
+  },
   pieceWrap: {
     position: 'absolute',
     alignItems: 'center',
@@ -405,6 +452,19 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(34, 197, 94, 0.95)',
     backgroundColor: 'rgba(34, 197, 94, 0.16)',
+  },
+  chrysanthemumRevivalMarkOverlay: {
+    position: 'absolute',
+    top: '-2%',
+    right: '2%',
+    width: '54%',
+    height: '54%',
+    maxWidth: 56,
+    maxHeight: 56,
+  },
+  chrysanthemumRevivalMarkImage: {
+    width: '100%',
+    height: '100%',
   },
   pieceImage: {
     width: '100%',

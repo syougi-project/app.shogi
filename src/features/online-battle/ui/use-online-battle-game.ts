@@ -58,6 +58,7 @@ import {
   poisonHazardCellsForDisplay,
   rockObstacleCellsForDisplay,
   batsuHazardCellsForDisplay,
+  thornHazardCellsForDisplay,
   alignLegalMovesToBoardPieces,
   isFixedHouseFieldPieceForUi,
   uniqueTargetsFromMoves,
@@ -181,6 +182,7 @@ export function useOnlineBattleGame(matchId?: string) {
   const [poisonHazardCells, setPoisonHazardCells] = useState<BoardCell[]>([]);
   const [rockObstacleCells, setRockObstacleCells] = useState<BoardCell[]>([]);
   const [batsuHazardCells, setBatsuHazardCells] = useState<BoardCell[]>([]);
+  const [thornHazardCells, setThornHazardCells] = useState<BoardCell[]>([]);
   const [inspectingPiece, setInspectingPiece] = useState<InspectingPieceState>(null);
 
   const queueSkillVisualEffects = useCallback((effects: SkillVisualEffect[] | undefined) => {
@@ -281,6 +283,7 @@ export function useOnlineBattleGame(matchId?: string) {
     setPoisonHazardCells(poisonHazardCellsForDisplay(record.position));
     setRockObstacleCells(rockObstacleCellsForDisplay(record.position));
     setBatsuHazardCells(batsuHazardCellsForDisplay(record.position));
+    setThornHazardCells(thornHazardCellsForDisplay(record.position));
     setPlayerLegalMoves(legalMoves);
     setSession((current) =>
       buildSession(
@@ -1090,6 +1093,7 @@ export function useOnlineBattleGame(matchId?: string) {
     poisonHazardCells,
     rockObstacleCells,
     batsuHazardCells,
+    thornHazardCells,
     role,
     pieceCatalog,
     pieceDefsByCode,

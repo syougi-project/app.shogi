@@ -360,6 +360,10 @@ export function normalizeCatalogSkillText(piece: PieceCatalogItem): string {
   if (isChrysanthemumPiece) {
     return '移動後、周囲8マスにいる味方駒1体（玉除く）に2ターンの復活効果を付与する。復活中は敵に取られても元の陣営の手駒に戻る。';
   }
+  const isOtsuPiece = piece.char === '乙' || code.includes('OTSU') || code.includes('5A07CA59B158');
+  if (isOtsuPiece) {
+    return '敵駒を取ったあと、もう1手だけ追加で移動できる。2手目の移動では敵駒を取れない。';
+  }
   if (isConcaveCatalogPiece(piece)) {
     return 'なし。';
   }

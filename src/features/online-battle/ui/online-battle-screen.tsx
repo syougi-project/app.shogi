@@ -53,6 +53,7 @@ export function OnlineBattleScreen() {
     poisonHazardCells,
     rockObstacleCells,
     batsuHazardCells,
+    thornHazardCells,
     role,
     pieceCatalog,
     pieceDefsByCode,
@@ -209,6 +210,7 @@ export function OnlineBattleScreen() {
                     poisonHazardCells={poisonHazardCells}
                     rockObstacleCells={rockObstacleCells}
                     batsuHazardCells={batsuHazardCells}
+                    thornHazardCells={thornHazardCells}
                     canInteract={
                       canInteract ||
                       Boolean(pendingSatoriEnemyPick?.length) ||

@@ -1,4 +1,5 @@
 import { applyMove } from '@/ai/engine/apply-move';
+import { generateLegalMoves } from '@/ai/engine/legal-moves';
 import type { AiBattlePosition, AiPieceDefinition } from '@/ai/model';
 
 type TestBoardPiece = {
@@ -3418,6 +3419,115 @@ describe('ai engine apply move', () => {
     expect(second.position.sideToMove).toBe('enemy');
     expect(second.position.moveCount).toBe(1);
     expect(Math.max(0, second.position.hands.player.FU ?? 0)).toBeGreaterThanOrEqual(2);
+  });
+
+  it('乙は敵駒を取ったあと1手追加移動でき、2手目は取れない', () => {
+    const otsuDef: AiPieceDefinition = {
+      pieceCode: 'OTSU',
+      canonicalCode: 'OTSU',
+      sfenCode: '+',
+      char: '乙',
+      name: '乙',
+      unlock: 'default',
+      desc: '',
+      skill: '',
+      move: '',
+      moveVectors: [
+        { dx: -1, dy: -1, maxStep: 1 },
+        { dx: 0, dy: -1, maxStep: 1 },
+        { dx: 1, dy: -1, maxStep: 1 },
+        { dx: -1, dy: 1, maxStep: 1 },
+        { dx: 1, dy: 1, maxStep: 1 },
+      ],
+      isRepeatable: true,
+    };
+    const catalog: AiPieceDefinition[] = [...pieceCatalog, otsuDef];
+
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: 'seed',
+      stateHash: 'seed',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'enemy', row: 3, col: 5, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'enemy', row: 4, col: 4, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'player', row: 5, col: 4, pieceCode: 'OTSU', char: '乙', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+
+    const first = applyMove({
+      position,
+      pieceCatalog: catalog,
+      move: {
+        fromRow: 5,
+        fromCol: 4,
+        toRow: 4,
+        toCol: 4,
+        pieceCode: 'OTSU',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: 'FU',
+        notation: null,
+      },
+    });
+
+    expect(first.turnConsumed).toBe(false);
+    expect(first.position.sideToMove).toBe('player');
+    const skillState = (first.position.boardState as { skill_state?: Record<string, unknown> })
+      .skill_state;
+    const statuses = (skillState?.piece_statuses ?? []) as Record<string, unknown>[];
+    expect(statuses.some((s) => String(s.status_type) === 'otsu_followup')).toBe(true);
+
+    const followupLegal = generateLegalMoves({
+      position: first.position as AiBattlePosition,
+      pieceCatalog: catalog,
+    }).legalMoves;
+    expect(
+      followupLegal.some(
+        (move) =>
+          move.fromRow === 4 &&
+          move.fromCol === 4 &&
+          move.toRow === 3 &&
+          move.toCol === 5 &&
+          move.capturedPieceCode,
+      ),
+    ).toBe(false);
+    expect(
+      followupLegal.some(
+        (move) =>
+          move.fromRow === 4 &&
+          move.fromCol === 4 &&
+          move.toRow === 3 &&
+          move.toCol === 3 &&
+          !move.capturedPieceCode,
+      ),
+    ).toBe(true);
+
+    const second = applyMove({
+      position: first.position as AiBattlePosition,
+      pieceCatalog: catalog,
+      move: {
+        fromRow: 4,
+        fromCol: 4,
+        toRow: 3,
+        toCol: 3,
+        pieceCode: 'OTSU',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: null,
+        notation: null,
+      },
+    });
+
+    expect(second.turnConsumed).toBe(true);
+    expect(second.position.sideToMove).toBe('enemy');
+    expect(second.position.moveCount).toBe(1);
   });
 
   const nakuCatalog: AiPieceDefinition = {
