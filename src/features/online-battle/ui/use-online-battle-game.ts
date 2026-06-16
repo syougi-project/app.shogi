@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { ONLINE_PVP_TURN_SECONDS } from '@/constants/online-battle';
+
 import { applyMove } from '@/ai/engine';
 import type { SkillVisualEffect } from '@/domain/battle/skill-visual-effect';
 import type {
@@ -80,6 +82,7 @@ import {
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
 import type { OnlineBattleSession } from '@/usecases/online-battle/load-online-battle-session-usecase';
+import { pickRandomTimeoutBattleMove } from '@/lib/battle/pick-random-timeout-battle-move';
 import {
   applyTimeActionNotation,
   buildHouseSkillOnlyMove,
@@ -89,6 +92,7 @@ import {
   findHeartMoveAt,
   findSatoriMoveAt,
   hasAdjacentEnemyPiece,
+  isPhysicalBattleMove,
   isPlayerHousePieceForSkillUi,
   isTimePiece,
   pieceDefsByCharFromCatalog,
@@ -195,6 +199,7 @@ export function useOnlineBattleGame(matchId?: string) {
   const [enemyPreviewTargets, setEnemyPreviewTargets] = useState<BoardCell[]>([]);
   const [timeActionMode, setTimeActionMode] = useState<TimeActionMode | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
+  const [turnSecondsLeft, setTurnSecondsLeft] = useState(ONLINE_PVP_TURN_SECONDS);
   const [skillVisualEffects, setSkillVisualEffects] = useState<SkillVisualEffect[]>([]);
   const [poisonHazardCells, setPoisonHazardCells] = useState<BoardCell[]>([]);
   const [rockObstacleCells, setRockObstacleCells] = useState<BoardCell[]>([]);
@@ -236,6 +241,9 @@ export function useOnlineBattleGame(matchId?: string) {
   const preMoveWireHandsRef = useRef<MatchingGameState['hands'] | null>(null);
   const preMoveWireSkillStateRef = useRef<MatchingGameState['skillState'] | null>(null);
   const preMoveSkillFxRef = useRef<SkillVisualEffect[]>([]);
+  const timeoutMoveInFlightRef = useRef(false);
+  const turnTimerDeadlineRef = useRef<number | null>(null);
+  const timeoutFiredForVersionRef = useRef<number | null>(null);
   const authoritativeServerGameRef = useRef<MatchingGameState | null>(null);
   const playMoveAudio = useCallback(
     (move: BattleMove, actorSide: Side, board: BoardPiece[]) => {
@@ -855,6 +863,110 @@ export function useOnlineBattleGame(matchId?: string) {
     ],
   );
 
+  const executeTimeoutMove = useCallback(() => {
+    if (!matchId || session.winnerSide || timeoutMoveInFlightRef.current) return;
+    const battleRecord = getOnlineBattleGame(matchId);
+    if (!battleRecord || !isMyTurnInCanonical(battleRecord.myRole, battleRecord.position)) {
+      return;
+    }
+
+    timeoutMoveInFlightRef.current = true;
+    try {
+      let move: BattleMove | null = null;
+
+      if (pendingPromotion) {
+        move = Math.random() < 0.5 ? pendingPromotion.promoteMove : pendingPromotion.nonPromoteMove;
+      } else if (pendingSatoriEnemyPick && pendingSatoriEnemyPick.length > 0) {
+        move =
+          pendingSatoriEnemyPick[Math.floor(Math.random() * pendingSatoriEnemyPick.length)] ?? null;
+      } else if (pendingHeartAllyPick && pendingHeartAllyPick.length > 0) {
+        move =
+          pendingHeartAllyPick[Math.floor(Math.random() * pendingHeartAllyPick.length)] ?? null;
+      } else if (pendingHouseSkillCell) {
+        const piece = findPieceAt(pieces, pendingHouseSkillCell.row, pendingHouseSkillCell.col);
+        if (piece) {
+          move = buildHouseSkillOnlyMove(pendingHouseSkillCell, piece);
+        }
+      } else if (pendingTimeActionCell) {
+        const piece = findPieceAt(pieces, pendingTimeActionCell.row, pendingTimeActionCell.col);
+        if (piece) {
+          const origin = legalMoveOriginCellForPiece(
+            piece,
+            pendingTimeActionCell.row,
+            pendingTimeActionCell.col,
+          );
+          const aligned = buildAlignedPlayerLegalMoves(pieces);
+          const physical = filterActionableMoves(
+            legalMovesForBoardPiece(aligned, origin.row, origin.col),
+          ).filter(isPhysicalBattleMove);
+          move =
+            physical[Math.floor(Math.random() * physical.length)] ??
+            buildTimeSkillOnlyMove(pendingTimeActionCell, piece);
+        }
+      } else {
+        move = pickRandomTimeoutBattleMove(buildAlignedPlayerLegalMoves(pieces));
+      }
+
+      if (!move) {
+        appendLog('時間切れですが自動着手できる手がありませんでした');
+        return;
+      }
+
+      setPendingPromotion(null);
+      clearSkillUiState();
+      setSelectedCell(null);
+      setSelectedDropPieceCode(null);
+      setLegalTargets([]);
+      appendLog('時間切れのため自動着手しました');
+      commitMove(move);
+    } finally {
+      timeoutMoveInFlightRef.current = false;
+    }
+  }, [
+    appendLog,
+    buildAlignedPlayerLegalMoves,
+    clearSkillUiState,
+    commitMove,
+    matchId,
+    pendingHeartAllyPick,
+    pendingHouseSkillCell,
+    pendingPromotion,
+    pendingSatoriEnemyPick,
+    pendingTimeActionCell,
+    pieces,
+    session.winnerSide,
+  ]);
+
+  useEffect(() => {
+    if (session.winnerSide || !game) {
+      turnTimerDeadlineRef.current = null;
+      return;
+    }
+    turnTimerDeadlineRef.current = Date.now() + ONLINE_PVP_TURN_SECONDS * 1000;
+    timeoutFiredForVersionRef.current = null;
+    setTurnSecondsLeft(ONLINE_PVP_TURN_SECONDS);
+  }, [game?.version, session.winnerSide]);
+
+  useEffect(() => {
+    if (session.winnerSide || !game) return;
+
+    const tick = () => {
+      const deadline = turnTimerDeadlineRef.current;
+      if (!deadline) return;
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setTurnSecondsLeft(left);
+      if (left > 0) return;
+      if (timeoutFiredForVersionRef.current === game.version) return;
+      timeoutFiredForVersionRef.current = game.version;
+      if (!session.isMyTurn) return;
+      executeTimeoutMove();
+    };
+
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [executeTimeoutMove, game, session.isMyTurn, session.winnerSide]);
+
   const beginSatoriEnemySelectionIfNeeded = useCallback(
     (actionableMoves: BattleMove[]): boolean => {
       const pick = resolveSatoriEnemyPick(actionableMoves);
@@ -1263,6 +1375,8 @@ export function useOnlineBattleGame(matchId?: string) {
     pendingSatoriEnemyPick,
     pendingHeartAllyPick,
     moveError,
+    turnSecondsLeft,
+    isTurnTimerVisible: Boolean(game) && !session.winnerSide,
     canInteract,
     handleCellPress,
     handleCellLongPress,

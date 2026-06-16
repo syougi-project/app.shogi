@@ -403,6 +403,11 @@ export function toUserFacingBattleError(error: unknown): string {
   return String(error);
 }
 
+export function isGuardrailMoveError(error: unknown): boolean {
+  const message = errorMessageText(error);
+  return message.includes('guardrail rejected move');
+}
+
 export function isIllegalMoveError(error: unknown): boolean {
   if (error instanceof ApiClientError) {
     if (error.code === 'ILLEGAL_MOVE') return true;
@@ -429,4 +434,19 @@ export function isIllegalMoveError(error: unknown): boolean {
     }
   }
   return false;
+}
+
+/** 局面ずれ時に loadGameState で復旧できる着手エラー（違法手・guardrail 拒否など） */
+export function isRecoverableMoveSyncError(error: unknown): boolean {
+  return isIllegalMoveError(error) || isGuardrailMoveError(error);
+}
+
+function errorMessageText(error: unknown): string {
+  if (error instanceof ApiClientError) {
+    return (error.message ?? '').trim();
+  }
+  if (error instanceof Error) {
+    return (error.message ?? '').trim();
+  }
+  return String(error ?? '').trim();
 }

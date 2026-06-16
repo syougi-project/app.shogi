@@ -31,7 +31,7 @@ import {
 import { useStageBattleScreen } from '@/features/stage-shogi/ui/use-stage-battle-screen';
 import {
   InspectingPieceState,
-  isIllegalMoveError,
+  isRecoverableMoveSyncError,
   normalizeSkillName,
   resolveInspectMoveDescription,
   resolveInspectSkillDescription,
@@ -1211,9 +1211,16 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
         setAiError(null);
         void claimStageClearRewardIfNeeded();
       } else {
-        if (isIllegalMoveError(error)) {
+        if (isRecoverableMoveSyncError(error)) {
+          const recovered = await recoverFromIllegalMoveIfNeeded();
+          if (recovered) {
+            setAiError('局面を自動更新しました。対局を続行します。');
+            return;
+          }
           pendingAiResumeRef.current = null;
-          setAiError('CPU の着手が不正だったため失敗しました。次の候補選択で継続します。');
+          setAiError(
+            '同じ局面で自動更新を複数回試しましたが復旧できませんでした。画面を開き直してください。',
+          );
           return;
         }
         setAiError(toUserFacingBattleError(error));
@@ -1449,7 +1456,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
         void handleAiMove(result.position.moveCount + 1, result.position.sideToMove);
       }
     } catch (error: unknown) {
-      if (isIllegalMoveError(error)) {
+      if (isRecoverableMoveSyncError(error)) {
         const recovered = await recoverFromIllegalMoveIfNeeded();
         if (recovered) {
           setAiError('局面を自動更新しました。対局を続行します。');

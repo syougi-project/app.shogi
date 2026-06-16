@@ -651,4 +651,96 @@ describe('useStageShogiScreen', () => {
       expect(result.current.aiError).toBe('局面を自動更新しました。対局を続行します。'),
     );
   });
+
+  it('guardrailエラー時は最新局面へ自動復旧して継続メッセージを出す', async () => {
+    const pieceCatalog = [
+      createCatalogItem({
+        pieceCode: 'FU',
+        char: '歩',
+        name: '歩兵',
+        sfenCode: 'P',
+        moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+      }),
+    ];
+    const initialLegalMoves = createLegalMoves([
+      {
+        fromRow: 2,
+        fromCol: 0,
+        toRow: 1,
+        toCol: 0,
+        pieceCode: 'FU',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: null,
+        notation: null,
+      },
+    ]);
+    mockCommitGameMoveExecute.mockRejectedValue(
+      new Error('guardrail rejected move: move is outside session catalog legal range'),
+    );
+    mockLoadGameStateExecute.mockResolvedValue({
+      gameId: 'game-1',
+      position: createPosition('9/9/P8/9/9/9/9/9/9', {
+        sideToMove: 'player',
+        turnNumber: 1,
+        moveCount: 0,
+        stateHash: 'recovered-hash',
+        boardState: {
+          pieces: [
+            {
+              side: 'player',
+              row: 2,
+              col: 0,
+              pieceCode: 'FU',
+              char: '歩',
+              promoted: false,
+            },
+          ],
+        },
+      }),
+      game: createGame(),
+    });
+    mockLoadGameLegalMovesExecute
+      .mockResolvedValueOnce(initialLegalMoves)
+      .mockResolvedValueOnce(
+        createLegalMoves(initialLegalMoves.legalMoves, { stateHash: 'recovered-hash' }),
+      );
+
+    const { result } = await renderReadyHook({
+      snapshot: createSnapshot([
+        {
+          side: 'player',
+          row: 2,
+          col: 0,
+          pieceId: 1,
+          pieceCode: 'FU',
+          char: '歩',
+          imageBucket: null,
+          imageKey: null,
+          imageSignedUrl: null,
+        },
+      ]),
+      pieceCatalog,
+      legalMoves: initialLegalMoves,
+    });
+
+    act(() => {
+      result.current.handleBoardCellPress(2, 0);
+    });
+    await act(async () => {
+      result.current.handleBoardCellPress(1, 0);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(mockCommitGameMoveExecute).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(mockLoadGameStateExecute.mock.calls.length).toBeGreaterThanOrEqual(2),
+    );
+    await waitFor(() =>
+      expect(mockLoadGameLegalMovesExecute.mock.calls.length).toBeGreaterThanOrEqual(1),
+    );
+    await waitFor(() =>
+      expect(result.current.aiError).toBe('局面を自動更新しました。対局を続行します。'),
+    );
+  });
 });

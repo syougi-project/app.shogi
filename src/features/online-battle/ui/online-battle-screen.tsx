@@ -70,6 +70,8 @@ export function OnlineBattleScreen() {
     pendingSatoriEnemyPick,
     pendingHeartAllyPick,
     moveError,
+    turnSecondsLeft,
+    isTurnTimerVisible,
     canInteract,
     handleCellPress,
     handleCellLongPress,
@@ -197,6 +199,18 @@ export function OnlineBattleScreen() {
             {/* HTML .row: 盤 → サイド */}
             <View style={styles.rowColumn}>
               <View style={styles.boardWrap}>
+                {isTurnTimerVisible ? (
+                  <View
+                    style={[
+                      styles.turnTimerBadge,
+                      session.isMyTurn ? styles.turnTimerBadgeMine : styles.turnTimerBadgeOpponent,
+                      turnSecondsLeft <= 5 ? styles.turnTimerBadgeUrgent : null,
+                    ]}
+                  >
+                    <Text style={styles.turnTimerValue}>{turnSecondsLeft}</Text>
+                    <Text style={styles.turnTimerLabel}>秒</Text>
+                  </View>
+                ) : null}
                 {role ? (
                   <OnlineBattleBoard
                     boardSize={boardSize}
@@ -563,6 +577,43 @@ const styles = StyleSheet.create({
   boardWrap: {
     position: 'relative',
     alignItems: 'center',
+  },
+  turnTimerBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    zIndex: 20,
+    minWidth: 56,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.85)',
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  turnTimerBadgeMine: {
+    backgroundColor: 'rgba(22, 101, 52, 0.92)',
+  },
+  turnTimerBadgeOpponent: {
+    backgroundColor: 'rgba(120, 53, 15, 0.92)',
+  },
+  turnTimerBadgeUrgent: {
+    backgroundColor: 'rgba(185, 28, 28, 0.95)',
+  },
+  turnTimerValue: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '900',
+    lineHeight: 30,
+  },
+  turnTimerLabel: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 16,
   },
   statusBar: {
     marginTop: 12,
