@@ -143,7 +143,7 @@ export function movePayloadToBattleMove(payload: MovePayload): BattleMove {
       promote: false,
       dropPieceCode: piece,
       capturedPieceCode: null,
-      notation: null,
+      notation: payload.notation?.trim() || null,
     };
   }
   const to = parseMatchingSquare(payload.to);
@@ -157,7 +157,7 @@ export function movePayloadToBattleMove(payload: MovePayload): BattleMove {
     promote: payload.promote === true,
     dropPieceCode: null,
     capturedPieceCode: null,
-    notation: null,
+    notation: payload.notation?.trim() || null,
   };
 }
 
@@ -220,6 +220,11 @@ function buildSkillActivationEffectSoundKeys(
   push(kanji);
 
   return keys;
+}
+
+/** 聖剣「剣」が捕獲を回避したときの効果音（ノーマルダンジョンと同じ battleSkill チャンネル） */
+export function playHolySwordEvadeSkillSe(): void {
+  void playBattlePieceEffectSound('剣', 'battleSkill', 0.92);
 }
 
 /** スキル発動時の駒効果音（ステージ戦と同じ） */

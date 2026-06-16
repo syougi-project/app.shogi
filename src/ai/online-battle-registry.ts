@@ -22,6 +22,7 @@ import {
   resolveOnlineBattlePositionFromWire,
 } from '@/lib/matching-server/canonical-game';
 import { resolveWinnerSideFromWire } from '@/lib/matching-server/online-battle-outcome';
+import { preparePieceCatalogForBattleAndDisplay } from '@/features/piece-info/lib/piece-catalog-display';
 import { buildPromotedPieceDefsByCode } from '@/lib/battle/battle-move-audio';
 import { battleMoveToServerPayload } from '@/lib/matching-server/game-bridge';
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
@@ -47,13 +48,17 @@ export type OnlineBattleGameRecord = {
 
 const games = new Map<string, OnlineBattleGameRecord>();
 
+function normalizeEnginePieceCatalog(items: PieceCatalogItem[]): AiPieceDefinition[] {
+  return normalizePieceCatalog(preparePieceCatalogForBattleAndDisplay(items));
+}
+
 export function setOnlineBattlePieceCatalog(
   engineCatalog: PieceCatalogItem[],
   displayCatalog?: PieceCatalogItem[],
 ) {
   const display = displayCatalog ?? engineCatalog;
   for (const record of games.values()) {
-    record.pieceCatalog = normalizePieceCatalog(engineCatalog);
+    record.pieceCatalog = normalizeEnginePieceCatalog(engineCatalog);
     record.displayPieceCatalog = display;
     record.position = injectSkillDefinitionsIntoPosition(record.position, display);
   }
@@ -66,7 +71,7 @@ export function createOnlineBattleGame(input: {
   pieceCatalog: PieceCatalogItem[];
   displayPieceCatalog?: PieceCatalogItem[];
 }): OnlineBattleGameRecord {
-  const pieceCatalog = normalizePieceCatalog(input.pieceCatalog);
+  const pieceCatalog = normalizeEnginePieceCatalog(input.pieceCatalog);
   const displayPieceCatalog = input.displayPieceCatalog ?? input.pieceCatalog;
   const position = resolveOnlineBattlePositionFromWire(input.wire, displayPieceCatalog);
   const record: OnlineBattleGameRecord = {
@@ -211,7 +216,7 @@ export function syncFromServerWire(input: {
   displayPieceCatalog?: PieceCatalogItem[];
   game?: AiBattleGameStatus;
 }) {
-  const pieceCatalog = normalizePieceCatalog(input.pieceCatalog);
+  const pieceCatalog = normalizeEnginePieceCatalog(input.pieceCatalog);
   const displayPieceCatalog = input.displayPieceCatalog ?? input.pieceCatalog;
   const position = resolveOnlineBattlePositionFromWire(input.wire, displayPieceCatalog);
   const existing = games.get(input.matchId);

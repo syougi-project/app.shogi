@@ -291,7 +291,11 @@ export function resolveInspectMoveDescription(
   ) {
     return CONCAVE_MOVE_INSPECT;
   }
-  if (char === '書' || byCode.book) return '周囲8マスの味方駒が動ける範囲の和集合。';
+  if (char === '山' || inspectCode === 'YAMA' || inspectCode.includes('YAMA')) {
+    return '斜め4方向に1マス移動できる。';
+  }
+  if (char === '書' || byCode.book)
+    return '1手前に相手が移動させた駒と同じ移動範囲。記録がない場合は前後左右1マス。';
   if (char === '封' || byCode.seal) return '通常移動 + 斜め4方向に移動不能オーラ。';
   if (char === '聖' || byCode.saint) return '全方向に1マス。';
   if (byCode.redOni) return '前後左右に1マス。';

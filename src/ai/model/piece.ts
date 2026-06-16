@@ -1,3 +1,9 @@
+import {
+  PIG_MOVE_DESCRIPTION_JA,
+  PIG_MOVE_VECTORS,
+  YAMA_MOVE_DESCRIPTION_JA,
+  YAMA_MOVE_VECTORS,
+} from '@/ai/engine/shop-piece-moves';
 import { applyGachaPieceCatalogOverrides } from '@/constants/gacha-piece-metadata';
 import { PROMOTED_CODE_TO_CHAR } from '@/features/stage-shogi/domain/piece-conversion';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
@@ -78,9 +84,17 @@ function applyClientEnginePieceCatalogOverrides(item: PieceCatalogItem): PieceCa
   if (ch === '豚' || baseCode === 'PIG') {
     return {
       ...item,
-      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
-      move: '前方1マス。',
+      moveVectors: PIG_MOVE_VECTORS.map((vector) => ({ ...vector })),
+      move: PIG_MOVE_DESCRIPTION_JA,
       skill: '敵駒を取ると、その駒の移動範囲を自分のものとして使える。',
+    };
+  }
+
+  if (ch === '山' || baseCode === 'YAMA' || (item.pieceCode ?? '').toUpperCase().includes('YAMA')) {
+    return {
+      ...item,
+      moveVectors: YAMA_MOVE_VECTORS.map((vector) => ({ ...vector })),
+      move: YAMA_MOVE_DESCRIPTION_JA,
     };
   }
 

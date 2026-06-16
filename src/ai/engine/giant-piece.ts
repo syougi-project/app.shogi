@@ -38,7 +38,7 @@ export function isValidGiantAnchor(anchorRow: number, anchorCol: number, boardSi
 /** マス (row,col) に駒があるか。巨は左上以外の占有マスも本体とみなす。 */
 export function findPieceCoveringCell<
   T extends { char: string; pieceCode?: string | null; row: number; col: number },
->(pieces: T[], row: number, col: number): T | null {
+>(pieces: readonly T[], row: number, col: number): T | null {
   const direct = pieces.find((p) => p.row === row && p.col === col) ?? null;
   if (direct) return direct;
   return (

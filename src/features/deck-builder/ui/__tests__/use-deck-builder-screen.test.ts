@@ -723,6 +723,202 @@ describe('useDeckBuilderScreen', () => {
     expect(result.current.isValidPlacementAt(8, 4)).toBe(false);
   });
 
+  it('霊は(7,2)(7,8)のみに配置できる', async () => {
+    const ownedPieces = [
+      {
+        pieceId: 506,
+        char: '霊',
+        name: '霊',
+        imageSignedUrl: null,
+        desc: '',
+        skill: '',
+        move: '',
+      },
+    ];
+    mockLoadExecute.mockResolvedValue({ ownedPieces, savedDecks: [] });
+
+    const { result } = renderHook(() => useDeckBuilderScreen());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      result.current.selectPieceForPlacement(ownedPieces[0]!);
+    });
+
+    expect(result.current.isValidPlacementAt(6, 1)).toBe(true);
+    expect(result.current.isValidPlacementAt(6, 7)).toBe(true);
+    expect(result.current.isValidPlacementAt(6, 3)).toBe(false);
+    expect(result.current.isValidPlacementAt(6, 4)).toBe(false);
+    expect(result.current.isValidPlacementAt(8, 1)).toBe(false);
+  });
+
+  it('墓は(9,2)(9,8)のみに配置できる', async () => {
+    const ownedPieces = [
+      {
+        pieceId: 505,
+        char: '墓',
+        name: '墓',
+        imageSignedUrl: null,
+        desc: '',
+        skill: '',
+        move: '',
+      },
+    ];
+    mockLoadExecute.mockResolvedValue({ ownedPieces, savedDecks: [] });
+
+    const { result } = renderHook(() => useDeckBuilderScreen());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      result.current.selectPieceForPlacement(ownedPieces[0]!);
+    });
+
+    expect(result.current.isValidPlacementAt(8, 1)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 7)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 3)).toBe(false);
+    expect(result.current.isValidPlacementAt(8, 4)).toBe(false);
+    expect(result.current.isValidPlacementAt(7, 1)).toBe(false);
+  });
+
+  it('嶺は(8,2)のみに配置できる', async () => {
+    const ownedPieces = [
+      {
+        pieceId: 502,
+        char: '嶺',
+        name: '嶺',
+        imageSignedUrl: null,
+        desc: '',
+        skill: '',
+        move: '',
+      },
+    ];
+    mockLoadExecute.mockResolvedValue({ ownedPieces, savedDecks: [] });
+
+    const { result } = renderHook(() => useDeckBuilderScreen());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      result.current.selectPieceForPlacement(ownedPieces[0]!);
+    });
+
+    expect(result.current.isValidPlacementAt(8, 1)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 7)).toBe(false);
+    expect(result.current.isValidPlacementAt(8, 3)).toBe(false);
+    expect(result.current.isValidPlacementAt(7, 1)).toBe(false);
+  });
+
+  it('鉱は(9,4)(9,6)のみに配置できる', async () => {
+    const ownedPieces = [
+      {
+        pieceId: 504,
+        char: '鉱',
+        name: '鉱',
+        imageSignedUrl: null,
+        desc: '',
+        skill: '',
+        move: '',
+      },
+    ];
+    mockLoadExecute.mockResolvedValue({ ownedPieces, savedDecks: [] });
+
+    const { result } = renderHook(() => useDeckBuilderScreen());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      result.current.selectPieceForPlacement(ownedPieces[0]!);
+    });
+
+    expect(result.current.isValidPlacementAt(8, 3)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 5)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 2)).toBe(false);
+    expect(result.current.isValidPlacementAt(8, 4)).toBe(false);
+    expect(result.current.isValidPlacementAt(7, 3)).toBe(false);
+  });
+
+  it('峰は(9,4)(9,6)のみに配置できる', async () => {
+    const ownedPieces = [
+      {
+        pieceId: 503,
+        char: '峰',
+        name: '峰',
+        imageSignedUrl: null,
+        desc: '',
+        skill: '',
+        move: '',
+      },
+    ];
+    mockLoadExecute.mockResolvedValue({ ownedPieces, savedDecks: [] });
+
+    const { result } = renderHook(() => useDeckBuilderScreen());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      result.current.selectPieceForPlacement(ownedPieces[0]!);
+    });
+
+    expect(result.current.isValidPlacementAt(8, 3)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 5)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 2)).toBe(false);
+    expect(result.current.isValidPlacementAt(8, 4)).toBe(false);
+    expect(result.current.isValidPlacementAt(7, 3)).toBe(false);
+  });
+
+  it('牢は(9,4)(9,6)のみに配置できる', async () => {
+    const ownedPieces = [
+      {
+        pieceId: 500,
+        char: '牢',
+        name: '牢',
+        imageSignedUrl: null,
+        desc: '',
+        skill: '',
+        move: '',
+      },
+    ];
+    mockLoadExecute.mockResolvedValue({ ownedPieces, savedDecks: [] });
+
+    const { result } = renderHook(() => useDeckBuilderScreen());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      result.current.selectPieceForPlacement(ownedPieces[0]!);
+    });
+
+    expect(result.current.isValidPlacementAt(8, 3)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 5)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 2)).toBe(false);
+    expect(result.current.isValidPlacementAt(8, 4)).toBe(false);
+    expect(result.current.isValidPlacementAt(7, 3)).toBe(false);
+  });
+
+  it('柵は(9,3)(9,4)(9,6)(9,7)のみに配置できる', async () => {
+    const ownedPieces = [
+      {
+        pieceId: 501,
+        char: '柵',
+        name: '柵',
+        imageSignedUrl: null,
+        desc: '',
+        skill: '',
+        move: '',
+      },
+    ];
+    mockLoadExecute.mockResolvedValue({ ownedPieces, savedDecks: [] });
+
+    const { result } = renderHook(() => useDeckBuilderScreen());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      result.current.selectPieceForPlacement(ownedPieces[0]!);
+    });
+
+    expect(result.current.isValidPlacementAt(8, 2)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 3)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 5)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 6)).toBe(true);
+    expect(result.current.isValidPlacementAt(8, 4)).toBe(false);
+    expect(result.current.isValidPlacementAt(7, 2)).toBe(false);
+  });
+
   it('麒は(8,2)と(8,8)のみに配置できる', async () => {
     const ownedPieces = [
       {

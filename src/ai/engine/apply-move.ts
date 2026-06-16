@@ -1364,6 +1364,8 @@ export function applyMove(input: {
   let intrinsicCombatSkillTriggered = false;
   /** 盾の intrinsic：着手全体を巻き戻す。 */
   let shieldAbortedMove = false;
+  /** 剣の捕獲回避先（スキル FX 用） */
+  let kenSwordEvadeCell: { row: number; col: number } | null = null;
   let movedByOtsu = false;
   let movedByConvex = false;
 
@@ -1670,6 +1672,7 @@ export function applyMove(input: {
           // 盤・手駒は上で復元済み。着手駒は from のまま。
         } else if (kenSwordEvadeTo) {
           didCapture = false;
+          kenSwordEvadeCell = kenSwordEvadeTo;
           const ksIdx = nextPieces.findIndex(
             (p) => p.row === move.toRow && p.col === move.toCol && p.side === captured.side,
           );
@@ -2159,6 +2162,15 @@ export function applyMove(input: {
       }),
     );
   }
+  if (kenSwordEvadeCell) {
+    shieldSkillVisualEffects.push(
+      createSkillVisualEffect({
+        id: `mv${current.moveCount}-holy-sword`,
+        pieceChar: '剣',
+        placements: [boardSkillFxPlacement(kenSwordEvadeCell.row, kenSwordEvadeCell.col)],
+      }),
+    );
+  }
   if (turnAdvanced) {
     // 既存ハザードの残りターンを進める。
     tickSkillStateDurations(nextPosition);
@@ -2422,6 +2434,22 @@ export function applyMove(input: {
   }
   if (turnAdvanced && applyLandingDerivedEffects && movedPieceAfterApply) {
     const key = actorSide === 'player' ? 'last_player_moved_piece' : 'last_enemy_moved_piece';
+    const movedCode = toBasePieceCode(movedPieceAfterApply.pieceCode);
+    const movedChar = movedPieceAfterApply.char ?? '';
+    const movedDef =
+      (movedCode
+        ? input.pieceCatalog.find((def) => toBasePieceCode(def.pieceCode) === movedCode)
+        : undefined) ??
+      input.pieceCatalog.find((def) => def.char === movedChar) ??
+      null;
+    const copiedMoveVectors = Array.isArray(movedDef?.moveVectors)
+      ? movedDef.moveVectors.map((v) => ({
+          dx: v.dx,
+          dy: v.dy,
+          maxStep: v.maxStep,
+          ...(v.captureMode ? { captureMode: v.captureMode } : {}),
+        }))
+      : [];
     skillState[key] = {
       side: actorSide,
       row: movedPieceAfterApply.row,
@@ -2429,6 +2457,7 @@ export function applyMove(input: {
       pieceCode: movedPieceAfterApply.pieceCode,
       char: movedPieceAfterApply.char,
       promoted: movedPieceAfterApply.promoted === true,
+      copiedMoveVectors,
     };
   }
   (recomputedPosition.boardState as Record<string, unknown>).skill_state = skillState;

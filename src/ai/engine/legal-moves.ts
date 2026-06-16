@@ -55,6 +55,7 @@ import {
   SHITSU_MOVE_VECTORS,
   TANE_SILVER_MOVE_VECTORS,
   COPPER_MOVE_VECTORS,
+  PIG_MOVE_VECTORS,
   WAVE_MOVE_VECTORS,
 } from '@/ai/engine/shop-piece-moves';
 import { resolveIntrinsicPortedMoveVectors } from '@/ai/engine/ported-app-move-vectors';
@@ -1831,6 +1832,9 @@ function resolveEffectiveVectorsForPiece(
   if (isWavePiece(piece)) {
     return WAVE_MOVE_VECTORS;
   }
+  if (isPigPiece(piece)) {
+    return PIG_MOVE_VECTORS;
+  }
   if (isUnpromotedSmallDragonPiece(piece)) {
     return RYU_DRAGON_MOVE_VECTORS;
   }
@@ -2260,47 +2264,6 @@ function generateBoardPieceMoves(input: {
   skillView: SkillRuntimeView;
   noCaptureOnly?: boolean;
 }): AiBattleMove[] {
-  if (isBookPiece(input.piece)) {
-    const aroundAllies = input.pieces.filter((ally) => {
-      if (ally.side !== input.piece.side) return false;
-      if (ally.row === input.piece.row && ally.col === input.piece.col) return false;
-      const dr = Math.abs(ally.row - input.piece.row);
-      const dc = Math.abs(ally.col - input.piece.col);
-      return dr <= 1 && dc <= 1;
-    });
-    const targetKeys = new Set<string>();
-    const targets: { row: number; col: number }[] = [];
-    for (const ally of aroundAllies) {
-      // 「書」同士の相互参照ループを避けるため、隣接書は参照対象から除外する。
-      if (isBookPiece(ally)) continue;
-      const allyMoves = generateBoardPieceMoves({
-        ...input,
-        piece: ally,
-      });
-      for (const mv of allyMoves) {
-        const row = mv.toRow;
-        const col = mv.toCol;
-        const key = `${row}:${col}`;
-        if (targetKeys.has(key)) continue;
-        targetKeys.add(key);
-        targets.push({ row, col });
-      }
-    }
-    const from = { row: input.piece.row, col: input.piece.col };
-    const pieceCode = resolvePieceCodeForLegalMove(input.piece, input.lookups);
-    return targets.map((to) =>
-      createMove({
-        from,
-        to,
-        pieceCode,
-        promote: false,
-        capturedPieceCode: resolveCapturedPieceCodeForLegalMove(
-          findPieceAtFast(input.occupancy, to.row, to.col),
-        ),
-      }),
-    );
-  }
-
   const pieceAfterSpring = effectivePieceForRulesAfterSpring(
     input.piece,
     input.pieces,
@@ -2418,14 +2381,6 @@ function generateBoardPieceMoves(input: {
     input.pieces,
     input.lookups,
   );
-  if (bookCopiedPieceDef) {
-    effectiveVectors = bookCopiedPieceDef.moveVectors.map((v) => ({
-      dx: v.dx,
-      dy: v.dy,
-      maxStep: v.maxStep,
-      ...(v.captureMode ? { captureMode: v.captureMode } : {}),
-    }));
-  }
   if (isGunPiece(mover)) {
     effectiveVectors = [
       { dx: 0, dy: -1, maxStep: 2 },

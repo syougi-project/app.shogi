@@ -62,6 +62,8 @@ import {
   isGameAlreadyFinishedError,
   isSelfCaptureLikeMove,
   legalMovesForBoardPiece,
+  legalMovesForBoardPieceAt,
+  legalMoveOriginCellForPiece,
   legalMovesForDropPiece,
   legalMovesToTarget,
   localPromotedModuleFromBaseCodeCandidates,
@@ -886,15 +888,17 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       setEnemyPreviewTargets([]);
       return;
     }
-    const legalForCell = legalMovesForBoardPiece(
+    const legalForCell = legalMovesForBoardPieceAt(
       playerLegalMoves,
+      pieces,
       selectedCell.row,
       selectedCell.col,
     );
+    const origin = legalMoveOriginCellForPiece(at, selectedCell.row, selectedCell.col);
     setLegalTargets(
       uniqueTargetsFromMoves(
         legalForCell.filter((m) => m.notation !== 'house_skill_only'),
-        selectedCell,
+        origin,
       ),
     );
     setEnemyPreviewTargets([]);
@@ -1820,10 +1824,14 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     }
 
     if (selectedCell) {
+      const selectedPiece = findPieceAt(pieces, selectedCell.row, selectedCell.col);
+      const selectedOrigin = selectedPiece
+        ? legalMoveOriginCellForPiece(selectedPiece, selectedCell.row, selectedCell.col)
+        : selectedCell;
       const targetMoves = legalMovesToTarget(
-        legalMovesForBoardPiece(playerLegalMoves, selectedCell.row, selectedCell.col),
+        legalMovesForBoardPieceAt(playerLegalMoves, pieces, selectedCell.row, selectedCell.col),
         tapped,
-        selectedCell,
+        selectedOrigin,
       );
       const actionableMoves = targetMoves.filter((m) => m.notation !== 'house_skill_only');
       const sameCellHouseSkillOnly =
@@ -2060,7 +2068,8 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       setTimeActionMode('normal');
     }
 
-    const legalForCell = legalMovesForBoardPiece(playerLegalMoves, row, col);
+    const legalForCell = legalMovesForBoardPieceAt(playerLegalMoves, pieces, row, col);
+    const origin = legalMoveOriginCellForPiece(piece, row, col);
     const isHousePieceTap =
       !selectedDropPieceCode && isPlayerHousePieceForSkillUi(piece, pieceDefsByChar);
     if (isHousePieceTap) {
@@ -2078,7 +2087,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
 
     const targets = uniqueTargetsFromMoves(
       legalForCell.filter((m) => m.notation !== 'house_skill_only'),
-      { row, col },
+      origin,
     );
     const pieceKey = `${piece.side}:${piece.row}:${piece.col}`;
     const movementRule = isGiantPieceForEngine(piece)
@@ -2106,7 +2115,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     }
 
     setSelectedDropPieceCode(null);
-    setSelectedCell({ row, col });
+    setSelectedCell({ row: origin.row, col: origin.col });
     // 自駒の合法マスは常に legalTargets（緑枠）で示す。畑バフの斜めなどもここに載せる。
     setLegalTargets(piece.darkVeiled ? [] : targets);
     setEnemyPreviewTargets([]);
@@ -2143,9 +2152,10 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       setTimeActionMode(null);
       return;
     }
+    const origin = legalMoveOriginCellForPiece(piece, cell.row, cell.col);
     const targets = uniqueTargetsFromMoves(
-      legalMovesForBoardPiece(playerLegalMoves, cell.row, cell.col),
-      cell,
+      legalMovesForBoardPieceAt(playerLegalMoves, pieces, cell.row, cell.col),
+      origin,
     );
     if (targets.length === 0) {
       setPendingTimeActionCell(null);

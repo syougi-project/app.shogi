@@ -206,6 +206,9 @@ export function resolveIntrinsicPortedMoveVectors(
   if (pieceMatchesAliases(piece, ['KA', '角'])) {
     return cloneVectors(BISHOP_DIAGONAL_MOVE_VECTORS);
   }
+  if (normKanjiForEngineRules(piece.char) === '山' || pieceMatchesAliases(piece, ['YAMA'])) {
+    return cloneVectors(DIAGONAL_ONE_STEP_VECTORS);
+  }
 
   return null;
 }

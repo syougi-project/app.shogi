@@ -113,6 +113,16 @@ export const WAVE_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
   { dx: 1, dy: 0, maxStep: 2 },
 ];
 
+export const PIG_MOVE_DESCRIPTION_JA = '前後左右に各2マスまで移動できる。';
+
+/** 豚（HTML: pigMoves）— 継承前は前後左右に各2マスまで。 */
+export const PIG_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: 0, dy: -1, maxStep: 2 },
+  { dx: 0, dy: 1, maxStep: 2 },
+  { dx: -1, dy: 0, maxStep: 2 },
+  { dx: 1, dy: 0, maxStep: 2 },
+];
+
 /** 安（ガチャ）— 縦横1マス + 桂馬跳び。 */
 export const AN_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
   ...P_MOVE_VECTORS,
@@ -150,7 +160,7 @@ export const SOU_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
 ];
 
 export const SOU_SKILL_DESCRIPTION_JA =
-  '移動時周囲のランダムで最大3マスを×マスにする。この×マスは1ターンで消滅する。';
+  '移動時周囲のランダムで最大3マスを×マスにする。この×マスは2ターンで消滅する。';
 
 export const KOU_SKILL_DESCRIPTION_JA =
   '隣接する味方が横移動したとき、同じ向きに追従する（空マスのみ）。';

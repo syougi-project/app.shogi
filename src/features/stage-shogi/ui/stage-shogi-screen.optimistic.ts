@@ -1,6 +1,8 @@
 import { CHAR_TO_CODE } from '@/features/stage-shogi/domain/piece-conversion';
 import { toBasePieceCode } from '@/ai/model/move';
 import { giantAnchorFootprint, isGiantPieceForEngine } from '@/ai/engine/giant-piece';
+import { isBirdPiece } from '@/ai/engine/piece-identifiers';
+import { moveRandomAllyToCellBehindBird } from '@/ai/engine/bird-skill';
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 import type { Side } from '@/features/stage-shogi/domain/game-rules';
@@ -441,7 +443,7 @@ export function computePiecesAfterOptimisticMove(
       ? null
       : (promotedDef?.imageSignedUrl ?? moving.imageSignedUrl);
   const captureVictim = findPieceAt(prev, toRow, toCol);
-  return prev
+  const nextPieces = prev
     .filter((p) => {
       if (p.side === actorSide) return true;
       if (captureVictim && isGiantPieceForEngine(captureVictim)) {
@@ -467,4 +469,15 @@ export function computePiecesAfterOptimisticMove(
           }
         : p,
     );
+  const movedBird = nextPieces.find(
+    (piece) => piece.side === actorSide && piece.row === toRow && piece.col === toCol,
+  );
+  if (movedBird && isBirdPiece(movedBird)) {
+    moveRandomAllyToCellBehindBird({
+      pieces: nextPieces,
+      actorSide,
+      movedBird: { row: toRow, col: toCol },
+    });
+  }
+  return nextPieces;
 }

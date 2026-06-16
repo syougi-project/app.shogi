@@ -12,6 +12,7 @@ import { capturedToHandPieceCode } from '@/features/stage-shogi/domain/game-rule
 import { CHAR_TO_CODE } from '@/features/stage-shogi/domain/piece-conversion';
 import type { AiBattleMove, AiBattlePosition, AiBoardPiece } from '@/ai/model';
 import { piecesFromBoardState, toBasePieceCode } from '@/ai/model';
+import { moveRandomAllyToCellBehindBird } from '@/ai/engine/bird-skill';
 import {
   buildSkillMoverFlags,
   isAoriPiece,
@@ -622,11 +623,6 @@ function isKingLikePieceForBoatTow(piece: AiBoardPiece): boolean {
   return base === 'OU' || piece.char === '王' || piece.char === '玉';
 }
 
-function isBirdPieceExcludedFromBirdTow(piece: AiBoardPiece): boolean {
-  const base = normalizeSkillPieceCode(toBasePieceCode(piece.pieceCode) ?? '');
-  return base === 'BIRD' || base.includes('29ECAB1EF3C3') || piece.char === '禽';
-}
-
 /** 舟: 移動前の「真後ろ1マス」の味方駒を、舟と同じベクトルで引きずる（玉は対象外） */
 function moveAllyBehindBoatOneStep(input: {
   pieces: AiBoardPiece[];
@@ -718,33 +714,6 @@ function isHeartMovedPieceActor(piece: AiBoardPiece): boolean {
 function isKingExcludedFromSatoriStun(piece: AiBoardPiece): boolean {
   const code = normalizeSkillPieceCode(toBasePieceCode(piece.pieceCode) ?? '');
   return code === 'OU' || piece.char === '王' || piece.char === '玉';
-}
-
-/** 禽: 移動時、真後ろ1マスが空いていればランダムな味方駒（王・玉・禽除く）をそのマスへ移す */
-function moveRandomAllyToCellBehindBird(input: {
-  pieces: AiBoardPiece[];
-  actorSide: Side;
-  movedBird: AiBoardPiece;
-}): void {
-  const dBack = backRowDeltaForBoatTow(input.actorSide);
-  const backRow = input.movedBird.row + dBack;
-  const backCol = input.movedBird.col;
-  if (backRow < 0 || backRow > 8 || backCol < 0 || backCol > 8) return;
-  if (!isCellEmpty(input.pieces, backRow, backCol)) return;
-  const candidates = input.pieces.filter((p) => {
-    if (p.side !== input.actorSide) return false;
-    if (p.row === input.movedBird.row && p.col === input.movedBird.col) return false;
-    if (isKingLikePieceForBoatTow(p)) return false;
-    if (isBirdPieceExcludedFromBirdTow(p)) return false;
-    return true;
-  });
-  if (candidates.length === 0) return;
-  const pick = candidates[Math.floor(Math.random() * candidates.length)]!;
-  const idx = input.pieces.findIndex(
-    (p) => p.side === pick.side && p.row === pick.row && p.col === pick.col,
-  );
-  if (idx < 0) return;
-  input.pieces[idx] = { ...pick, row: backRow, col: backCol };
 }
 
 function summonRandomAdjacentEmptyPiece(input: {
@@ -2093,7 +2062,7 @@ export function applyMoveSkillEffects(input: {
     moveRandomAllyToCellBehindBird({
       pieces: input.pieces,
       actorSide: input.actorSide,
-      movedBird: input.movedPiece,
+      movedBird: { row: input.movedPiece.row, col: input.movedPiece.col },
     });
     if (boardSignatureForSkillFx(input.pieces) !== sigBird) {
       markMoveSkillFx();
@@ -4568,7 +4537,7 @@ export function applyMoveSkillEffects(input: {
               col: cell.col,
               hazard_type: 'pit_cell',
               affects_side: sideOpposite(input.actorSide),
-              remaining_turns: 1,
+              remaining_turns: 2,
             });
             placed += 1;
           }

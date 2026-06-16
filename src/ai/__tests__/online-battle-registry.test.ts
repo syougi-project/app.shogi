@@ -1,6 +1,7 @@
 import {
   createOnlineBattleGame,
   getDisplayBoardPieces,
+  getMyLegalMoves,
   getOnlineBattleGame,
   removeOnlineBattleGame,
   setOnlineBattlePieceCatalog,
@@ -170,5 +171,41 @@ describe('online-battle-registry display pieces', () => {
     const pieces = getDisplayBoardPieces('match-display');
     const veiled = pieces.find((piece) => piece.row === 4 && piece.col === 5);
     expect(veiled?.darkVeiled).toBe(true);
+  });
+
+  it('generates diagonal one-step legal moves for yama with forward-only catalog vectors', () => {
+    const wire: MatchingGameState = {
+      version: 1,
+      turn: 'black',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '5e': 'black:YAMA',
+      },
+      hands: { black: {}, white: {} },
+    };
+    const catalog = [
+      {
+        ...catalogItem('YAMA', '山'),
+        moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+      },
+      catalogItem('OU', '王'),
+    ];
+
+    createOnlineBattleGame({
+      matchId: 'match-display',
+      myRole: 'black',
+      wire,
+      pieceCatalog: catalog,
+    });
+
+    const moves = getMyLegalMoves('match-display').filter(
+      (move) => move.fromRow === 4 && move.fromCol === 4,
+    );
+    expect(moves.some((move) => move.toRow === 3 && move.toCol === 3)).toBe(true);
+    expect(moves.some((move) => move.toRow === 3 && move.toCol === 5)).toBe(true);
+    expect(moves.some((move) => move.toRow === 5 && move.toCol === 3)).toBe(true);
+    expect(moves.some((move) => move.toRow === 5 && move.toCol === 5)).toBe(true);
+    expect(moves.some((move) => move.toRow === 3 && move.toCol === 4)).toBe(false);
   });
 });

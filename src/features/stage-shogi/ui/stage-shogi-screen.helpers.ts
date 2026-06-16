@@ -561,6 +561,15 @@ export function rewriteMoveCoordsToBoardCell(
   };
 }
 
+/** 着手の pieceCode と盤上駒が一致する味方駒を列挙する。 */
+function listPlayerPiecesMatchingMoveCode(
+  playerPieces: readonly BoardPiece[],
+  move: BattleMove,
+): BoardPiece[] {
+  if (!move.pieceCode) return [];
+  return playerPieces.filter((piece) => legalMovePieceCodeMatchesBoardPiece(move, piece));
+}
+
 /** 表示中の駒位置と合法手の着手元座標のずれ（0/1 始まり混在など）を補正する */
 export function alignLegalMovesToBoardPieces(
   pieces: readonly BoardPiece[],
@@ -569,6 +578,35 @@ export function alignLegalMovesToBoardPieces(
   const playerPieces = pieces.filter((piece) => piece.side === 'player');
   return legalMoves.map((move) => {
     if (move.fromRow === null || move.fromCol === null) return move;
+
+    const codeMatches = listPlayerPiecesMatchingMoveCode(playerPieces, move);
+    if (codeMatches.length === 1) {
+      return rewriteMoveCoordsToBoardCell(move, codeMatches[0].row, codeMatches[0].col);
+    }
+    if (codeMatches.length > 1) {
+      const ranked = codeMatches
+        .map((piece) => {
+          const kind = legalMoveOriginMatchKind(move, piece.row, piece.col);
+          if (!kind) return null;
+          return { piece, kind };
+        })
+        .filter(
+          (entry): entry is { piece: BoardPiece; kind: LegalMoveOriginMatchKind } => entry != null,
+        )
+        .sort(
+          (a, b) =>
+            LEGAL_MOVE_ORIGIN_MATCH_PRIORITY[b.kind] - LEGAL_MOVE_ORIGIN_MATCH_PRIORITY[a.kind],
+        );
+      if (ranked[0]) {
+        return rewriteMoveCoordsToBoardCell(move, ranked[0].piece.row, ranked[0].piece.col);
+      }
+      const byVariant = codeMatches.find((piece) =>
+        moveOriginMatchesCoord(move, piece.row, piece.col),
+      );
+      if (byVariant) {
+        return rewriteMoveCoordsToBoardCell(move, byVariant.row, byVariant.col);
+      }
+    }
 
     const atOrigin = pickBoardPieceForLegalMoveOrigin(playerPieces, move);
     if (atOrigin) {
@@ -932,6 +970,31 @@ export function legalMovesForBoardPiece(legalMoves: BattleMove[], row: number, c
     return exact;
   }
   return legalMoves.filter((move) => moveOriginMatchesBoardCell(move, row, col));
+}
+
+/** 巨は 2×2 の非基準マスをタップしても、合法手の着手元は左上基準に揃える。 */
+export function legalMoveOriginCellForPiece(
+  piece: BoardPiece,
+  tappedRow: number,
+  tappedCol: number,
+): BoardCell {
+  if (isGiantPieceForEngine(piece)) {
+    return { row: piece.row, col: piece.col };
+  }
+  return { row: tappedRow, col: tappedCol };
+}
+
+/** 盤上のタップ座標から、その駒の合法手（着手元補正済み）を取り出す。 */
+export function legalMovesForBoardPieceAt(
+  legalMoves: BattleMove[],
+  pieces: readonly BoardPiece[],
+  row: number,
+  col: number,
+): BattleMove[] {
+  const piece = findPieceAt(pieces, row, col);
+  if (!piece || piece.side !== 'player') return [];
+  const origin = legalMoveOriginCellForPiece(piece, row, col);
+  return legalMovesForBoardPiece(legalMoves, origin.row, origin.col);
 }
 
 export function legalMovesForDropPiece(
@@ -2026,6 +2089,18 @@ export function piecesFromCanonicalPosition(
   promotedPieceDefsByCode: Partial<Record<string, PieceCatalogItem>>,
   existingPieces: BoardPiece[],
 ): BoardPiece[] {
+  const boardStatePieces = piecesFromCanonicalBoardState(
+    position,
+    pieceDefsByCode,
+    promotedPieceDefsByCode,
+    existingPieces,
+  );
+  // スキルで座標が変わった駒（禽の運搬など）は boardState.pieces が正。
+  // SFEN と併用すると古い SFEN 側の座標が残り、運搬した味方が元のマスに戻って見える。
+  if (boardStatePieces && boardStatePieces.length > 0) {
+    return boardStatePieces;
+  }
+
   const board = position.sfen.split(' ')[0] ?? '';
   const ranks = board.split('/');
   const next: BoardPiece[] = [];
@@ -2190,12 +2265,6 @@ export function piecesFromCanonicalPosition(
     }
   });
 
-  const boardStatePieces = piecesFromCanonicalBoardState(
-    position,
-    pieceDefsByCode,
-    promotedPieceDefsByCode,
-    existingPieces,
-  );
   if (!boardStatePieces) {
     return next;
   }
@@ -2239,7 +2308,7 @@ export function piecesFromCanonicalPosition(
   return [...mergedByKey.values()];
 }
 
-export function findPieceAt(placements: BoardPiece[], row: number, col: number) {
+export function findPieceAt(placements: readonly BoardPiece[], row: number, col: number) {
   return findPieceCoveringCell(placements, row, col);
 }
 

@@ -389,7 +389,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(34, 197, 94, 0.4)',
   },
   cellEnemyTarget: {
-    backgroundColor: 'rgba(59, 130, 246, 0.45)',
+    backgroundColor: '#dc262622',
+    borderWidth: 2,
+    borderColor: '#dc2626',
   },
   poisonCell: {
     position: 'absolute',

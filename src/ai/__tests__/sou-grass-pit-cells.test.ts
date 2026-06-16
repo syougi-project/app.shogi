@@ -170,7 +170,7 @@ describe('艸 ×マス', () => {
     expect(toPit).toBe(false);
   });
 
-  it('clears pit_cell after one turn duration tick', () => {
+  it('clears pit_cell after two turn duration ticks', () => {
     const position: AiBattlePosition = {
       sideToMove: 'enemy',
       turnNumber: 2,
@@ -196,13 +196,15 @@ describe('艸 ×マス', () => {
               col: 4,
               hazard_type: 'pit_cell',
               affects_side: 'enemy',
-              remaining_turns: 1,
+              remaining_turns: 2,
             },
           ],
         },
       },
       hands: { player: {}, enemy: {} },
     };
+    tickSkillStateDurations(position);
+    expect(pitCellsFromPosition(position)).toHaveLength(1);
     tickSkillStateDurations(position);
     expect(pitCellsFromPosition(position)).toHaveLength(0);
   });

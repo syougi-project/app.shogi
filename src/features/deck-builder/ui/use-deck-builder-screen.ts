@@ -79,6 +79,12 @@ const SPECIAL_PIECE_ALLOWED_POSITIONS = new Map<string, ReadonlySet<string>>([
   ['竜', new Set(rowCols(7, [1]))],
   ['鳳', new Set(rowCols(7, [7]))],
   ['岩', new Set(rowCols(8, [1, 7]))],
+  /** deck_builder.html: 鉱は (9,4)(9,6) のみ */
+  ['鉱', new Set(rowCols(8, [3, 5]))],
+  /** deck_builder.html: 墓は (9,2)(9,8) のみ */
+  ['墓', new Set(rowCols(8, [1, 7]))],
+  /** deck_builder.html: 霊は (7,2)(7,8) のみ */
+  ['霊', new Set(rowCols(6, [1, 7]))],
   ['炎', new Set(rowCols(8, [1, 7]))],
   ['火', new Set(rowCols(8, [0, 8]))],
   ['水', new Set(rowCols(8, [0, 8]))],
@@ -172,6 +178,14 @@ const SPECIAL_PIECE_ALLOWED_POSITIONS = new Map<string, ReadonlySet<string>>([
   ['鶏', new Set(rowCols(7, [4]))],
   ['銭', new Set(rowCols(8, [2, 6]))],
   ['定', new Set(rowCols(8, [0, 8]))],
+  /** deck_builder.html: 嶺は (8,2) のみ */
+  ['嶺', new Set(rowCols(8, [1]))],
+  /** deck_builder.html: 峰は (9,4)(9,6) のみ */
+  ['峰', new Set(rowCols(8, [3, 5]))],
+  /** deck_builder.html: 牢は (9,4)(9,6) のみ */
+  ['牢', new Set(rowCols(8, [3, 5]))],
+  /** deck_builder.html: 柵は (9,3)(9,4)(9,6)(9,7) のみ */
+  ['柵', new Set(rowCols(8, [2, 3, 5, 6]))],
 ]);
 
 function isDeckBuilderSpecialChar(

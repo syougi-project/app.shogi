@@ -8,6 +8,7 @@ import {
   inferSnapshotPlacementCoordinateMode,
   kirinShowsImmunityShieldMark,
   legalMovesForBoardPiece,
+  legalMovesForBoardPieceAt,
   pieceCharFromCode,
   reconcileExtendedPieceHandsAgainstBoard,
   reconcilePieceIdentity,
@@ -70,6 +71,68 @@ describe('alignLegalMovesToBoardPieces', () => {
     const aligned = alignLegalMovesToBoardPieces([boardPawn], moves);
     expect(aligned[0]).toMatchObject({ fromRow: 6, fromCol: 2, toRow: 5, toCol: 2 });
     expect(legalMovesForBoardPiece(aligned, 6, 2)).toHaveLength(1);
+  });
+
+  it('binds offset legal moves to the matching pieceCode owner, not a neighbor on the stale origin cell', () => {
+    const waterfall: BoardPiece = {
+      side: 'player',
+      row: 5,
+      col: 5,
+      pieceCode: 'WATERFALL',
+      char: '滝',
+      promoted: false,
+      imageSignedUrl: null,
+    };
+    const neighbor: BoardPiece = {
+      side: 'player',
+      row: 4,
+      col: 4,
+      pieceCode: 'FU',
+      char: '歩',
+      promoted: false,
+      imageSignedUrl: null,
+    };
+    const moves: BattleMove[] = [
+      {
+        ...baseMove,
+        pieceCode: 'WATERFALL',
+        fromRow: 4,
+        fromCol: 4,
+        toRow: 3,
+        toCol: 4,
+      },
+    ];
+    const aligned = alignLegalMovesToBoardPieces([waterfall, neighbor], moves);
+    expect(aligned[0]).toMatchObject({ fromRow: 5, fromCol: 5, toRow: 4, toCol: 5 });
+    expect(legalMovesForBoardPieceAt(aligned, [waterfall, neighbor], 5, 5)).toHaveLength(1);
+    expect(legalMovesForBoardPieceAt(aligned, [waterfall, neighbor], 4, 4)).toHaveLength(0);
+  });
+
+  it('legalMovesForBoardPieceAt resolves giant moves from footprint taps to anchor origin', () => {
+    const giant: BoardPiece = {
+      side: 'player',
+      row: 4,
+      col: 4,
+      pieceCode: 'GIANT',
+      char: '巨',
+      promoted: false,
+      imageSignedUrl: null,
+    };
+    const moves: BattleMove[] = [
+      {
+        ...baseMove,
+        pieceCode: 'GIANT',
+        fromRow: 4,
+        fromCol: 4,
+        toRow: 3,
+        toCol: 4,
+        notation: 'giant_2x2_ortho',
+      },
+    ];
+    const aligned = alignLegalMovesToBoardPieces([giant], moves);
+    expect(legalMovesForBoardPieceAt(aligned, [giant], 5, 4)).toHaveLength(1);
+    expect(legalMovesForBoardPieceAt(aligned, [giant], 4, 4)).toHaveLength(1);
+    expect(legalMovesForBoardPiece(aligned, 5, 4)).toHaveLength(0);
   });
 
   it('rewriteMoveCoordsToBoardCell shifts targets with origin', () => {

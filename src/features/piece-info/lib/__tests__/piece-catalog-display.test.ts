@@ -163,7 +163,7 @@ describe('piece-catalog-display', () => {
     });
     const display = normalizePieceCatalogItemForDisplay(piece);
     expect(display.skill).toBe(
-      '移動時周囲のランダムで最大3マスを×マスにする。この×マスは1ターンで消滅する。',
+      '移動時周囲のランダムで最大3マスを×マスにする。この×マスは2ターンで消滅する。',
     );
     expect(display.move).toBe('前最大2マス左右後ろ1マス');
     expect(display.moveVectors).toHaveLength(4);

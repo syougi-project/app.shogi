@@ -898,7 +898,7 @@ describe('ai engine legal moves', () => {
     expect(pawnMoves.length).toBeGreaterThan(0);
   });
 
-  it('book copies adjacent ally destination cells', () => {
+  it('book copies opponent last moved piece move range', () => {
     const position: AiBattlePosition = {
       sideToMove: 'player',
       turnNumber: 3,
@@ -908,17 +908,56 @@ describe('ai engine legal moves', () => {
       boardState: {
         pieces: [
           { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
-          { side: 'player', row: 4, col: 4, pieceCode: 'KE', char: '桂', promoted: false },
           { side: 'player', row: 5, col: 4, pieceCode: 'BOOK', char: '書', promoted: false },
           { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
         ],
+        skill_state: {
+          last_enemy_moved_piece: {
+            side: 'enemy',
+            row: 4,
+            col: 4,
+            pieceCode: 'KE',
+            char: '桂',
+            promoted: false,
+            copiedMoveVectors: [
+              { dx: -1, dy: -2, maxStep: 1 },
+              { dx: 1, dy: -2, maxStep: 1 },
+            ],
+          },
+        },
       },
       hands: { player: {}, enemy: {} },
     };
     const legal = generateLegalMoves({ position, pieceCatalog });
     const bookMoves = legal.legalMoves.filter((m) => m.fromRow === 5 && m.fromCol === 4);
-    expect(bookMoves.some((m) => m.toRow === 2 && m.toCol === 3)).toBe(true);
-    expect(bookMoves.some((m) => m.toRow === 2 && m.toCol === 5)).toBe(true);
+    expect(bookMoves.some((m) => m.toRow === 3 && m.toCol === 3)).toBe(true);
+    expect(bookMoves.some((m) => m.toRow === 3 && m.toCol === 5)).toBe(true);
+    expect(bookMoves.some((m) => m.toRow === 5 && m.toCol === 3)).toBe(false);
+  });
+
+  it('book falls back to orthogonal one step when opponent last move is unknown', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/9/9/9/9/4o4K4 b - 1',
+      stateHash: 'seed',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 7, col: 4, pieceCode: 'BOOK', char: '書', promoted: false },
+          { side: 'player', row: 8, col: 3, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog });
+    const bookMoves = legal.legalMoves.filter((m) => m.fromRow === 7 && m.fromCol === 4);
+    expect(bookMoves.some((m) => m.toRow === 6 && m.toCol === 4)).toBe(true);
+    expect(bookMoves.some((m) => m.toRow === 8 && m.toCol === 4)).toBe(true);
+    expect(bookMoves.some((m) => m.toRow === 7 && m.toCol === 3)).toBe(true);
+    expect(bookMoves.some((m) => m.toRow === 7 && m.toCol === 5)).toBe(true);
+    expect(bookMoves.some((m) => m.toRow === 5 && m.toCol === 4)).toBe(false);
   });
 
   it('seal immobilizes enemies on diagonal adjacent cells', () => {
@@ -1082,6 +1121,93 @@ describe('ai engine legal moves', () => {
     expect(waveMoves.some((m) => m.toRow === 6 && m.toCol === 3)).toBe(true);
     expect(waveMoves.some((m) => m.toRow === 6 && m.toCol === 2)).toBe(true);
     expect(waveMoves.some((m) => m.toRow === 3 && m.toCol === 4)).toBe(false);
+  });
+
+  it('pig piece generates 2-square orthogonal moves before inheriting enemy movement', () => {
+    const pigCatalog: AiPieceDefinition = {
+      pieceCode: 'PIG',
+      canonicalCode: 'PIG',
+      sfenCode: 'P',
+      char: '豚',
+      name: '豚',
+      unlock: 'default',
+      desc: '',
+      skill: '',
+      move: '',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+      isRepeatable: false,
+    };
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '9/9/9/9/9/9/9/9/4K4 b - 1',
+      stateHash: 'pig-move',
+      boardState: {
+        pieces: [
+          {
+            side: 'player',
+            row: 6,
+            col: 4,
+            pieceCode: 'PIG',
+            char: '豚',
+            promoted: false,
+          },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog: [...pieceCatalog, pigCatalog] });
+    const pigMoves = legal.legalMoves.filter((m) => m.fromRow === 6 && m.fromCol === 4);
+    expect(pigMoves.some((m) => m.toRow === 5 && m.toCol === 4)).toBe(true);
+    expect(pigMoves.some((m) => m.toRow === 4 && m.toCol === 4)).toBe(true);
+    expect(pigMoves.some((m) => m.toRow === 6 && m.toCol === 3)).toBe(true);
+    expect(pigMoves.some((m) => m.toRow === 6 && m.toCol === 2)).toBe(true);
+    expect(pigMoves.some((m) => m.toRow === 3 && m.toCol === 4)).toBe(false);
+  });
+
+  it('pig with inherited movement uses captured piece vectors instead of base pig move', () => {
+    const pigCatalog: AiPieceDefinition = {
+      pieceCode: 'PIG',
+      canonicalCode: 'PIG',
+      sfenCode: 'P',
+      char: '豚',
+      name: '豚',
+      unlock: 'default',
+      desc: '',
+      skill: '',
+      move: '',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+      isRepeatable: false,
+    };
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '9/9/9/9/9/9/9/9/4K4 b - 1',
+      stateHash: 'pig-inherit',
+      boardState: {
+        pieces: [
+          {
+            side: 'player',
+            row: 6,
+            col: 4,
+            pieceCode: 'PIG',
+            char: '豚',
+            promoted: false,
+            pigInheritedPieceCode: 'FU',
+          },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog: [...pieceCatalog, pigCatalog] });
+    const pigMoves = legal.legalMoves.filter((m) => m.fromRow === 6 && m.fromCol === 4);
+    expect(pigMoves.some((m) => m.toRow === 5 && m.toCol === 4)).toBe(true);
+    expect(pigMoves.some((m) => m.toRow === 4 && m.toCol === 4)).toBe(false);
+    expect(pigMoves.some((m) => m.toRow === 6 && m.toCol === 3)).toBe(false);
   });
 
   it('run piece moves up to 2 squares forward when path is clear', () => {

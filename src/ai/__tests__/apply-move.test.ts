@@ -447,6 +447,24 @@ const pieceCatalog: AiPieceDefinition[] = [
     isRepeatable: true,
   },
   {
+    pieceCode: 'BIRD',
+    canonicalCode: 'BIRD',
+    sfenCode: 'ZBI',
+    char: '禽',
+    name: '禽',
+    unlock: 'default',
+    desc: '',
+    skill: '',
+    move: '',
+    moveVectors: [
+      { dx: -1, dy: 0, maxStep: 9 },
+      { dx: 1, dy: 0, maxStep: 9 },
+      { dx: 0, dy: -1, maxStep: 9 },
+      { dx: 0, dy: 1, maxStep: 9 },
+    ],
+    isRepeatable: true,
+  },
+  {
     pieceCode: 'PHANTOM',
     canonicalCode: 'PHANTOM',
     sfenCode: 'h',
@@ -2953,6 +2971,52 @@ describe('ai engine apply move', () => {
     const boat = boardPieces(committed.position).find((p) => p.char === '舟');
     expect(boat?.row).toBe(3);
     expect(boat?.col).toBe(4);
+  });
+
+  it('bird transports a random ally to the cell directly behind after moving', () => {
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/9/4b4/9/4P4/4K4 b - 1',
+      stateHash: 'seed',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 4, col: 4, pieceCode: 'BIRD', char: '禽', promoted: false },
+          { side: 'player', row: 6, col: 4, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const committed = applyMove({
+      position,
+      pieceCatalog,
+      move: {
+        fromRow: 4,
+        fromCol: 4,
+        toRow: 4,
+        toCol: 5,
+        pieceCode: 'BIRD',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: null,
+        notation: null,
+      },
+    });
+    randomSpy.mockRestore();
+
+    const towed = boardPieces(committed.position).find(
+      (piece) => piece.side === 'player' && piece.char === '歩',
+    );
+    expect(towed?.row).toBe(5);
+    expect(towed?.col).toBe(5);
+    const bird = boardPieces(committed.position).find((piece) => piece.char === '禽');
+    expect(bird?.row).toBe(4);
+    expect(bird?.col).toBe(5);
+    expect(committed.skillTriggered).toBe(true);
   });
 
   it('capturing spirit does not add spirit to capturer hand', () => {

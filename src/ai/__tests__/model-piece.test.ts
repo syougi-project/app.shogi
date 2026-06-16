@@ -82,4 +82,30 @@ describe('ai model piece', () => {
     expect(lookups.promotedPieceDefsByCode.FU?.char).toBe('と');
     expect(lookups.promotedPieceDefsByCode.FU?.moveVectors.length).toBeGreaterThan(1);
   });
+
+  it('normalizes pig catalog to orthogonal 2-step vectors', () => {
+    const catalog = normalizePieceCatalog([
+      {
+        pieceCode: 'PIG',
+        canonicalCode: 'PIG',
+        sfenCode: 'P',
+        char: '豚',
+        name: '豚',
+        unlock: 'default',
+        desc: '',
+        skill: '',
+        move: '前方1マス。',
+        moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+        isRepeatable: false,
+      },
+    ]);
+
+    expect(catalog[0]?.moveVectors).toEqual([
+      { dx: 0, dy: -1, maxStep: 2 },
+      { dx: 0, dy: 1, maxStep: 2 },
+      { dx: -1, dy: 0, maxStep: 2 },
+      { dx: 1, dy: 0, maxStep: 2 },
+    ]);
+    expect(catalog[0]?.move).toBe('前後左右に各2マスまで移動できる。');
+  });
 });
