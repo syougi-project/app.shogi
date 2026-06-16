@@ -108,6 +108,30 @@ describe('alignLegalMovesToBoardPieces', () => {
     expect(legalMovesForBoardPieceAt(aligned, [waterfall, neighbor], 4, 4)).toHaveLength(0);
   });
 
+  it('binds offset legal moves for opaque waterfall ids via kanji normalization', () => {
+    const waterfall: BoardPiece = {
+      side: 'player',
+      row: 5,
+      col: 5,
+      pieceCode: 'PIECE_8CC9287B7E93',
+      char: '滝',
+      promoted: false,
+      imageSignedUrl: null,
+    };
+    const moves: BattleMove[] = [
+      {
+        ...baseMove,
+        pieceCode: 'WATERFALL',
+        fromRow: 4,
+        fromCol: 4,
+        toRow: 3,
+        toCol: 4,
+      },
+    ];
+    const aligned = alignLegalMovesToBoardPieces([waterfall], moves);
+    expect(aligned[0]).toMatchObject({ fromRow: 5, fromCol: 5, toRow: 4, toCol: 5 });
+  });
+
   it('legalMovesForBoardPieceAt resolves giant moves from footprint taps to anchor origin', () => {
     const giant: BoardPiece = {
       side: 'player',

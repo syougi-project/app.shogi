@@ -80,6 +80,8 @@ export type MatchingGameState = {
     movement_modifiers?: Record<string, unknown>[];
     piece_statuses?: Record<string, unknown>[];
     piece_defenses?: Record<string, unknown>[];
+    last_player_moved_piece?: Record<string, unknown>;
+    last_enemy_moved_piece?: Record<string, unknown>;
   };
   lastMove?: MovePayload;
   /** 直前の着手でスキルが発動したか（相手着手の効果音用） */

@@ -196,6 +196,45 @@ describe('matching-server canonical-game', () => {
     expect(skillState?.movement_modifiers?.[0]?.movement_rule).toBe('orthogonal_step_only');
   });
 
+  it('preserves book last moved piece markers through wire sync', () => {
+    const wire: MatchingGameState = {
+      version: 3,
+      turn: 'black',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '4e': 'black:BOOK',
+      },
+      hands: { black: {}, white: {} },
+      skillState: {
+        last_enemy_moved_piece: {
+          side: 'white',
+          row: 4,
+          col: 2,
+          pieceCode: 'KE',
+          char: '桂',
+          promoted: false,
+          copiedMoveVectors: [
+            { dx: -1, dy: -2, maxStep: 1 },
+            { dx: 1, dy: -2, maxStep: 1 },
+          ],
+        },
+      },
+    };
+
+    const position = matchingWireToCanonicalPosition(wire, []);
+    const skillState = (position.boardState as { skill_state?: MatchingGameState['skillState'] })
+      .skill_state;
+
+    expect(skillState?.last_enemy_moved_piece?.pieceCode).toBe('KE');
+    expect(skillState?.last_enemy_moved_piece?.side).toBe('enemy');
+    expect(skillState?.last_enemy_moved_piece?.copiedMoveVectors).toHaveLength(2);
+
+    const roundTrip = canonicalToMatchingWire(position);
+    expect(roundTrip.skillState?.last_enemy_moved_piece?.pieceCode).toBe('KE');
+    expect(roundTrip.skillState?.last_enemy_moved_piece?.side).toBe('white');
+  });
+
   it('preserves server skill state through canonical conversion with side mapping', () => {
     const wire: MatchingGameState = {
       version: 2,
@@ -284,5 +323,49 @@ describe('matching-server canonical-game', () => {
     expect(
       pieces.some((piece) => piece.pieceCode === 'FU' && piece.row === 4 && piece.col === 4),
     ).toBe(false);
+  });
+
+  it('resolveOnlineBattlePositionFromWire prefers wire pit_cell hazards over stale canonical board_hazards', () => {
+    const wire: MatchingGameState = {
+      version: 4,
+      turn: 'white',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '5d': 'black:GACHA_SOU',
+      },
+      hands: { black: {}, white: {} },
+      skillState: {
+        board_hazards: [
+          {
+            row: 3,
+            col: 4,
+            hazard_type: 'pit_cell',
+            affects_side: 'white',
+            remaining_turns: 1,
+          },
+        ],
+      },
+      canonicalState: {
+        sideToMove: 'enemy',
+        turnNumber: 4,
+        moveCount: 3,
+        sfen: 'online-match',
+        stateHash: 'v4',
+        boardState: {
+          board_hazards: [],
+        },
+        hands: { player: {}, enemy: {} },
+      },
+    };
+
+    const position = resolveOnlineBattlePositionFromWire(wire, []);
+    const skillState = (position.boardState as { skill_state?: { board_hazards?: unknown[] } })
+      .skill_state;
+
+    expect(skillState?.board_hazards).toHaveLength(1);
+    expect((skillState?.board_hazards?.[0] as { remaining_turns?: number }).remaining_turns).toBe(
+      1,
+    );
   });
 });

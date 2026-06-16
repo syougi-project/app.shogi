@@ -62,6 +62,8 @@ import {
   rockObstacleCellsForDisplay,
   batsuHazardCellsForDisplay,
   thornHazardCellsForDisplay,
+  safeRoomHazardCellsForDisplay,
+  SAFE_ROOM_CELL_IMAGE_SOURCE,
   alignLegalMovesToBoardPieces,
   isFixedHouseFieldPieceForUi,
   uniqueTargetsFromMoves,
@@ -114,6 +116,11 @@ export type PendingOnlinePromotion = {
 };
 
 const REMOTE_OPPONENT_MOVE_PREVIEW_MS = 1000;
+const ONLINE_BATTLE_LOG_MAX_LINES = 11;
+
+function trimOnlineBattleLogLines(lines: readonly string[]): string[] {
+  return lines.slice(-ONLINE_BATTLE_LOG_MAX_LINES);
+}
 
 const emptySession: OnlineBattleSession = {
   roomId: '----',
@@ -193,6 +200,7 @@ export function useOnlineBattleGame(matchId?: string) {
   const [rockObstacleCells, setRockObstacleCells] = useState<BoardCell[]>([]);
   const [batsuHazardCells, setBatsuHazardCells] = useState<BoardCell[]>([]);
   const [thornHazardCells, setThornHazardCells] = useState<BoardCell[]>([]);
+  const [safeRoomHazardCells, setSafeRoomHazardCells] = useState<BoardCell[]>([]);
   const [inspectingPiece, setInspectingPiece] = useState<InspectingPieceState>(null);
 
   const queueSkillVisualEffects = useCallback((effects: SkillVisualEffect[] | undefined) => {
@@ -295,6 +303,7 @@ export function useOnlineBattleGame(matchId?: string) {
     setRockObstacleCells(rockObstacleCellsForDisplay(record.position));
     setBatsuHazardCells(batsuHazardCellsForDisplay(record.position));
     setThornHazardCells(thornHazardCellsForDisplay(record.position));
+    setSafeRoomHazardCells(safeRoomHazardCellsForDisplay(record.position));
     setSession((current) =>
       buildSession(
         matchIdValue,
@@ -342,7 +351,7 @@ export function useOnlineBattleGame(matchId?: string) {
   const appendLog = useCallback((line: string) => {
     setSession((current) => ({
       ...current,
-      logLines: [...current.logLines, line].slice(-20),
+      logLines: trimOnlineBattleLogLines([...current.logLines, line]),
     }));
   }, []);
 
@@ -402,9 +411,9 @@ export function useOnlineBattleGame(matchId?: string) {
           nextGame,
           winnerSide ? '接続状態: 終了' : '接続状態: 対局中',
           endLogLine
-            ? [...current.logLines, endLogLine].slice(-20)
+            ? trimOnlineBattleLogLines([...current.logLines, endLogLine])
             : logLine
-              ? [...current.logLines, logLine].slice(-20)
+              ? trimOnlineBattleLogLines([...current.logLines, logLine])
               : current.logLines,
           winnerSide,
         );
@@ -661,14 +670,14 @@ export function useOnlineBattleGame(matchId?: string) {
           setSession((current) => ({
             ...current,
             connectionStatus: '接続状態: 相手切断（再接続待ち）',
-            logLines: [...current.logLines, '相手が切断しました'].slice(-20),
+            logLines: trimOnlineBattleLogLines([...current.logLines, '相手が切断しました']),
           }));
           return;
         case 'opponent_reconnected':
           setSession((current) => ({
             ...current,
             connectionStatus: '接続状態: 対局中',
-            logLines: [...current.logLines, '相手が再接続しました'].slice(-20),
+            logLines: trimOnlineBattleLogLines([...current.logLines, '相手が再接続しました']),
           }));
           return;
         case 'game_finished': {
@@ -682,7 +691,10 @@ export function useOnlineBattleGame(matchId?: string) {
             connectionStatus: `接続状態: 終了（${payload.reason}）`,
             winnerSide: won ? 'player' : 'enemy',
             turnLabel: '対局終了',
-            logLines: [...current.logLines, `対局終了: ${payload.reason}`].slice(-20),
+            logLines: trimOnlineBattleLogLines([
+              ...current.logLines,
+              `対局終了: ${payload.reason}`,
+            ]),
           }));
           return;
         }
@@ -737,7 +749,10 @@ export function useOnlineBattleGame(matchId?: string) {
         setSession((current) => ({
           ...current,
           connectionStatus: client.getLastError() ?? '接続先が未設定です',
-          logLines: [...current.logLines, client.getLastError() ?? '接続に失敗しました'].slice(-20),
+          logLines: trimOnlineBattleLogLines([
+            ...current.logLines,
+            client.getLastError() ?? '接続に失敗しました',
+          ]),
         }));
         setIsLoading(false);
       }
@@ -1232,6 +1247,7 @@ export function useOnlineBattleGame(matchId?: string) {
     rockObstacleCells,
     batsuHazardCells,
     thornHazardCells,
+    safeRoomHazardCells,
     role,
     pieceCatalog,
     pieceDefsByCode,

@@ -41,4 +41,8 @@ describe('ガチャ 前斜め前斜め後ろ1マス（膠）', () => {
   it('膠は前斜め2+後1のみ（後斜めなし）', () => {
     expect(movesFrom('膠', 'piece_gacha_kou', 4, 4)).toEqual(['3:3', '3:5', '5:4'].sort());
   });
+
+  it('PIECE_GACHA_KO でも前斜め2+後1', () => {
+    expect(movesFrom('膠', 'PIECE_GACHA_KO', 4, 4)).toEqual(['3:3', '3:5', '5:4'].sort());
+  });
 });

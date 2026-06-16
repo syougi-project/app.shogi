@@ -1,5 +1,6 @@
 import { CHAR_TO_CODE } from '@/features/stage-shogi/domain/piece-conversion';
 import { toBasePieceCode } from '@/ai/model';
+import { normalizeGachaSkillPieceCode } from '@/lib/matching-server/gacha-piece-code';
 
 type PieceLike = {
   pieceCode: string | null;
@@ -449,15 +450,17 @@ export function isBakuPiece(piece: PieceLike): boolean {
 export function isKoPiece(piece: PieceLike): boolean {
   const char = normKanjiForEngineRules(piece.char);
   if (char === '膠') return true;
-  const base = toBasePieceCode(piece.pieceCode);
-  if (base === 'GACHA_KOU' || base === 'GACHA_KO') return true;
   const raw = pieceRawUpper(piece);
-  return (
+  if (
     raw.includes('GACHA_KOU') ||
-    raw.includes('PIECE_GACHA_KOU') ||
+    raw.includes('GACHA_KO') ||
     raw.includes('PIECE_GACHA_KO') ||
     raw.includes('MOVE_GACHA_KO')
-  );
+  ) {
+    return true;
+  }
+  const base = toBasePieceCode(piece.pieceCode);
+  return normalizeGachaSkillPieceCode(base ?? raw, char) === 'GACHA_KOU';
 }
 
 /** ガチャ「閹」: 前後左右1マス（味方王の前1マスへも移動可）。 */
@@ -478,6 +481,26 @@ export function isSouPiece(piece: PieceLike): boolean {
   if (base === 'GACHA_SOU') return true;
   const raw = pieceRawUpper(piece);
   return raw.includes('GACHA_SOU');
+}
+
+/** ステージ「炒」: 前最大2マス左右後ろ1マス（HTML stirMoves と同一）。 */
+export function isSautePiece(piece: PieceLike): boolean {
+  const char = normKanjiForEngineRules(piece.char);
+  if (char === '炒') return true;
+  const base = toBasePieceCode(piece.pieceCode);
+  if (base === 'SAUTE') return true;
+  const raw = pieceRawUpper(piece);
+  return raw.includes('SAUTE') || raw.includes('1732246A37D8');
+}
+
+/** ステージ「焼」: 前最大2マス左右後ろ1マス（HTML roastMoves と同一）。 */
+export function isSearPiece(piece: PieceLike): boolean {
+  const char = normKanjiForEngineRules(piece.char);
+  if (char === '焼') return true;
+  const base = toBasePieceCode(piece.pieceCode);
+  if (base === 'SEAR') return true;
+  const raw = pieceRawUpper(piece);
+  return raw.includes('SEAR') || raw.includes('FDC83CF95746');
 }
 
 /** ガチャ「宋」: 前後何マスでも+左右1マス。 */

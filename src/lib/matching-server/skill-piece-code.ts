@@ -150,6 +150,7 @@ const CHAR_TO_SKILL_CODE: Readonly<Record<string, string>> = {
   聖: 'SAINT',
   病: 'DISEASE',
   薬: 'MEDICINE',
+  滝: 'WATERFALL',
   穴: 'HOLE',
   淵: 'ABYSS',
   朧: 'OBORO',
@@ -209,6 +210,7 @@ const CHAR_TO_SKILL_CODE: Readonly<Record<string, string>> = {
   膠: 'GACHA_KOU',
   煽: 'GACHA_AORI',
   舞: 'MAI',
+  禽: 'BIRD',
 };
 
 function stripNamedPiecePrefix(code: string): string {
@@ -225,6 +227,9 @@ export function normalizeSkillPieceCode(raw: string, char?: string | null): stri
 
   if (code === 'WATER') return 'SUI';
   if (PORTED_SKILL_CODE_SET.has(code)) return code;
+  if (code.includes('8CC9287B7E93')) return 'WATERFALL';
+  if (code.includes('29ECAB1EF3C3')) return 'BIRD';
+  if (code.includes('3EFA5702E75B')) return 'PIG';
 
   const trimmedChar = char?.trim();
   if (trimmedChar && CHAR_TO_SKILL_CODE[trimmedChar]) {

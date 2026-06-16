@@ -16,7 +16,7 @@ import { mergeStageFixedArrowTilesIntoPosition } from '@/ai/engine/stage-fixed-a
 import { mergeStageFixedPitHazardsIntoPosition } from '@/ai/engine/stage-fixed-hazards';
 import type { AiBattlePosition } from '@/ai/model';
 import { normalizeBattlePosition } from '@/ai/model';
-import { toBasePieceCode as engineToBasePieceCode } from '@/ai/model/move';
+import { normalizeSkillPieceCode } from '@/lib/matching-server/skill-piece-code';
 import { mapPiecesForSpringDragonAwakeningDisplay } from '@/ai/engine/spring-ryu-awakening';
 import { assembleSkillDefinitionsV2ForSession } from '@/ai/engine/session-skill-definitions-v2';
 import { ApiClientError } from '@/infra/http/api-client';
@@ -503,9 +503,12 @@ function legalMoveOriginMatchKind(
 
 function legalMovePieceCodeMatchesBoardPiece(move: BattleMove, piece: BoardPiece): boolean {
   if (!move.pieceCode || !piece.pieceCode) return false;
-  const want = engineToBasePieceCode(move.pieceCode) ?? move.pieceCode.trim().toUpperCase();
-  const have = engineToBasePieceCode(piece.pieceCode) ?? piece.pieceCode.trim().toUpperCase();
-  return want === have;
+  const want = normalizeSkillPieceCode(move.pieceCode, piece.char);
+  const have = normalizeSkillPieceCode(piece.pieceCode, piece.char);
+  if (want === have) return true;
+  const wantBase = toBasePieceCode(move.pieceCode) ?? move.pieceCode.trim().toUpperCase();
+  const haveBase = toBasePieceCode(piece.pieceCode) ?? piece.pieceCode.trim().toUpperCase();
+  return wantBase === haveBase;
 }
 
 const LEGAL_MOVE_ORIGIN_MATCH_PRIORITY: Record<LegalMoveOriginMatchKind, number> = {
@@ -614,10 +617,10 @@ export function alignLegalMovesToBoardPieces(
     }
 
     const wantCode = move.pieceCode?.trim().toUpperCase();
-    const wantBase = move.pieceCode ? engineToBasePieceCode(move.pieceCode) : null;
+    const wantBase = move.pieceCode ? toBasePieceCode(move.pieceCode) : null;
     if (wantCode) {
       const byCode = playerPieces.find((piece) => {
-        const base = piece.pieceCode ? engineToBasePieceCode(piece.pieceCode) : null;
+        const base = piece.pieceCode ? toBasePieceCode(piece.pieceCode) : null;
         if (wantBase && base) {
           if (base !== wantBase) return false;
         } else {

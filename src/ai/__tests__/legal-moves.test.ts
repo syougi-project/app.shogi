@@ -935,6 +935,40 @@ describe('ai engine legal moves', () => {
     expect(bookMoves.some((m) => m.toRow === 5 && m.toCol === 3)).toBe(false);
   });
 
+  it('book copies opponent last moved piece move range from copiedMoveVectors without row/col', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 3,
+      moveCount: 2,
+      sfen: '4k4/9/9/9/4N4/4o4/9/9/4K4 b - 1',
+      stateHash: 'seed',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 5, col: 4, pieceCode: 'BOOK', char: '書', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+        skill_state: {
+          last_enemy_moved_piece: {
+            side: 'enemy',
+            pieceCode: 'KE',
+            char: '桂',
+            promoted: false,
+            copiedMoveVectors: [
+              { dx: -1, dy: -2, maxStep: 1 },
+              { dx: 1, dy: -2, maxStep: 1 },
+            ],
+          },
+        },
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog });
+    const bookMoves = legal.legalMoves.filter((m) => m.fromRow === 5 && m.fromCol === 4);
+    expect(bookMoves.some((m) => m.toRow === 3 && m.toCol === 3)).toBe(true);
+    expect(bookMoves.some((m) => m.toRow === 3 && m.toCol === 5)).toBe(true);
+  });
+
   it('book falls back to orthogonal one step when opponent last move is unknown', () => {
     const position: AiBattlePosition = {
       sideToMove: 'player',

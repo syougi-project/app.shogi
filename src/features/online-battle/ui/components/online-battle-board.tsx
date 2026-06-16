@@ -24,6 +24,7 @@ import {
   BATSU_CELL_IMAGE_SOURCE,
   CHRYSANTHEMUM_REVIVAL_IMAGE_SOURCE,
   THORN_CELL_IMAGE_SOURCE,
+  SAFE_ROOM_CELL_IMAGE_SOURCE,
   preferBundledPromotedImageOverRemoteUrl,
   resolvePromotedImageSource,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
@@ -55,6 +56,7 @@ export function OnlineBattleBoard(props: {
   rockObstacleCells?: BoardCell[];
   batsuHazardCells?: BoardCell[];
   thornHazardCells?: BoardCell[];
+  safeRoomHazardCells?: BoardCell[];
   skillVisualEffects?: SkillVisualEffect[];
   onSkillVisualEffectFinished?: (effect: SkillVisualEffect) => void;
   onCellPress: (viewRow: number, viewCol: number) => void;
@@ -75,6 +77,7 @@ export function OnlineBattleBoard(props: {
     rockObstacleCells = [],
     batsuHazardCells = [],
     thornHazardCells = [],
+    safeRoomHazardCells = [],
     skillVisualEffects = [],
     onSkillVisualEffectFinished,
     onCellPress,
@@ -110,6 +113,10 @@ export function OnlineBattleBoard(props: {
     ...cell,
     ...toViewCoord(cell.row, cell.col, myRole),
   }));
+  const safeRoomHazardsView = safeRoomHazardCells.map((cell) => ({
+    ...cell,
+    ...toViewCoord(cell.row, cell.col, myRole),
+  }));
 
   return (
     <View style={[styles.frame, { width: boardSize, height: boardSize }]}>
@@ -130,7 +137,6 @@ export function OnlineBattleBoard(props: {
             const isSelected =
               selectedView != null && selectedView.row === viewRow && selectedView.col === viewCol;
             const isTarget = isTargetCell(targetsView, viewRow, viewCol);
-            const isEnemyTarget = isTargetCell(enemyTargetsView, viewRow, viewCol);
             return (
               <Pressable
                 key={`cell-${viewRow}-${viewCol}`}
@@ -150,12 +156,26 @@ export function OnlineBattleBoard(props: {
                   },
                   isSelected && styles.cellSelected,
                   isTarget && styles.cellTarget,
-                  isEnemyTarget && styles.cellEnemyTarget,
                 ]}
               />
             );
           }),
         )}
+        {enemyTargetsView.map((cell) => (
+          <View
+            key={`enemy-preview-${cell.row}-${cell.col}`}
+            pointerEvents="none"
+            style={[
+              styles.enemyPreviewCell,
+              {
+                left: cell.col * cellSize,
+                top: cell.row * cellSize,
+                width: cellSize,
+                height: cellSize,
+              },
+            ]}
+          />
+        ))}
         {poisonHazardsView.map((cell) => (
           <View
             key={`poison-${cell.row}-${cell.col}`}
@@ -355,6 +375,27 @@ export function OnlineBattleBoard(props: {
             />
           </View>
         ))}
+        {safeRoomHazardsView.map((cell) => (
+          <View
+            key={`safe-room-hazard-${cell.row}-${cell.col}`}
+            pointerEvents="none"
+            style={[
+              styles.safeRoomHazardCell,
+              {
+                left: cell.col * cellSize,
+                top: cell.row * cellSize,
+                width: cellSize,
+                height: cellSize,
+              },
+            ]}
+          >
+            <Image
+              source={SAFE_ROOM_CELL_IMAGE_SOURCE}
+              contentFit="cover"
+              style={styles.safeRoomHazardCellImage}
+            />
+          </View>
+        ))}
         {onSkillVisualEffectFinished ? (
           <OnlineBattleSkillParticleLayer
             effects={skillVisualEffects}
@@ -388,10 +429,10 @@ const styles = StyleSheet.create({
   cellTarget: {
     backgroundColor: 'rgba(34, 197, 94, 0.4)',
   },
-  cellEnemyTarget: {
-    backgroundColor: '#dc262622',
-    borderWidth: 2,
-    borderColor: '#dc2626',
+  enemyPreviewCell: {
+    position: 'absolute',
+    backgroundColor: 'rgba(220, 38, 38, 0.35)',
+    zIndex: 1,
   },
   poisonCell: {
     position: 'absolute',
@@ -423,6 +464,14 @@ const styles = StyleSheet.create({
     zIndex: 23,
   },
   thornHazardCellImage: {
+    width: '100%',
+    height: '100%',
+  },
+  safeRoomHazardCell: {
+    position: 'absolute',
+    zIndex: 25,
+  },
+  safeRoomHazardCellImage: {
     width: '100%',
     height: '100%',
   },

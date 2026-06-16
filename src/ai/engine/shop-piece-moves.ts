@@ -162,6 +162,16 @@ export const SOU_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
 export const SOU_SKILL_DESCRIPTION_JA =
   '移動時周囲のランダムで最大3マスを×マスにする。この×マスは2ターンで消滅する。';
 
+export const SAUTE_MOVE_DESCRIPTION_JA = SOU_MOVE_DESCRIPTION_JA;
+
+/** 炒（ステージ46）— 前2 + 左右後1（HTML stirMoves / 艸と同形）。 */
+export const SAUTE_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [...SOU_MOVE_VECTORS];
+
+export const SEAR_MOVE_DESCRIPTION_JA = SOU_MOVE_DESCRIPTION_JA;
+
+/** 焼（ステージ46）— 前2 + 左右後1（HTML roastMoves / 炒と同形）。 */
+export const SEAR_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [...SOU_MOVE_VECTORS];
+
 export const KOU_SKILL_DESCRIPTION_JA =
   '隣接する味方が横移動したとき、同じ向きに追従する（空マスのみ）。';
 

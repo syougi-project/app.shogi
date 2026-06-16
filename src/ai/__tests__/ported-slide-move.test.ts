@@ -130,7 +130,7 @@ describe('ported slide move vectors', () => {
     expect(targets).not.toContain('4:3');
   });
 
-  it('滝は縦スライドと左右1マスが使える', () => {
+  it('滝は前方スライドと左右1マスが使える', () => {
     const position: AiBattlePosition = {
       sideToMove: 'player',
       turnNumber: 1,
@@ -157,6 +157,7 @@ describe('ported slide move vectors', () => {
     expect(targets).toContain('4:3');
     expect(targets).toContain('4:5');
     expect(targets).not.toContain('4:0');
+    expect(targets).not.toContain('8:4');
   });
 
   it('牢は縦横スライドと斜め1マスが使える', () => {

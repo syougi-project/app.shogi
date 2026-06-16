@@ -42,6 +42,10 @@ import {
   NIGE_MOVE_VECTORS,
   SOU_MOVE_DESCRIPTION_JA,
   SOU_MOVE_VECTORS,
+  SAUTE_MOVE_DESCRIPTION_JA,
+  SAUTE_MOVE_VECTORS,
+  SEAR_MOVE_DESCRIPTION_JA,
+  SEAR_MOVE_VECTORS,
   TANE_MOVE_DESCRIPTION_JA,
   TANE_SILVER_MOVE_VECTORS,
   WAVE_MOVE_DESCRIPTION_JA,
@@ -462,6 +466,12 @@ export function normalizeCatalogMoveText(piece: PieceCatalogItem): string {
   if (isSouCatalogPiece(piece)) {
     return SOU_MOVE_DESCRIPTION_JA;
   }
+  if (isSearCatalogPiece(piece)) {
+    return SEAR_MOVE_DESCRIPTION_JA;
+  }
+  if (isSauteCatalogPiece(piece)) {
+    return SAUTE_MOVE_DESCRIPTION_JA;
+  }
   if (isEnCatalogPiece(piece)) {
     return EN_MOVE_DESCRIPTION_JA;
   }
@@ -558,6 +568,12 @@ export function normalizeCatalogMoveVectors(
   }
   if (isSouCatalogPiece(piece)) {
     return SOU_MOVE_VECTORS;
+  }
+  if (isSearCatalogPiece(piece)) {
+    return SEAR_MOVE_VECTORS;
+  }
+  if (isSauteCatalogPiece(piece)) {
+    return SAUTE_MOVE_VECTORS;
   }
   if (isEnCatalogPiece(piece)) {
     return EN_MOVE_VECTORS;

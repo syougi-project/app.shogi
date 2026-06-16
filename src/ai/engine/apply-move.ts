@@ -2172,8 +2172,10 @@ export function applyMove(input: {
     );
   }
   if (turnAdvanced) {
-    // 既存ハザードの残りターンを進める。
-    tickSkillStateDurations(nextPosition);
+    // オンライン楽観更新では持続ターンの消費はサーバー wire を正とする（×マスが早消えしない）
+    if (!input.options?.suppressRandomSkillProcs) {
+      tickSkillStateDurations(nextPosition);
+    }
     if (applyLandingDerivedEffects) {
       // 着手によるスキル効果（移動制限・毒マスなど）を反映（実際にマスへ入ったときのみ）。
       const { moveSkillEffectTriggered, skillVisualEffects } = applyMoveSkillEffects({

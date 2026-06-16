@@ -169,6 +169,38 @@ describe('piece-catalog-display', () => {
     expect(display.moveVectors).toHaveLength(4);
   });
 
+  it('炒は移動説明を「前最大2マス左右後ろ1マス」に差し替える', () => {
+    const piece = catalogItem({
+      char: '炒',
+      pieceCode: 'SAUTE',
+      move: 'stir',
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('前最大2マス左右後ろ1マス');
+    expect(display.moveVectors).toEqual([
+      { dx: 0, dy: -1, maxStep: 2 },
+      { dx: -1, dy: 0, maxStep: 1 },
+      { dx: 1, dy: 0, maxStep: 1 },
+      { dx: 0, dy: 1, maxStep: 1 },
+    ]);
+  });
+
+  it('焼は移動説明を「前最大2マス左右後ろ1マス」に差し替える', () => {
+    const piece = catalogItem({
+      char: '焼',
+      pieceCode: 'SEAR',
+      move: 'roast',
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('前最大2マス左右後ろ1マス');
+    expect(display.moveVectors).toEqual([
+      { dx: 0, dy: -1, maxStep: 2 },
+      { dx: -1, dy: 0, maxStep: 1 },
+      { dx: 1, dy: 0, maxStep: 1 },
+      { dx: 0, dy: 1, maxStep: 1 },
+    ]);
+  });
+
   it('逃は移動説明を「全方向1マス」に差し替える', () => {
     const piece = catalogItem({
       char: '逃',

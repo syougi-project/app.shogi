@@ -49,6 +49,8 @@ import {
   BAKU_MOVE_VECTORS,
   SO_MOVE_VECTORS,
   SOU_MOVE_VECTORS,
+  SAUTE_MOVE_VECTORS,
+  SEAR_MOVE_VECTORS,
   SADAME_MOVE_VECTORS,
   EN_MOVE_VECTORS,
   KOU_MOVE_VECTORS,
@@ -106,6 +108,8 @@ import {
   isNigePiece,
   isSoPiece,
   isSouPiece,
+  isSautePiece,
+  isSearPiece,
   isSadamePiece,
   isEnPiece,
   isKoPiece,
@@ -608,19 +612,20 @@ function lastMovedPieceForBook(
   const key = piece.side === 'player' ? 'last_enemy_moved_piece' : 'last_player_moved_piece';
   const raw = asRecord(skillState?.[key]);
   if (!raw) return null;
-  const row = typeof raw.row === 'number' ? raw.row : null;
-  const col = typeof raw.col === 'number' ? raw.col : null;
-  if (row == null || col == null) return null;
   const pieceCode = typeof raw.pieceCode === 'string' ? raw.pieceCode : null;
   const char = typeof raw.char === 'string' ? raw.char : '';
+  const promoted = raw.promoted === true;
   const copiedMoveVectors = Array.isArray(raw.copiedMoveVectors) ? raw.copiedMoveVectors : null;
+  if (!pieceCode && !char && !(copiedMoveVectors && copiedMoveVectors.length > 0)) return null;
+  const row = typeof raw.row === 'number' ? raw.row : -1;
+  const col = typeof raw.col === 'number' ? raw.col : -1;
   return {
     side: piece.side,
     row,
     col,
     pieceCode,
     char,
-    promoted: raw.promoted === true,
+    promoted,
     ...(copiedMoveVectors ? { copiedMoveVectors } : {}),
     imageSignedUrl: null,
   };
@@ -1843,6 +1848,12 @@ function resolveEffectiveVectorsForPiece(
   }
   if (isSouPiece(piece)) {
     return SOU_MOVE_VECTORS;
+  }
+  if (isSearPiece(piece)) {
+    return SEAR_MOVE_VECTORS;
+  }
+  if (isSautePiece(piece)) {
+    return SAUTE_MOVE_VECTORS;
   }
   if (isShopPPiece(piece)) {
     return P_MOVE_VECTORS;

@@ -1,4 +1,5 @@
 import {
+  applyOnlineBattleMove,
   createOnlineBattleGame,
   getDisplayBoardPieces,
   getMyLegalMoves,
@@ -8,6 +9,7 @@ import {
   syncFromServerWire,
 } from '@/ai/online-battle-registry';
 import type { MatchingGameState } from '@/domain/matching-server/protocol';
+import { batsuHazardCellsForDisplay } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 
 function catalogItem(pieceCode: string, char: string): PieceCatalogItem {
@@ -207,5 +209,140 @@ describe('online-battle-registry display pieces', () => {
     expect(moves.some((move) => move.toRow === 5 && move.toCol === 3)).toBe(true);
     expect(moves.some((move) => move.toRow === 5 && move.toCol === 5)).toBe(true);
     expect(moves.some((move) => move.toRow === 3 && move.toCol === 4)).toBe(false);
+  });
+
+  it('keeps bird ally transport from server wire instead of optimistic local skill', () => {
+    const initialWire: MatchingGameState = {
+      version: 1,
+      turn: 'black',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '5e': 'black:PIECE_29ECAB1EF3C3',
+        '3e': 'black:FU',
+      },
+      hands: { black: {}, white: {} },
+    };
+    const catalog = [
+      catalogItem('PIECE_29ECAB1EF3C3', '禽'),
+      catalogItem('FU', '歩'),
+      catalogItem('OU', '王'),
+    ];
+
+    createOnlineBattleGame({
+      matchId: 'match-display',
+      myRole: 'black',
+      wire: initialWire,
+      pieceCatalog: catalog,
+    });
+
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
+    applyOnlineBattleMove({
+      matchId: 'match-display',
+      move: {
+        fromRow: 4,
+        fromCol: 4,
+        toRow: 5,
+        toCol: 4,
+        pieceCode: 'PIECE_29ECAB1EF3C3',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: null,
+        notation: null,
+      },
+      serverWire: initialWire,
+    });
+    randomSpy.mockRestore();
+
+    const optimisticPieces = getDisplayBoardPieces('match-display');
+    const optimisticFu = optimisticPieces.find((piece) => piece.char === '歩');
+    expect(optimisticFu?.row).toBe(4);
+    expect(optimisticFu?.col).toBe(6);
+
+    const serverWire: MatchingGameState = {
+      version: 2,
+      turn: 'white',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '5f': 'black:PIECE_29ECAB1EF3C3',
+        '5g': 'black:FU',
+      },
+      hands: { black: {}, white: {} },
+      lastSkillTriggered: true,
+    };
+    syncFromServerWire({
+      matchId: 'match-display',
+      myRole: 'black',
+      wire: serverWire,
+      pieceCatalog: catalog,
+    });
+
+    const syncedPieces = getDisplayBoardPieces('match-display');
+    const syncedFu = syncedPieces.find((piece) => piece.char === '歩');
+    expect(syncedFu?.row).toBe(6);
+    expect(syncedFu?.col).toBe(4);
+    const syncedBird = syncedPieces.find((piece) => piece.char === '禽');
+    expect(syncedBird?.row).toBe(5);
+    expect(syncedBird?.col).toBe(4);
+  });
+
+  it('keeps sou pit_cell hazards from server wire for display across sync', () => {
+    const catalog = [catalogItem('GACHA_SOU', '艸'), catalogItem('OU', '王')];
+    const wire: MatchingGameState = {
+      version: 3,
+      turn: 'white',
+      board: {
+        '5i': 'black:OU',
+        '5a': 'white:OU',
+        '5d': 'black:GACHA_SOU',
+      },
+      hands: { black: {}, white: {} },
+      skillState: {
+        board_hazards: [
+          {
+            row: 3,
+            col: 3,
+            hazard_type: 'pit_cell',
+            affects_side: 'white',
+            remaining_turns: 1,
+          },
+          {
+            row: 3,
+            col: 5,
+            hazard_type: 'pit_cell',
+            affects_side: 'white',
+            remaining_turns: 2,
+          },
+        ],
+      },
+      canonicalState: {
+        sideToMove: 'enemy',
+        turnNumber: 2,
+        moveCount: 1,
+        sfen: '',
+        stateHash: null,
+        boardState: { board_hazards: [] },
+        hands: { player: {}, enemy: {} },
+      },
+    };
+
+    createOnlineBattleGame({
+      matchId: 'match-display',
+      myRole: 'black',
+      wire,
+      pieceCatalog: catalog,
+    });
+
+    const record = getOnlineBattleGame('match-display');
+    expect(record).not.toBeNull();
+    const batsu = batsuHazardCellsForDisplay(record!.position);
+    expect(batsu).toEqual(
+      expect.arrayContaining([
+        { row: 3, col: 3 },
+        { row: 3, col: 5 },
+      ]),
+    );
+    expect(batsu).toHaveLength(2);
   });
 });

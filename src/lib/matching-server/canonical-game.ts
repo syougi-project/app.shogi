@@ -92,6 +92,31 @@ export function matchingWireToCanonicalPosition(
   return injectSkillDefinitionsIntoPosition(position, pieceCatalog);
 }
 
+/** wire.skillState / wire.board より古い canonicalState の盤面付帯状態を上書きしない */
+function stripStaleCanonicalBoardStateFields(
+  supplemental: Record<string, unknown>,
+): Record<string, unknown> {
+  const next = { ...supplemental };
+  delete next.pieces;
+  delete next.skill_state;
+  delete next.skillState;
+  delete next.board_hazards;
+  delete next.boardHazards;
+  delete next.board_arrow_tiles;
+  delete next.boardArrowTiles;
+  delete next.movement_modifiers;
+  delete next.movementModifiers;
+  delete next.piece_statuses;
+  delete next.pieceStatuses;
+  delete next.piece_defenses;
+  delete next.pieceDefenses;
+  delete next.last_player_moved_piece;
+  delete next.lastPlayerMovedPiece;
+  delete next.last_enemy_moved_piece;
+  delete next.lastEnemyMovedPiece;
+  return next;
+}
+
 /** オンライン対戦: wire.board を盤面の正とし、skillState は wire を優先する */
 export function resolveOnlineBattlePositionFromWire(
   wire: MatchingGameState,
@@ -99,10 +124,9 @@ export function resolveOnlineBattlePositionFromWire(
 ): AiBattlePosition {
   const position = matchingWireToCanonicalPosition(wire, pieceCatalog);
   if (wire.canonicalState?.boardState) {
-    const supplemental = { ...(wire.canonicalState.boardState as Record<string, unknown>) };
-    delete supplemental.pieces;
-    delete supplemental.skill_state;
-    delete supplemental.skillState;
+    const supplemental = stripStaleCanonicalBoardStateFields(
+      wire.canonicalState.boardState as Record<string, unknown>,
+    );
     position.boardState = {
       ...(position.boardState as Record<string, unknown>),
       ...supplemental,
@@ -188,6 +212,19 @@ function mapSkillStateSides(
     movement_modifiers: mapSkillEntries(skillState.movement_modifiers, mapper),
     piece_statuses: mapSkillEntries(skillState.piece_statuses, mapper),
     piece_defenses: mapSkillEntries(skillState.piece_defenses, mapper),
+    last_player_moved_piece: mapBookMovedPieceMarker(skillState.last_player_moved_piece, mapper),
+    last_enemy_moved_piece: mapBookMovedPieceMarker(skillState.last_enemy_moved_piece, mapper),
+  };
+}
+
+function mapBookMovedPieceMarker(
+  marker: Record<string, unknown> | undefined,
+  mapper: (value: unknown) => unknown,
+): Record<string, unknown> | undefined {
+  if (!marker || typeof marker !== 'object') return undefined;
+  return {
+    ...marker,
+    side: mapper(marker.side),
   };
 }
 

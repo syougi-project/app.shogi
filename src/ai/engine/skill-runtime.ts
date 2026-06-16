@@ -22,6 +22,7 @@ import {
   isKoPiece,
   isMaiPiece,
   isShopPPiece,
+  isSouPiece,
   isSpecialTenPlusPiece,
   isTanePiece,
   normalizeSkillPieceCode,
@@ -107,6 +108,9 @@ function catalogPieceTokenMatchesMoved(
   }
   if (t === '禽') {
     if (movedCode === 'BIRD' || movedCode.includes('29ECAB1EF3C3')) return true;
+  }
+  if (t === '艸') {
+    if (movedCode === 'GACHA_SOU' || movedCode.includes('GACHA_SOU')) return true;
   }
   return false;
 }
@@ -2057,7 +2061,13 @@ export function applyMoveSkillEffects(input: {
     }
   }
   // 禽: 移動時、真後ろ1マスが空いていればランダムな味方駒（王・玉・禽除く）をそのマスへ。
-  if (isBirdMover && input.move.fromRow != null && input.move.fromCol != null && input.movedPiece) {
+  if (
+    !input.suppressRandomSkillProcs &&
+    isBirdMover &&
+    input.move.fromRow != null &&
+    input.move.fromCol != null &&
+    input.movedPiece
+  ) {
     const sigBird = boardSignatureForSkillFx(input.pieces);
     moveRandomAllyToCellBehindBird({
       pieces: input.pieces,
@@ -3241,6 +3251,49 @@ export function applyMoveSkillEffects(input: {
       depressionHazards += 1;
     }
     if (depressionHazards > 0) {
+      markMoveSkillFx();
+    }
+  }
+  // 艸: 移動時、周囲の空きマスを最大3マスまで2ターン持続の×マス（pit_cell）にする。
+  if (
+    !input.suppressRandomSkillProcs &&
+    input.move.fromRow != null &&
+    input.move.fromCol != null &&
+    movedPiece &&
+    isSouPiece(movedPiece)
+  ) {
+    const candidates: { row: number; col: number }[] = [];
+    for (let dr = -1; dr <= 1; dr += 1) {
+      for (let dc = -1; dc <= 1; dc += 1) {
+        if (dr === 0 && dc === 0) continue;
+        const row = movedPiece.row + dr;
+        const col = movedPiece.col + dc;
+        if (row < 0 || row > 8 || col < 0 || col > 8) continue;
+        if (!isCellEmpty(input.pieces, row, col)) continue;
+        candidates.push({ row, col });
+      }
+    }
+    const pool = [...candidates];
+    let placed = 0;
+    while (placed < 3 && pool.length > 0) {
+      const idx = Math.floor(Math.random() * pool.length);
+      const cell = pool.splice(idx, 1)[0]!;
+      state.board_hazards = state.board_hazards.filter((entry) => {
+        const type = asString(entry.hazard_type ?? entry.hazardType) ?? '';
+        const hRow = asNumber(entry.row);
+        const hCol = asNumber(entry.col);
+        return !(type === 'pit_cell' && hRow === cell.row && hCol === cell.col);
+      });
+      state.board_hazards.push({
+        row: cell.row,
+        col: cell.col,
+        hazard_type: 'pit_cell',
+        affects_side: sideOpposite(input.actorSide),
+        remaining_turns: 2,
+      });
+      placed += 1;
+    }
+    if (placed > 0) {
       markMoveSkillFx();
     }
   }
@@ -4497,53 +4550,7 @@ export function applyMoveSkillEffects(input: {
         }
 
         if (hook === 'sou_grass_random_pit_cells') {
-          if (!movedPiece || input.move.fromRow == null || input.move.fromCol == null) continue;
-          const maxCells = Math.min(
-            3,
-            Math.max(
-              1,
-              Math.floor(
-                asNumber(params.maxCells) ??
-                  asNumber(params.max_cells) ??
-                  asNumber(params.count) ??
-                  3,
-              ),
-            ),
-          );
-          const candidates: { row: number; col: number }[] = [];
-          for (let dr = -1; dr <= 1; dr += 1) {
-            for (let dc = -1; dc <= 1; dc += 1) {
-              if (dr === 0 && dc === 0) continue;
-              const row = movedPiece.row + dr;
-              const col = movedPiece.col + dc;
-              if (row < 0 || row > 8 || col < 0 || col > 8) continue;
-              if (!isCellEmpty(input.pieces, row, col)) continue;
-              candidates.push({ row, col });
-            }
-          }
-          const pool = [...candidates];
-          let placed = 0;
-          while (placed < maxCells && pool.length > 0) {
-            const idx = Math.floor(Math.random() * pool.length);
-            const cell = pool.splice(idx, 1)[0]!;
-            state.board_hazards = state.board_hazards.filter((entry) => {
-              const type = asString(entry.hazard_type ?? entry.hazardType) ?? '';
-              const hRow = asNumber(entry.row);
-              const hCol = asNumber(entry.col);
-              return !(type === 'pit_cell' && hRow === cell.row && hCol === cell.col);
-            });
-            state.board_hazards.push({
-              row: cell.row,
-              col: cell.col,
-              hazard_type: 'pit_cell',
-              affects_side: sideOpposite(input.actorSide),
-              remaining_turns: 2,
-            });
-            placed += 1;
-          }
-          if (placed > 0) {
-            markMoveSkillFx();
-          }
+          // 艸×マスは上の explicit ブロックで処理（オンライン楽観更新との二重適用を防ぐ）
           continue;
         }
 

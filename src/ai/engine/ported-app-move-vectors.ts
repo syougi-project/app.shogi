@@ -47,7 +47,6 @@ export const LEAD_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
 
 export const WATERFALL_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
   { dx: 0, dy: -1, maxStep: SLIDE_MAX },
-  { dx: 0, dy: 1, maxStep: SLIDE_MAX },
   { dx: -1, dy: 0, maxStep: 1 },
   { dx: 1, dy: 0, maxStep: 1 },
 ];
