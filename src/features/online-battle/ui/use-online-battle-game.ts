@@ -76,6 +76,10 @@ import {
 } from '@/features/stage-shogi/ui/stage-shogi-screen.inspect';
 import type { InspectingPieceState } from '@/features/stage-shogi/ui/stage-shogi-screen.presenters';
 import {
+  isRecoverableMoveSyncError,
+  toUserFacingBattleError,
+} from '@/features/stage-shogi/ui/stage-shogi-screen.presenters';
+import {
   createLoadPieceCatalogUseCase,
   createLoadRawPieceCatalogUseCase,
 } from '@/usecases/piece-info/create-piece-info-usecases';
@@ -119,6 +123,8 @@ export type PendingOnlinePromotion = {
   nonPromoteMove: BattleMove;
 };
 
+const ONLINE_MOVE_RECOVERED_MESSAGE = '局面を自動更新しました。対局を続行します。';
+const ONLINE_MOVE_FAILURE_CODES = new Set(['ILLEGAL_MOVE', 'INVALID_MOVE', 'NOT_YOUR_TURN']);
 const REMOTE_OPPONENT_MOVE_PREVIEW_MS = 1000;
 const ONLINE_BATTLE_LOG_MAX_LINES = 11;
 
@@ -433,6 +439,24 @@ export function useOnlineBattleGame(matchId?: string) {
 
   const applyServerGameRef = useRef(applyServerGame);
   applyServerGameRef.current = applyServerGame;
+
+  const rollbackOptimisticMoveToAuthoritative = useCallback(
+    (matchIdValue: string, nextRole: PlayerSide) => {
+      const authoritativeGame = authoritativeServerGameRef.current ?? getAuthoritativeMatchGame();
+      if (!authoritativeGame) return false;
+      locallyAuditedVersionsRef.current.clear();
+      preMoveWireHandsRef.current = null;
+      preMoveWireSkillStateRef.current = null;
+      preMoveSkillFxRef.current = [];
+      setSkillVisualEffects([]);
+      applyServerGame(matchIdValue, nextRole, authoritativeGame);
+      return true;
+    },
+    [applyServerGame],
+  );
+
+  const rollbackOptimisticMoveToAuthoritativeRef = useRef(rollbackOptimisticMoveToAuthoritative);
+  rollbackOptimisticMoveToAuthoritativeRef.current = rollbackOptimisticMoveToAuthoritative;
   const appendLogRef = useRef(appendLog);
   appendLogRef.current = appendLog;
   const clearSkillUiStateRef = useRef(clearSkillUiState);
@@ -711,8 +735,21 @@ export function useOnlineBattleGame(matchId?: string) {
           setMoveError('盤面の版数がずれました。再接続してください。');
           return;
         case 'error':
-          setMoveError(payload.message);
           appendLogRef.current(`エラー: ${payload.message}`);
+          {
+            const activeRole = roleRef.current ?? getActiveMatchSession()?.role ?? stored?.role;
+            if (
+              matchId &&
+              activeRole &&
+              ONLINE_MOVE_FAILURE_CODES.has(payload.code) &&
+              rollbackOptimisticMoveToAuthoritativeRef.current(matchId, activeRole)
+            ) {
+              setMoveError(ONLINE_MOVE_RECOVERED_MESSAGE);
+              setIsLoading(false);
+              return;
+            }
+          }
+          setMoveError(payload.message);
           const activeRole = roleRef.current ?? getActiveMatchSession()?.role ?? stored?.role;
           const authoritativeGame =
             authoritativeServerGameRef.current ?? getAuthoritativeMatchGame();
@@ -720,8 +757,7 @@ export function useOnlineBattleGame(matchId?: string) {
             applyServerGameRef.current(matchId, activeRole, authoritativeGame);
           }
           {
-            const moveFailureCodes = new Set(['ILLEGAL_MOVE', 'INVALID_MOVE', 'NOT_YOUR_TURN']);
-            if (!moveFailureCodes.has(payload.code)) {
+            if (!ONLINE_MOVE_FAILURE_CODES.has(payload.code)) {
               setSession((current) => ({
                 ...current,
                 connectionStatus: `接続状態: エラー（${payload.message}）`,
@@ -841,15 +877,18 @@ export function useOnlineBattleGame(matchId?: string) {
         setPendingPromotion(null);
         clearSkillUiState();
       } catch (error) {
-        setMoveError(error instanceof Error ? error.message : '着手の送信に失敗しました');
-        const authoritativeGame = authoritativeServerGameRef.current ?? getAuthoritativeMatchGame();
-        if (authoritativeGame) {
-          applyServerGame(matchId, role, authoritativeGame);
+        if (matchId && role) {
+          rollbackOptimisticMoveToAuthoritative(matchId, role);
+        }
+        if (isRecoverableMoveSyncError(error)) {
+          setMoveError(ONLINE_MOVE_RECOVERED_MESSAGE);
+        } else {
+          setMoveError(toUserFacingBattleError(error));
         }
       }
     },
     [
-      applyServerGame,
+      rollbackOptimisticMoveToAuthoritative,
       clearSkillUiState,
       client,
       matchId,

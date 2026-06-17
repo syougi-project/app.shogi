@@ -35,6 +35,7 @@ const PORTED_SKILL_CODES = [
   'MIST',
   'PHANTOM',
   'HOUSE',
+  'FIELD',
   'PEOPLE',
   'MIRROR',
   'MOON',
@@ -65,8 +66,12 @@ const PORTED_SKILL_CODES = [
   'YIN',
   'PIG',
   'CHICKEN',
+  'COW',
   'SEN',
+  'ZAI',
   'GIANT',
+  'HIK',
+  'CHERRY',
   'ICE',
   'SNOW',
   'WOOD',
@@ -136,6 +141,7 @@ const CHAR_TO_SKILL_CODE: Readonly<Record<string, string>> = {
   霧: 'MIST',
   幻: 'PHANTOM',
   家: 'HOUSE',
+  畑: 'FIELD',
   民: 'PEOPLE',
   鏡: 'MIRROR',
   月: 'MOON',
@@ -166,9 +172,13 @@ const CHAR_TO_SKILL_CODE: Readonly<Record<string, string>> = {
   陽: 'YANG',
   陰: 'YIN',
   豚: 'PIG',
+  牛: 'COW',
   鶏: 'CHICKEN',
   銭: 'SEN',
+  財: 'ZAI',
   巨: 'GIANT',
+  光: 'HIK',
+  桜: 'CHERRY',
   氷: 'ICE',
   雪: 'SNOW',
   砂: 'SAND',
@@ -211,7 +221,30 @@ const CHAR_TO_SKILL_CODE: Readonly<Record<string, string>> = {
   煽: 'GACHA_AORI',
   舞: 'MAI',
   禽: 'BIRD',
+  走: 'SHOP_SO',
 };
+
+/** BFF instance id の hex 断片 → canonical skill code（game-rules OPAQUE_CAPTURE と整合） */
+const OPAQUE_HEX_TO_SKILL_CODE: Readonly<Record<string, string>> = {
+  '8CC9287B7E93': 'WATERFALL',
+  '29ECAB1EF3C3': 'BIRD',
+  '3EFA5702E75B': 'PIG',
+  F75D88C48D6D: 'COW',
+  '5D848242A136': 'BOOK',
+  '7FC715661514': 'ZAI',
+  '124C31EA5D7A': 'CHERRY',
+  C4AEB81F3634: 'GIANT',
+  '6D4AFA9CDF1C': 'SATORI',
+  CA16911978FF: 'HEART',
+  '0F14ABCC6E5E': 'HOLY_SWORD',
+};
+
+function resolveOpaqueHexSkillCode(code: string): string | null {
+  for (const [hex, skillCode] of Object.entries(OPAQUE_HEX_TO_SKILL_CODE)) {
+    if (code.includes(hex)) return skillCode;
+  }
+  return null;
+}
 
 function stripNamedPiecePrefix(code: string): string {
   const upper = code.trim().toUpperCase();
@@ -227,9 +260,8 @@ export function normalizeSkillPieceCode(raw: string, char?: string | null): stri
 
   if (code === 'WATER') return 'SUI';
   if (PORTED_SKILL_CODE_SET.has(code)) return code;
-  if (code.includes('8CC9287B7E93')) return 'WATERFALL';
-  if (code.includes('29ECAB1EF3C3')) return 'BIRD';
-  if (code.includes('3EFA5702E75B')) return 'PIG';
+  const fromOpaqueHex = resolveOpaqueHexSkillCode(code);
+  if (fromOpaqueHex) return fromOpaqueHex;
 
   const trimmedChar = char?.trim();
   if (trimmedChar && CHAR_TO_SKILL_CODE[trimmedChar]) {
