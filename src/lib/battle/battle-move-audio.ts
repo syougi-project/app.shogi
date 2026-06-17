@@ -1,4 +1,13 @@
 import { toBasePieceCode } from '@/ai/model/move';
+import {
+  DRAGON_HORSE_MOVE_DESCRIPTION_JA,
+  DRAGON_HORSE_MOVE_VECTORS,
+  DRAGON_KING_MOVE_DESCRIPTION_JA,
+  DRAGON_KING_MOVE_VECTORS,
+  GOLD_LIKE_PROMOTED_BASE_CODES,
+  GOLD_LIKE_PROMOTED_MOVE_DESCRIPTION_JA,
+  GOLD_MOVE_VECTORS,
+} from '@/ai/engine/ported-app-move-vectors';
 import { BATTLE_PIECE_EFFECT_SOUND_MODULES } from '@/constants/battle-piece-effect-sound-modules.generated';
 import type { MovePayload } from '@/domain/matching-server/protocol';
 import type { BoardPiece, Side } from '@/features/stage-shogi/domain/game-rules';
@@ -125,6 +134,41 @@ export function buildPromotedPieceDefsByCode(
     if (map[code]) continue;
     const fallback = pieceDefsByChar[char];
     if (fallback) map[code] = fallback;
+  }
+  const hiBase = map.HI ?? pieceDefsByChar['飛'];
+  if (hiBase) {
+    map.HI = {
+      ...hiBase,
+      pieceCode: 'HI',
+      char: PROMOTED_CODE_TO_CHAR.HI,
+      isPromoted: true,
+      moveVectors: DRAGON_KING_MOVE_VECTORS.map((vector) => ({ ...vector })),
+      move: DRAGON_KING_MOVE_DESCRIPTION_JA,
+    };
+  }
+  const kaBase = map.KA ?? pieceDefsByChar['角'];
+  if (kaBase) {
+    map.KA = {
+      ...kaBase,
+      pieceCode: 'KA',
+      char: PROMOTED_CODE_TO_CHAR.KA,
+      isPromoted: true,
+      moveVectors: DRAGON_HORSE_MOVE_VECTORS.map((vector) => ({ ...vector })),
+      move: DRAGON_HORSE_MOVE_DESCRIPTION_JA,
+    };
+  }
+  const goldBase = map.KI ?? pieceDefsByChar['金'];
+  if (goldBase) {
+    for (const baseCode of GOLD_LIKE_PROMOTED_BASE_CODES) {
+      map[baseCode] = {
+        ...goldBase,
+        pieceCode: baseCode,
+        char: PROMOTED_CODE_TO_CHAR[baseCode],
+        isPromoted: true,
+        moveVectors: GOLD_MOVE_VECTORS.map((vector) => ({ ...vector })),
+        move: GOLD_LIKE_PROMOTED_MOVE_DESCRIPTION_JA,
+      };
+    }
   }
   return map;
 }

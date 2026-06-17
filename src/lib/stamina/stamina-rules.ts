@@ -1,6 +1,9 @@
 /** ノーマルダンジョン1回のスタミナ消費（BFF と同期） */
 export const NORMAL_STAGE_STAMINA_COST = 5;
 
+/** プレイヤーのスタミナ上限（新規アカウント・削除後再開の初期値） */
+export const DEFAULT_PLAYER_MAX_STAMINA = 50;
+
 /** スタミナ1回復までの時間（ミリ秒） */
 export const STAMINA_RECOVERY_MS = 5 * 60 * 1000;
 

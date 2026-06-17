@@ -123,6 +123,10 @@ import {
   normalizePvpRating,
 } from '@/lib/online-match/elo-rating';
 import { isRatedOnlineMatchEndReason } from '@/lib/online-match/online-match-rating-policy';
+import {
+  patchHomeSnapshotRating,
+  syncHomeRatingAfterPvpMatch,
+} from '@/hooks/common/home-snapshot-store';
 import { applyPvpRatingAfterMatch } from '@/lib/online-match/player-pvp-rating';
 import { clearPvpRatingLeaderboardCache } from '@/lib/online-match/pvp-rating-leaderboard-cache';
 
@@ -214,6 +218,7 @@ export function useOnlineBattleGame(matchId?: string) {
   const [timeActionMode, setTimeActionMode] = useState<TimeActionMode | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [turnSecondsLeft, setTurnSecondsLeft] = useState(ONLINE_PVP_TURN_SECONDS);
+  const [isTurnClockActive, setIsTurnClockActive] = useState(false);
   const [skillVisualEffects, setSkillVisualEffects] = useState<SkillVisualEffect[]>([]);
   const [poisonHazardCells, setPoisonHazardCells] = useState<BoardCell[]>([]);
   const [rockObstacleCells, setRockObstacleCells] = useState<BoardCell[]>([]);
@@ -231,6 +236,12 @@ export function useOnlineBattleGame(matchId?: string) {
     setSkillVisualEffects((current) => current.filter((effect) => effect.id !== finished.id));
   }, []);
 
+  const activateTurnClock = useCallback((turnSeconds = ONLINE_PVP_TURN_SECONDS) => {
+    setIsTurnClockActive(true);
+    turnTimerDeadlineRef.current = Date.now() + turnSeconds * 1000;
+    timeoutFiredForVersionRef.current = null;
+    setTurnSecondsLeft(turnSeconds);
+  }, []);
   const client = useMemo(() => getMatchingServerClient(), []);
   const loadDisplayCatalogUseCase = useMemo(() => createLoadPieceCatalogUseCase(), []);
   const loadEngineCatalogUseCase = useMemo(() => createLoadRawPieceCatalogUseCase(), []);
@@ -258,6 +269,7 @@ export function useOnlineBattleGame(matchId?: string) {
   const timeoutMoveInFlightRef = useRef(false);
   const turnTimerDeadlineRef = useRef<number | null>(null);
   const timeoutFiredForVersionRef = useRef<number | null>(null);
+  const battleReadySentRef = useRef(false);
   const authoritativeServerGameRef = useRef<MatchingGameState | null>(null);
   const playMoveAudio = useCallback(
     (move: BattleMove, actorSide: Side, board: BoardPiece[]) => {
@@ -720,6 +732,22 @@ export function useOnlineBattleGame(matchId?: string) {
             logLines: trimOnlineBattleLogLines([...current.logLines, '相手が再接続しました']),
           }));
           return;
+        case 'battle_clock_started':
+          if (payload.matchId !== matchId) return;
+          activateTurnClock(payload.turnSeconds);
+          setSession((current) => ({
+            ...current,
+            connectionStatus: '接続状態: 対局中',
+            logLines: trimOnlineBattleLogLines([
+              ...current.logLines.filter((line) => line !== '相手の準備を待っています…'),
+              '対局開始',
+            ]),
+          }));
+          return;
+        case 'battle_ready_ack':
+          if (payload.matchId !== matchId || !payload.clockStarted) return;
+          activateTurnClock();
+          return;
         case 'game_finished': {
           const won = payload.winnerUserId === userIdRef.current;
           const activeMatchId = payload.matchId;
@@ -761,6 +789,9 @@ export function useOnlineBattleGame(matchId?: string) {
                   : ['レートは変動しません（異常終了）']),
             ]),
           }));
+          if (previewAfter != null) {
+            patchHomeSnapshotRating(previewAfter);
+          }
           if (!ratesMatch) {
             return;
           }
@@ -772,6 +803,7 @@ export function useOnlineBattleGame(matchId?: string) {
                 opponentRating,
               });
               clearPvpRatingLeaderboardCache();
+              syncHomeRatingAfterPvpMatch(applied.rating);
               setSession((current) => {
                 if (current.matchId !== activeMatchId) return current;
                 const nextProfile = getActiveMatchProfile();
@@ -889,6 +921,7 @@ export function useOnlineBattleGame(matchId?: string) {
 
   const record = matchId ? getOnlineBattleGame(matchId) : null;
   const canInteract =
+    isTurnClockActive &&
     Boolean(record && isMyTurnInCanonical(record.myRole, record.position)) &&
     !session.winnerSide &&
     !pendingPromotion &&
@@ -1044,17 +1077,19 @@ export function useOnlineBattleGame(matchId?: string) {
   ]);
 
   useEffect(() => {
-    if (session.winnerSide || !game) {
-      turnTimerDeadlineRef.current = null;
+    if (session.winnerSide || !game || !isTurnClockActive) {
+      if (!isTurnClockActive) {
+        turnTimerDeadlineRef.current = null;
+      }
       return;
     }
     turnTimerDeadlineRef.current = Date.now() + ONLINE_PVP_TURN_SECONDS * 1000;
     timeoutFiredForVersionRef.current = null;
     setTurnSecondsLeft(ONLINE_PVP_TURN_SECONDS);
-  }, [game?.version, session.winnerSide]);
+  }, [game?.version, isTurnClockActive, session.winnerSide]);
 
   useEffect(() => {
-    if (session.winnerSide || !game) return;
+    if (session.winnerSide || !game || !isTurnClockActive) return;
 
     const tick = () => {
       const deadline = turnTimerDeadlineRef.current;
@@ -1071,7 +1106,27 @@ export function useOnlineBattleGame(matchId?: string) {
     tick();
     const id = setInterval(tick, 250);
     return () => clearInterval(id);
-  }, [executeTimeoutMove, game, session.isMyTurn, session.winnerSide]);
+  }, [executeTimeoutMove, game, isTurnClockActive, session.isMyTurn, session.winnerSide]);
+
+  useEffect(() => {
+    battleReadySentRef.current = false;
+    setIsTurnClockActive(false);
+  }, [matchId]);
+
+  useEffect(() => {
+    if (!isReady || !userId || !matchId || !game || !role || battleReadySentRef.current) return;
+    battleReadySentRef.current = true;
+    try {
+      client.signalBattleReady(userId, matchId);
+      setSession((current) => ({
+        ...current,
+        connectionStatus: '接続状態: 準備完了（相手待ち）',
+        logLines: trimOnlineBattleLogLines([...current.logLines, '相手の準備を待っています…']),
+      }));
+    } catch {
+      battleReadySentRef.current = false;
+    }
+  }, [client, game, isReady, matchId, role, userId]);
 
   const beginSatoriEnemySelectionIfNeeded = useCallback(
     (actionableMoves: BattleMove[]): boolean => {
@@ -1482,7 +1537,7 @@ export function useOnlineBattleGame(matchId?: string) {
     pendingHeartAllyPick,
     moveError,
     turnSecondsLeft,
-    isTurnTimerVisible: Boolean(game) && !session.winnerSide,
+    isTurnTimerVisible: Boolean(game) && !session.winnerSide && isTurnClockActive,
     canInteract,
     handleCellPress,
     handleCellLongPress,

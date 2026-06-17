@@ -4,6 +4,15 @@ import {
   YAMA_MOVE_DESCRIPTION_JA,
   YAMA_MOVE_VECTORS,
 } from '@/ai/engine/shop-piece-moves';
+import {
+  DRAGON_HORSE_MOVE_DESCRIPTION_JA,
+  DRAGON_HORSE_MOVE_VECTORS,
+  DRAGON_KING_MOVE_DESCRIPTION_JA,
+  DRAGON_KING_MOVE_VECTORS,
+  GOLD_LIKE_PROMOTED_BASE_CODES,
+  GOLD_LIKE_PROMOTED_MOVE_DESCRIPTION_JA,
+  GOLD_MOVE_VECTORS,
+} from '@/ai/engine/ported-app-move-vectors';
 import { applyGachaPieceCatalogOverrides } from '@/constants/gacha-piece-metadata';
 import { PROMOTED_CODE_TO_CHAR } from '@/features/stage-shogi/domain/piece-conversion';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
@@ -191,21 +200,53 @@ export function buildPieceLookups(pieceCatalog: AiPieceDefinition[]): AiPieceLoo
 
   const goldDef = pieceDefsByCode.KI;
   for (const [baseCode, promotedChar] of Object.entries(PROMOTED_CODE_TO_CHAR)) {
+    if (GOLD_LIKE_PROMOTED_CODES.has(baseCode) || baseCode === 'HI' || baseCode === 'KA') {
+      continue;
+    }
     if (promotedPieceDefsByCode[baseCode]) continue;
     const fromChar = pieceDefsByChar[promotedChar];
     if (fromChar) {
       promotedPieceDefsByCode[baseCode] = fromChar;
-      continue;
     }
-    if (GOLD_LIKE_PROMOTED_CODES.has(baseCode) && goldDef) {
+  }
+
+  if (goldDef) {
+    for (const baseCode of GOLD_LIKE_PROMOTED_BASE_CODES) {
       promotedPieceDefsByCode[baseCode] = {
         ...goldDef,
         pieceCode: baseCode,
         canonicalCode: baseCode,
-        char: promotedChar,
+        char: PROMOTED_CODE_TO_CHAR[baseCode],
         isPromoted: true,
+        moveVectors: GOLD_MOVE_VECTORS.map((vector) => ({ ...vector })),
+        move: GOLD_LIKE_PROMOTED_MOVE_DESCRIPTION_JA,
       };
     }
+  }
+
+  const hiDef = pieceDefsByCode.HI;
+  if (hiDef) {
+    promotedPieceDefsByCode.HI = {
+      ...hiDef,
+      pieceCode: 'HI',
+      canonicalCode: 'HI',
+      char: PROMOTED_CODE_TO_CHAR.HI,
+      isPromoted: true,
+      moveVectors: DRAGON_KING_MOVE_VECTORS.map((vector) => ({ ...vector })),
+      move: DRAGON_KING_MOVE_DESCRIPTION_JA,
+    };
+  }
+  const kaDef = pieceDefsByCode.KA;
+  if (kaDef) {
+    promotedPieceDefsByCode.KA = {
+      ...kaDef,
+      pieceCode: 'KA',
+      canonicalCode: 'KA',
+      char: PROMOTED_CODE_TO_CHAR.KA,
+      isPromoted: true,
+      moveVectors: DRAGON_HORSE_MOVE_VECTORS.map((vector) => ({ ...vector })),
+      move: DRAGON_HORSE_MOVE_DESCRIPTION_JA,
+    };
   }
 
   return {

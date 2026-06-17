@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { PvpRatingLeaderboardEntry } from '@/domain/models/pvp-rating-leaderboard';
 import { createLoadPvpRatingLeaderboardUseCase } from '@/usecases/pvp-rating/create-pvp-rating-usecases';
@@ -32,9 +33,11 @@ export function usePvpRatingRanking() {
     [loadUseCase],
   );
 
-  useEffect(() => {
-    void load(false);
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load(false);
+    }, [load]),
+  );
 
   const refresh = useCallback(async () => {
     await load(true);

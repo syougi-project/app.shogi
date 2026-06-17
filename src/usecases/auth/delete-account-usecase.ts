@@ -1,4 +1,5 @@
 import { AccountApiDataSource } from '@/infra/datasources/account-api-datasource';
+import { resetClientStaminaStateForAccountChange } from '@/lib/stamina/spend-stage-stamina';
 import { supabase } from '@/lib/supabase/supabase-client';
 
 export interface AccountDeleter {
@@ -11,4 +12,5 @@ export async function deleteAccount(
 ): Promise<void> {
   await dataSource.deleteAccount(token);
   await supabase.auth.signOut({ scope: 'local' });
+  resetClientStaminaStateForAccountChange();
 }

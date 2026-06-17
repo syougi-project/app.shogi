@@ -2,10 +2,12 @@ import type { HomeSnapshot } from '@/domain/models/home';
 import { isApiDataSource } from '@/lib/config/data-source';
 import {
   mergeServerHomeStamina,
+  resetClientStaminaStateForAccountChange,
   syncMockStaminaFromSnapshot,
   trySpendNormalStageStamina,
   type ApplyHomeSnapshotStamina,
 } from '@/lib/stamina/spend-stage-stamina';
+import { DEFAULT_PLAYER_MAX_STAMINA } from '@/lib/stamina/stamina-rules';
 import { createLoadHomeSnapshotUseCase } from '@/usecases/home/create-home-usecases';
 
 const emptySnapshot: HomeSnapshot = {
@@ -15,8 +17,8 @@ const emptySnapshot: HomeSnapshot = {
   goldCurrency: 0,
   playerRank: 1,
   playerExp: 0,
-  stamina: 50,
-  maxStamina: 50,
+  stamina: DEFAULT_PLAYER_MAX_STAMINA,
+  maxStamina: DEFAULT_PLAYER_MAX_STAMINA,
   nextRecoveryAt: null,
 };
 
@@ -75,6 +77,12 @@ export function patchHomeSnapshotRating(rating: number): void {
   notify();
 }
 
+/** 対人レート反映後にホーム HUD の表示を即時更新し、サーバー snapshot とも同期する。 */
+export function syncHomeRatingAfterPvpMatch(rating: number): void {
+  patchHomeSnapshotRating(rating);
+  void loadHomeSnapshot(true).catch(() => undefined);
+}
+
 export function patchHomeSnapshotStamina(next: {
   stamina: number;
   nextRecoveryAt: string | null;
@@ -105,6 +113,17 @@ export function spendMockStageStamina() {
   return trySpendNormalStageStamina(applyHomeSnapshotStamina);
 }
 
+/** アカウント削除・再サインイン後に前ユーザーの HUD / スタミナ状態を引き継がない。 */
+export function resetHomeSnapshotForAccountChange(): void {
+  snapshot = { ...emptySnapshot };
+  lastLoadedAt = 0;
+  inFlight = null;
+  error = null;
+  resetClientStaminaStateForAccountChange();
+  syncState();
+  notify();
+}
+
 export function loadHomeSnapshot(force = false): Promise<HomeSnapshot> {
   const now = Date.now();
   if (!force && now - lastLoadedAt < FRESH_MS) {
@@ -119,9 +138,9 @@ export function loadHomeSnapshot(force = false): Promise<HomeSnapshot> {
       lastLoadedAt = Date.now();
       error = null;
       if (!isApiDataSource()) {
-        syncMockStaminaFromSnapshot(next.stamina, next.maxStamina);
+        syncMockStaminaFromSnapshot(snapshot.stamina, snapshot.maxStamina);
       }
-      return next;
+      return snapshot;
     })
     .catch((caught: unknown) => {
       error = caught instanceof Error ? caught : new Error(String(caught));

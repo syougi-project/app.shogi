@@ -86,6 +86,37 @@ const pieceCatalog: AiPieceDefinition[] = [
     isRepeatable: true,
   },
   {
+    pieceCode: 'KY',
+    canonicalCode: 'KY',
+    sfenCode: 'L',
+    char: '香',
+    name: '香',
+    unlock: 'default',
+    desc: '',
+    skill: '',
+    move: '',
+    moveVectors: [{ dx: 0, dy: -1, maxStep: 8 }],
+    isRepeatable: true,
+  },
+  {
+    pieceCode: 'HI',
+    canonicalCode: 'HI',
+    sfenCode: 'R',
+    char: '飛',
+    name: '飛',
+    unlock: 'default',
+    desc: '',
+    skill: '',
+    move: '',
+    moveVectors: [
+      { dx: 0, dy: -1, maxStep: 8 },
+      { dx: 0, dy: 1, maxStep: 8 },
+      { dx: -1, dy: 0, maxStep: 8 },
+      { dx: 1, dy: 0, maxStep: 8 },
+    ],
+    isRepeatable: true,
+  },
+  {
     pieceCode: 'HIK',
     canonicalCode: 'HIK',
     sfenCode: '!',
@@ -1903,5 +1934,105 @@ describe('ai engine legal moves', () => {
     expect(yamaMoves.some((m) => m.toRow === 5 && m.toCol === 5)).toBe(true);
     expect(yamaMoves.some((m) => m.toRow === 3 && m.toCol === 4)).toBe(false);
     expect(yamaMoves).toHaveLength(4);
+  });
+
+  it('allows promoted HI dragon king to slide orthogonally and step diagonally once', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/4R4/9/9/9/4K4 b - 1',
+      stateHash: 'promoted-hi',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 4, col: 4, pieceCode: 'HI', char: '龍', promoted: true },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog });
+    const dragonMoves = legal.legalMoves.filter((m) => m.fromRow === 4 && m.fromCol === 4);
+    expect(dragonMoves.some((m) => m.toRow === 0 && m.toCol === 4)).toBe(true);
+    expect(dragonMoves.some((m) => m.toRow === 3 && m.toCol === 3)).toBe(true);
+    expect(dragonMoves.some((m) => m.toRow === 3 && m.toCol === 5)).toBe(true);
+    expect(dragonMoves.some((m) => m.toRow === 0 && m.toCol === 0)).toBe(false);
+  });
+
+  it('allows promoted KA dragon horse to slide diagonally and step orthogonally once', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/4B4/9/9/9/4K4 b - 1',
+      stateHash: 'promoted-ka',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 4, col: 4, pieceCode: 'KA', char: '馬', promoted: true },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog });
+    const horseMoves = legal.legalMoves.filter((m) => m.fromRow === 4 && m.fromCol === 4);
+    expect(horseMoves.some((m) => m.toRow === 0 && m.toCol === 0)).toBe(true);
+    expect(horseMoves.some((m) => m.toRow === 3 && m.toCol === 4)).toBe(true);
+    expect(horseMoves.some((m) => m.toRow === 4 && m.toCol === 3)).toBe(true);
+    expect(horseMoves.some((m) => m.toRow === 0 && m.toCol === 4)).toBe(false);
+  });
+
+  it('allows promoted KE narigin to move like gold (not knight jump)', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/4N4/9/9/9/4K4 b - 1',
+      stateHash: 'promoted-ke',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 4, col: 4, pieceCode: 'KE', char: '成桂', promoted: true },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog });
+    const nariginMoves = legal.legalMoves.filter((m) => m.fromRow === 4 && m.fromCol === 4);
+    expect(nariginMoves.some((m) => m.toRow === 3 && m.toCol === 4)).toBe(true);
+    expect(nariginMoves.some((m) => m.toRow === 3 && m.toCol === 3)).toBe(true);
+    expect(nariginMoves.some((m) => m.toRow === 4 && m.toCol === 3)).toBe(true);
+    expect(nariginMoves.some((m) => m.toRow === 5 && m.toCol === 4)).toBe(true);
+    expect(nariginMoves.some((m) => m.toRow === 2 && m.toCol === 4)).toBe(false);
+    expect(nariginMoves.some((m) => m.toRow === 5 && m.toCol === 5)).toBe(false);
+  });
+
+  it('allows promoted KY narikyo to move like gold (not lance slide)', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/4L4/9/9/9/4K4 b - 1',
+      stateHash: 'promoted-ky',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 4, col: 4, pieceCode: 'KY', char: '成香', promoted: true },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog });
+    const narikyoMoves = legal.legalMoves.filter((m) => m.fromRow === 4 && m.fromCol === 4);
+    expect(narikyoMoves.some((m) => m.toRow === 3 && m.toCol === 4)).toBe(true);
+    expect(narikyoMoves.some((m) => m.toRow === 3 && m.toCol === 3)).toBe(true);
+    expect(narikyoMoves.some((m) => m.toRow === 4 && m.toCol === 3)).toBe(true);
+    expect(narikyoMoves.some((m) => m.toRow === 5 && m.toCol === 4)).toBe(true);
+    expect(narikyoMoves.some((m) => m.toRow === 0 && m.toCol === 4)).toBe(false);
+    expect(narikyoMoves.some((m) => m.toRow === 5 && m.toCol === 5)).toBe(false);
   });
 });

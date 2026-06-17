@@ -3,21 +3,25 @@ import { ApiClientError } from '@/infra/http/api-client';
 import { isApiDataSource } from '@/lib/config/data-source';
 import {
   calculateStaminaWithRecovery,
+  DEFAULT_PLAYER_MAX_STAMINA,
   NORMAL_STAGE_STAMINA_COST,
   STAMINA_RECOVERY_MS,
 } from '@/lib/stamina/stamina-rules';
 
 let mockStaminaUpdatedAtMs = Date.now();
-let mockStaminaStored = 50;
-let mockMaxStaminaStored = 50;
+let mockStaminaStored = DEFAULT_PLAYER_MAX_STAMINA;
+let mockMaxStaminaStored = DEFAULT_PLAYER_MAX_STAMINA;
 
 /** BFF 未反映のクライアント側スタミナ消費（ステージ1の stamina_cost=0 など） */
 let pendingClientOnlyStaminaDeduction = 0;
 let staminaBaselineWhenPendingSet: number | null = null;
 
-export function resetMockStaminaState(stamina = 50): void {
+export function resetMockStaminaState(
+  stamina = DEFAULT_PLAYER_MAX_STAMINA,
+  maxStamina = DEFAULT_PLAYER_MAX_STAMINA,
+): void {
   mockStaminaStored = stamina;
-  mockMaxStaminaStored = Math.max(stamina, 1);
+  mockMaxStaminaStored = Math.max(1, maxStamina);
   mockStaminaUpdatedAtMs = Date.now();
   resetPendingClientStaminaDeduction();
 }
@@ -27,20 +31,35 @@ export function resetPendingClientStaminaDeduction(): void {
   staminaBaselineWhenPendingSet = null;
 }
 
+/** アカウント削除・再サインイン時に前ユーザーのクライアント側スタミナ状態を破棄する。 */
+export function resetClientStaminaStateForAccountChange(): void {
+  resetPendingClientStaminaDeduction();
+  resetMockStaminaState(DEFAULT_PLAYER_MAX_STAMINA, DEFAULT_PLAYER_MAX_STAMINA);
+}
+
 /**
  * ホーム API のスタミナをマージする。
  * サーバーがまだ減算を反映していない間は、クライアントで差し引いた分を維持する。
  */
 export function mergeServerHomeStamina(server: HomeSnapshot): HomeSnapshot {
-  if (pendingClientOnlyStaminaDeduction <= 0) return server;
+  if (pendingClientOnlyStaminaDeduction <= 0) {
+    return {
+      ...server,
+      maxStamina: Math.max(server.maxStamina, DEFAULT_PLAYER_MAX_STAMINA),
+    };
+  }
 
   if (staminaBaselineWhenPendingSet != null && server.stamina < staminaBaselineWhenPendingSet) {
     resetPendingClientStaminaDeduction();
-    return server;
+    return {
+      ...server,
+      maxStamina: Math.max(server.maxStamina, DEFAULT_PLAYER_MAX_STAMINA),
+    };
   }
 
   return {
     ...server,
+    maxStamina: Math.max(server.maxStamina, DEFAULT_PLAYER_MAX_STAMINA),
     stamina: Math.max(0, server.stamina - pendingClientOnlyStaminaDeduction),
   };
 }
@@ -79,7 +98,7 @@ function spendStaminaOnHomeSnapshot(
 
 /** モック用: ホーム読み込み時にスタミナ基準時刻をリセットしないよう内部状態を同期 */
 export function syncMockStaminaFromSnapshot(stamina: number, maxStamina: number): void {
-  mockMaxStaminaStored = Math.max(1, maxStamina);
+  mockMaxStaminaStored = Math.max(DEFAULT_PLAYER_MAX_STAMINA, maxStamina);
   // ホーム再読み込みで消費済みスタミナが巻き戻らないよう、同期値は下げる方向のみ
   mockStaminaStored = Math.min(mockStaminaStored, stamina);
   if (stamina >= mockMaxStaminaStored) {

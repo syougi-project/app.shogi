@@ -229,6 +229,15 @@ export class MatchingServerClient {
     });
   }
 
+  signalBattleReady(userId: string, matchId: string): void {
+    this.send({
+      action: 'signal_battle_ready',
+      requestId: createRequestId(),
+      userId,
+      matchId,
+    });
+  }
+
   private send(message: WebSocketClientMessage): void {
     if (this.ws?.readyState !== WebSocket.OPEN) {
       throw new Error('WebSocket が接続されていません');

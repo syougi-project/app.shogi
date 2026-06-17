@@ -1,7 +1,9 @@
 import { ApiClientError } from '@/infra/http/api-client';
 import {
   ensureNormalStageStaminaCharged,
+  getMockStaminaDisplay,
   mergeServerHomeStamina,
+  resetClientStaminaStateForAccountChange,
   resetMockStaminaState,
   resetPendingClientStaminaDeduction,
 } from '@/lib/stamina/spend-stage-stamina';
@@ -81,6 +83,39 @@ describe('mergeServerHomeStamina', () => {
     });
     const merged = mergeServerHomeStamina({ ...mockSnapshot, stamina: 45 });
     expect(merged.stamina).toBe(45);
+    expect(mergeServerHomeStamina({ ...mockSnapshot, stamina: 50 }).stamina).toBe(50);
+  });
+
+  it('keeps max stamina at default even when current stamina is lower', () => {
+    const merged = mergeServerHomeStamina({ ...mockSnapshot, stamina: 45, maxStamina: 45 });
+    expect(merged.stamina).toBe(45);
+    expect(merged.maxStamina).toBe(50);
+  });
+});
+
+describe('resetMockStaminaState', () => {
+  it('does not lower max stamina when resetting with partial stamina', () => {
+    resetMockStaminaState(45);
+    expect(getMockStaminaDisplay().maxStamina).toBe(50);
+    expect(getMockStaminaDisplay().stamina).toBe(45);
+  });
+});
+
+describe('resetClientStaminaStateForAccountChange', () => {
+  it('clears pending deduction and restores default max stamina', () => {
+    ensureNormalStageStaminaCharged(50, mockSnapshot, (next) => {
+      mockSnapshot.stamina = next.stamina;
+      mockSnapshot.nextRecoveryAt = next.nextRecoveryAt;
+    });
+    resetMockStaminaState(45, 45);
+
+    resetClientStaminaStateForAccountChange();
+
+    expect(getMockStaminaDisplay()).toEqual({
+      stamina: 50,
+      maxStamina: 50,
+      nextRecoveryAt: null,
+    });
     expect(mergeServerHomeStamina({ ...mockSnapshot, stamina: 50 }).stamina).toBe(50);
   });
 });

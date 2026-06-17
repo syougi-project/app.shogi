@@ -60,7 +60,10 @@ import {
   PIG_MOVE_VECTORS,
   WAVE_MOVE_VECTORS,
 } from '@/ai/engine/shop-piece-moves';
-import { resolveIntrinsicPortedMoveVectors } from '@/ai/engine/ported-app-move-vectors';
+import {
+  resolveIntrinsicPortedMoveVectors,
+  resolveStandardPromotedPieceMoveVectors,
+} from '@/ai/engine/ported-app-move-vectors';
 import {
   deckBuilderCostForBoardPiece,
   deckBuilderCostForHandPieceCode,
@@ -1843,6 +1846,10 @@ function resolveEffectiveVectorsForPiece(
   if (isUnpromotedSmallDragonPiece(piece)) {
     return RYU_DRAGON_MOVE_VECTORS;
   }
+  const standardPromotedVectors = resolveStandardPromotedPieceMoveVectors(piece);
+  if (standardPromotedVectors) {
+    return standardPromotedVectors;
+  }
   if (isSoPiece(piece)) {
     return SO_MOVE_VECTORS;
   }
@@ -1864,7 +1871,11 @@ function resolveEffectiveVectorsForPiece(
   if (isConcavePieceForLegal(piece)) {
     return CONCAVE_SLIDE_VECTORS;
   }
-  const portedVectors = resolveIntrinsicPortedMoveVectors(piece);
+  const portedVectors = resolveIntrinsicPortedMoveVectors({
+    char: piece.char,
+    pieceCode: piece.pieceCode,
+    promoted: piece.promoted,
+  });
   if (portedVectors) {
     return portedVectors;
   }

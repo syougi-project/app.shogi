@@ -35,6 +35,60 @@ export const DIAGONAL_ONE_STEP_VECTORS: AiPieceDefinition['moveVectors'] = [
   { dx: 1, dy: 1, maxStep: 1 },
 ];
 
+export const ORTHOGONAL_ONE_STEP_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: -1, dy: 0, maxStep: 1 },
+  { dx: 1, dy: 0, maxStep: 1 },
+  { dx: 0, dy: -1, maxStep: 1 },
+  { dx: 0, dy: 1, maxStep: 1 },
+];
+
+/** 龍王（成飛）: 縦横何マスでも + 斜め1マス */
+export const DRAGON_KING_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  ...ROOK_ORTHOGONAL_MOVE_VECTORS,
+  ...DIAGONAL_ONE_STEP_VECTORS,
+];
+
+/** 龍馬（成角）: 斜め何マスでも + 縦横1マス */
+export const DRAGON_HORSE_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  ...BISHOP_DIAGONAL_MOVE_VECTORS,
+  ...ORTHOGONAL_ONE_STEP_VECTORS,
+];
+
+export const DRAGON_KING_MOVE_DESCRIPTION_JA =
+  '前後左右に何マスでも進める。斜め4方向に1マス進める。';
+
+export const DRAGON_HORSE_MOVE_DESCRIPTION_JA =
+  '斜め4方向に何マスでも進める。前後左右に1マス進める。';
+
+/** 金・成歩/成香/成桂/成銀: 前・斜め前・左右・後ろに1マス */
+export const GOLD_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: -1, dy: -1, maxStep: 1 },
+  { dx: 0, dy: -1, maxStep: 1 },
+  { dx: 1, dy: -1, maxStep: 1 },
+  { dx: -1, dy: 0, maxStep: 1 },
+  { dx: 1, dy: 0, maxStep: 1 },
+  { dx: 0, dy: 1, maxStep: 1 },
+];
+
+export const GOLD_LIKE_PROMOTED_BASE_CODES = ['FU', 'KY', 'KE', 'GI'] as const;
+
+export const GOLD_LIKE_PROMOTED_MOVE_DESCRIPTION_JA = '前・斜め前・左右・後ろに1マス進める。';
+
+/** 成飛・成角の標準移動（盤上 pieceCode は HI/KA のまま promoted=true）。 */
+export function resolveStandardPromotedPieceMoveVectors(piece: {
+  promoted?: boolean;
+  pieceCode: string | null;
+}): AiPieceDefinition['moveVectors'] | null {
+  if (!piece.promoted) return null;
+  const baseCode = toBasePieceCode(piece.pieceCode);
+  if (baseCode === 'HI') return cloneVectors(DRAGON_KING_MOVE_VECTORS);
+  if (baseCode === 'KA') return cloneVectors(DRAGON_HORSE_MOVE_VECTORS);
+  if (baseCode && (GOLD_LIKE_PROMOTED_BASE_CODES as readonly string[]).includes(baseCode)) {
+    return cloneVectors(GOLD_MOVE_VECTORS);
+  }
+  return null;
+}
+
 export const LANCE_FORWARD_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
   { dx: 0, dy: -1, maxStep: SLIDE_MAX },
 ];
@@ -69,7 +123,19 @@ export const CLOUD_OMNI_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
 type PortedPieceLike = {
   char: string;
   pieceCode: string | null;
+  promoted?: boolean;
 };
+
+function shouldSkipIntrinsicPortedVectorsForPromotedPiece(piece: PortedPieceLike): boolean {
+  if (piece.promoted !== true) return false;
+  const baseCode = toBasePieceCode(piece.pieceCode);
+  if (!baseCode) return false;
+  return (
+    (GOLD_LIKE_PROMOTED_BASE_CODES as readonly string[]).includes(baseCode) ||
+    baseCode === 'HI' ||
+    baseCode === 'KA'
+  );
+}
 
 function pieceRawUpper(piece: PortedPieceLike): string {
   return (piece.pieceCode ?? '').toUpperCase();
@@ -131,6 +197,9 @@ function isAPieceForPorted(piece: PortedPieceLike): boolean {
 export function resolveIntrinsicPortedMoveVectors(
   piece: PortedPieceLike,
 ): AiPieceDefinition['moveVectors'] | null {
+  if (shouldSkipIntrinsicPortedVectorsForPromotedPiece(piece)) {
+    return null;
+  }
   if (isKatanaPiece(piece)) return null;
   if (isBirdPiece(piece) || isBlackOniPiece(piece)) return null;
   if (isFencePiece(piece)) return null;

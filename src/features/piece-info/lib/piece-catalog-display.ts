@@ -58,7 +58,17 @@ import {
   gachaCollectibleSkillText,
   isGachaCollectibleChar,
 } from '@/constants/gacha-piece-metadata';
-import { resolveIntrinsicPortedMoveVectors } from '@/ai/engine/ported-app-move-vectors';
+import {
+  DRAGON_HORSE_MOVE_DESCRIPTION_JA,
+  DRAGON_HORSE_MOVE_VECTORS,
+  DRAGON_KING_MOVE_DESCRIPTION_JA,
+  DRAGON_KING_MOVE_VECTORS,
+  GOLD_LIKE_PROMOTED_BASE_CODES,
+  GOLD_LIKE_PROMOTED_MOVE_DESCRIPTION_JA,
+  GOLD_MOVE_VECTORS,
+  resolveIntrinsicPortedMoveVectors,
+} from '@/ai/engine/ported-app-move-vectors';
+import { toBasePieceCode } from '@/ai/model/move';
 
 /** `legal-moves.ts` の CONCAVE_SLIDE_VECTORS と同一（図鑑グリッド用）。 */
 const CONCAVE_CATALOG_MOVE_VECTORS: PieceCatalogItem['moveVectors'] = [
@@ -434,6 +444,34 @@ export function normalizeCatalogSkillText(piece: PieceCatalogItem): string {
   return '詳細は準備中です。';
 }
 
+function isPromotedDragonKingCatalogPiece(piece: PieceCatalogItem): boolean {
+  const base = toBasePieceCode(piece.pieceCode);
+  if (base !== 'HI') return false;
+  return (
+    piece.isPromoted === true ||
+    piece.char === '龍' ||
+    piece.char === '竜王' ||
+    piece.char === '龍王'
+  );
+}
+
+function isPromotedDragonHorseCatalogPiece(piece: PieceCatalogItem): boolean {
+  const base = toBasePieceCode(piece.pieceCode);
+  if (base !== 'KA') return false;
+  return piece.isPromoted === true || piece.char === '馬' || piece.char === '龍馬';
+}
+
+function isPromotedGoldLikeCatalogPiece(piece: PieceCatalogItem): boolean {
+  const base = toBasePieceCode(piece.pieceCode);
+  if (!base || !(GOLD_LIKE_PROMOTED_BASE_CODES as readonly string[]).includes(base)) {
+    return false;
+  }
+  if (piece.isPromoted === true) return true;
+  return (
+    piece.char === 'と' || piece.char === '成香' || piece.char === '成桂' || piece.char === '成銀'
+  );
+}
+
 export function normalizeCatalogMoveText(piece: PieceCatalogItem): string {
   if (isGachaCollectibleChar(piece.char)) {
     const gachaMove = gachaCollectibleMoveText(piece.char);
@@ -516,6 +554,15 @@ export function normalizeCatalogMoveText(piece: PieceCatalogItem): string {
   }
   if (isConcaveCatalogPiece(piece)) {
     return CONCAVE_CATALOG_MOVE_TEXT;
+  }
+  if (isPromotedDragonKingCatalogPiece(piece)) {
+    return DRAGON_KING_MOVE_DESCRIPTION_JA;
+  }
+  if (isPromotedDragonHorseCatalogPiece(piece)) {
+    return DRAGON_HORSE_MOVE_DESCRIPTION_JA;
+  }
+  if (isPromotedGoldLikeCatalogPiece(piece)) {
+    return GOLD_LIKE_PROMOTED_MOVE_DESCRIPTION_JA;
   }
   const move = (piece.move ?? '').trim();
   return move.length > 0 && move !== '-' && move !== '準備中' ? move : '準備中';
@@ -614,9 +661,19 @@ export function normalizeCatalogMoveVectors(
   if (isRyuCatalogPiece(piece)) {
     return RYU_DRAGON_MOVE_VECTORS;
   }
+  if (isPromotedDragonKingCatalogPiece(piece)) {
+    return DRAGON_KING_MOVE_VECTORS;
+  }
+  if (isPromotedDragonHorseCatalogPiece(piece)) {
+    return DRAGON_HORSE_MOVE_VECTORS;
+  }
+  if (isPromotedGoldLikeCatalogPiece(piece)) {
+    return GOLD_MOVE_VECTORS;
+  }
   const portedVectors = resolveIntrinsicPortedMoveVectors({
     char: piece.char,
     pieceCode: piece.pieceCode ?? null,
+    promoted: piece.isPromoted === true,
   });
   if (portedVectors) {
     return portedVectors;

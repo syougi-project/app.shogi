@@ -41,6 +41,10 @@ import {
 import { useAuthSession } from '@/hooks/common/auth-session-context';
 import { createLoadAnnouncementsUseCase } from '@/usecases/announcement/create-announcement-usecases';
 import { deleteAccount } from '@/usecases/auth/delete-account-usecase';
+import {
+  loadHomeSnapshot,
+  resetHomeSnapshotForAccountChange,
+} from '@/hooks/common/home-snapshot-store';
 
 function formatAnnouncementDate(value: string): string {
   const date = new Date(value);
@@ -191,8 +195,10 @@ export function TitleScreen() {
 
     try {
       await deleteAccount(accessToken);
+      resetHomeSnapshotForAccountChange();
       setDeleteConfirmStep(null);
       await reinitializeSession();
+      await loadHomeSnapshot(true).catch(() => undefined);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'アカウントの削除に失敗しました。';
       setDeleteAccountError(message);
