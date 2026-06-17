@@ -244,6 +244,7 @@ export function OnlineBattleBoard(props: {
           const chrysanthemumRevivalMark = Boolean(piece.chrysanthemumRevivalMark);
           const yangSkillSparkle = Boolean(piece.yangSkillSparkle);
           const yinSkillSparkle = Boolean(piece.yinSkillSparkle);
+          const lightProtectionAura = Boolean(piece.lightProtectionAura);
           const pieceScalePercent =
             BOARD_PIECE_SIZE_OVERRIDES[displayChar ?? piece.char] ??
             (king ? KING_PIECE_SIZE_PERCENT : NORMAL_PIECE_SIZE_PERCENT);
@@ -308,6 +309,9 @@ export function OnlineBattleBoard(props: {
               ) : null}
               {yinSkillSparkle && !darkVeiled ? (
                 <View pointerEvents="none" style={styles.yinSkillAuraOverlay} />
+              ) : null}
+              {lightProtectionAura && !darkVeiled ? (
+                <View pointerEvents="none" style={styles.lightProtectionAuraOverlay} />
               ) : null}
             </View>
           );
@@ -546,6 +550,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(168, 85, 247, 0.98)',
     backgroundColor: 'rgba(126, 34, 206, 0.24)',
+  },
+  lightProtectionAuraOverlay: {
+    position: 'absolute',
+    left: '8%',
+    right: '8%',
+    top: '8%',
+    bottom: '8%',
+    borderRadius: 999,
+    borderWidth: 2.5,
+    borderColor: 'rgba(250, 204, 21, 0.98)',
+    backgroundColor: 'rgba(250, 204, 21, 0.32)',
   },
   pieceImage: {
     width: '100%',

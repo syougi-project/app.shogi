@@ -199,18 +199,6 @@ export function OnlineBattleScreen() {
             {/* HTML .row: 盤 → サイド */}
             <View style={styles.rowColumn}>
               <View style={styles.boardWrap}>
-                {isTurnTimerVisible ? (
-                  <View
-                    style={[
-                      styles.turnTimerBadge,
-                      session.isMyTurn ? styles.turnTimerBadgeMine : styles.turnTimerBadgeOpponent,
-                      turnSecondsLeft <= 5 ? styles.turnTimerBadgeUrgent : null,
-                    ]}
-                  >
-                    <Text style={styles.turnTimerValue}>{turnSecondsLeft}</Text>
-                    <Text style={styles.turnTimerLabel}>秒</Text>
-                  </View>
-                ) : null}
                 {role ? (
                   <OnlineBattleBoard
                     boardSize={boardSize}
@@ -249,6 +237,20 @@ export function OnlineBattleScreen() {
                   </Text>
                 ) : null}
                 <View style={styles.statusBar}>
+                  {isTurnTimerVisible ? (
+                    <View
+                      style={[
+                        styles.turnTimerBadge,
+                        session.isMyTurn
+                          ? styles.turnTimerBadgeMine
+                          : styles.turnTimerBadgeOpponent,
+                        turnSecondsLeft <= 5 ? styles.turnTimerBadgeUrgent : null,
+                      ]}
+                    >
+                      <Text style={styles.turnTimerValue}>{turnSecondsLeft}</Text>
+                      <Text style={styles.turnTimerLabel}>秒</Text>
+                    </View>
+                  ) : null}
                   <Text style={styles.statusText}>{session.connectionStatus}</Text>
                 </View>
               </View>
@@ -346,7 +348,12 @@ export function OnlineBattleScreen() {
             </View>
 
             {session.winnerSide ? (
-              <BattleEndResultOverlay winner={session.winnerSide} onPress={openExitConfirm} />
+              <BattleEndResultOverlay
+                winner={session.winnerSide}
+                pvpRatingDelta={session.pvpRatingDelta}
+                pvpRatingAfter={session.pvpRatingAfter}
+                onPress={openExitConfirm}
+              />
             ) : null}
 
             <StageShogiInspectModal
@@ -579,20 +586,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   turnTimerBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    zIndex: 20,
-    minWidth: 56,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 10,
+    minWidth: 48,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.85)',
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'center',
     gap: 2,
+    flexShrink: 0,
   },
   turnTimerBadgeMine: {
     backgroundColor: 'rgba(22, 101, 52, 0.92)',
@@ -623,8 +627,12 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: HTML_APP_MAX_WIDTH,
     alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   statusText: {
+    flex: 1,
     color: '#fff',
     fontWeight: '700',
     textAlign: 'center',

@@ -29,7 +29,7 @@ type LeaderboardApiResponse = {
 export class PvpRatingApiDataSource {
   async applyAfterMatch(
     token: string,
-    input: { matchId: string; won: boolean },
+    input: { matchId: string; won: boolean; opponentRating?: number },
   ): Promise<ApplyPvpRatingResult> {
     return postJson<ApplyPvpRatingResult>('/api/v1/me/pvp-rating/apply', input, { token });
   }

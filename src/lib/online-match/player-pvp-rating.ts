@@ -5,9 +5,9 @@ import { normalizePvpRating } from '@/lib/online-match/pvp-rating-constants';
 
 export {
   PVP_RATING_INITIAL,
-  PVP_RATING_LOSS_DELTA,
-  PVP_RATING_WIN_DELTA,
   normalizePvpRating,
+  calculateEloRatingDelta,
+  formatPvpRatingDelta,
 } from '@/lib/online-match/pvp-rating-constants';
 
 const api = new PvpRatingApiDataSource();
@@ -16,6 +16,7 @@ const api = new PvpRatingApiDataSource();
 export async function applyPvpRatingAfterMatch(input: {
   matchId: string;
   won: boolean;
+  opponentRating?: number;
 }): Promise<{ rating: number; delta: number }> {
   if (!isApiDataSource()) {
     return { rating: 0, delta: 0 };
@@ -34,6 +35,7 @@ export async function applyPvpRatingAfterMatch(input: {
   const result = await api.applyAfterMatch(session.access_token, {
     matchId: input.matchId,
     won: input.won,
+    opponentRating: input.opponentRating,
   });
 
   return {

@@ -89,6 +89,7 @@ const MOSS_CATALOG_SKILL_TEXT =
 
 const RAINBOW_CATALOG_SKILL_TEXT =
   '移動時、周囲8マスにいる敵駒の行動範囲を4ターン縦横1マスに制限する。';
+const WATERFALL_CATALOG_SKILL_TEXT = '移動時20％の確率で周囲の敵駒を相手の手持ちに押し流す。';
 
 const RUN_CATALOG_MOVE_VECTORS: PieceCatalogItem['moveVectors'] = [
   { dx: 0, dy: -1, maxStep: 1 },
@@ -391,6 +392,11 @@ export function normalizeCatalogSkillText(piece: PieceCatalogItem): string {
     piece.char === '心' || code.includes('HEART') || code.includes('CA16911978FF');
   if (isHeartPiece) {
     return '移動時、味方駒から1つ選択し2ターン無敵状態にする。';
+  }
+  const isWaterfallPiece =
+    piece.char === '滝' || code.includes('WATERFALL') || code.includes('8CC9287B7E93');
+  if (isWaterfallPiece) {
+    return WATERFALL_CATALOG_SKILL_TEXT;
   }
   if (isConcaveCatalogPiece(piece)) {
     return 'なし。';

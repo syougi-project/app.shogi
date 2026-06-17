@@ -34,7 +34,7 @@ const RIDGE_SKILL_DESCRIPTION = '移動時20%の確率で周囲1マスの空き�
 const ORE_SKILL_DESCRIPTION =
   '移動時20%の確率で味方の「歩」駒1体を「金」「銀」「銅」のいずれかに変化させる。';
 const ROCK_SKILL_DESCRIPTION = '移動時に左右1マスへ2ターン持続する岩障害物を召喚する。';
-const WATERFALL_SKILL_DESCRIPTION = '移動時20％の確率で周囲の敵駒を全て相手の持ち駒に流す。';
+const WATERFALL_SKILL_DESCRIPTION = '移動時20％の確率で周囲の敵駒を相手の手持ちに押し流す。';
 const EXPERIMENT_SKILL_DESCRIPTION =
   '移動後、周囲8マスにいる敵駒（王・玉を除く）を「異」駒に変化させる。';
 const MUTANT_SKILL_DESCRIPTION =
@@ -163,7 +163,9 @@ export function resolveInspectSkillDescription(
   if (char === '嶺') return RIDGE_SKILL_DESCRIPTION;
   if (char === '鉱') return ORE_SKILL_DESCRIPTION;
   if (char === '岩') return ROCK_SKILL_DESCRIPTION;
-  if (char === '滝') return WATERFALL_SKILL_DESCRIPTION;
+  if (char === '滝' || code.includes('WATERFALL') || code.includes('8CC9287B7E93')) {
+    return WATERFALL_SKILL_DESCRIPTION;
+  }
   if (char === '実') return EXPERIMENT_SKILL_DESCRIPTION;
   if (char === '異') return MUTANT_SKILL_DESCRIPTION;
   if (char === 'K') return KBOSS_SKILL_DESCRIPTION;

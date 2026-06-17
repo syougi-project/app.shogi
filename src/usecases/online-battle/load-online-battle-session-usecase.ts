@@ -17,6 +17,10 @@ export type OnlineBattleSession = {
   logLines: string[];
   /** 対局終了後、ローカルプレイヤー視点の勝敗（未終了は null） */
   winnerSide?: 'player' | 'enemy' | null;
+  /** 対局終了後のレート変動（BFF 反映後。未取得時は null） */
+  pvpRatingDelta?: number | null;
+  /** 対局終了後の新レート */
+  pvpRatingAfter?: number | null;
 };
 
 export interface LoadOnlineBattleSessionUseCase {

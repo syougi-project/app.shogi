@@ -117,6 +117,14 @@ import {
   detectHolySwordCaptureEvadeFromPieces,
   detectHolySwordCaptureEvadeFromWire,
 } from '@/lib/battle/holy-sword-capture-evade';
+import {
+  calculateEloRatingDelta,
+  formatPvpRatingDelta,
+  normalizePvpRating,
+} from '@/lib/online-match/elo-rating';
+import { isRatedOnlineMatchEndReason } from '@/lib/online-match/online-match-rating-policy';
+import { applyPvpRatingAfterMatch } from '@/lib/online-match/player-pvp-rating';
+import { clearPvpRatingLeaderboardCache } from '@/lib/online-match/pvp-rating-leaderboard-cache';
 
 export type PendingOnlinePromotion = {
   promoteMove: BattleMove;
@@ -714,20 +722,79 @@ export function useOnlineBattleGame(matchId?: string) {
           return;
         case 'game_finished': {
           const won = payload.winnerUserId === userIdRef.current;
+          const activeMatchId = payload.matchId;
+          const profile = getActiveMatchProfile();
+          const opponentRating = profile?.opponent.rating;
+          const selfRating = profile?.self.rating;
+          const ratesMatch =
+            payload.status === 'finished' && isRatedOnlineMatchEndReason(payload.reason);
           setSelectedCell(null);
           setLegalTargets([]);
           setPendingPromotion(null);
           clearSkillUiStateRef.current();
+          const previewDelta =
+            ratesMatch && selfRating !== undefined && opponentRating !== undefined
+              ? calculateEloRatingDelta(selfRating, opponentRating, won)
+              : null;
+          const previewAfter =
+            previewDelta != null && selfRating !== undefined
+              ? normalizePvpRating(selfRating + previewDelta)
+              : null;
           setSession((current) => ({
             ...current,
             connectionStatus: `接続状態: 終了（${payload.reason}）`,
             winnerSide: won ? 'player' : 'enemy',
             turnLabel: '対局終了',
+            pvpRatingDelta: ratesMatch ? previewDelta : null,
+            pvpRatingAfter: ratesMatch ? previewAfter : null,
+            playerLabel:
+              previewAfter != null && profile
+                ? formatMatchPlayerLabel({ ...profile.self, rating: previewAfter }, 'あなた')
+                : current.playerLabel,
             logLines: trimOnlineBattleLogLines([
               ...current.logLines,
               `対局終了: ${payload.reason}`,
+              ...(previewDelta != null
+                ? [`レート ${formatPvpRatingDelta(previewDelta)}`]
+                : ratesMatch
+                  ? []
+                  : ['レートは変動しません（異常終了）']),
             ]),
           }));
+          if (!ratesMatch) {
+            return;
+          }
+          void (async () => {
+            try {
+              const applied = await applyPvpRatingAfterMatch({
+                matchId: activeMatchId,
+                won,
+                opponentRating,
+              });
+              clearPvpRatingLeaderboardCache();
+              setSession((current) => {
+                if (current.matchId !== activeMatchId) return current;
+                const nextProfile = getActiveMatchProfile();
+                return {
+                  ...current,
+                  pvpRatingDelta: applied.delta,
+                  pvpRatingAfter: applied.rating,
+                  playerLabel: nextProfile
+                    ? formatMatchPlayerLabel(
+                        { ...nextProfile.self, rating: applied.rating },
+                        'あなた',
+                      )
+                    : current.playerLabel,
+                  logLines: trimOnlineBattleLogLines([
+                    ...current.logLines.filter((line) => !line.startsWith('レート ')),
+                    `レート ${formatPvpRatingDelta(applied.delta)}（現在 R${applied.rating}）`,
+                  ]),
+                };
+              });
+            } catch {
+              // サーバー側 outbox が後から反映する場合はプレビュー表示のまま
+            }
+          })();
           return;
         }
         case 'state_resync_required':
