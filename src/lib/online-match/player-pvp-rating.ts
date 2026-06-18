@@ -1,7 +1,10 @@
 import { isApiDataSource } from '@/lib/config/data-source';
 import { PvpRatingApiDataSource } from '@/infra/datasources/pvp-rating-api-datasource';
 import { supabase } from '@/lib/supabase/supabase-client';
-import { normalizePvpRating } from '@/lib/online-match/pvp-rating-constants';
+import {
+  calculateEloRatingDelta,
+  normalizePvpRating,
+} from '@/lib/online-match/pvp-rating-constants';
 
 export {
   PVP_RATING_INITIAL,
