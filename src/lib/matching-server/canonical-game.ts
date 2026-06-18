@@ -272,3 +272,19 @@ export function handsForDisplay(
   if (myRole === 'black') return hands;
   return { player: hands.enemy, enemy: hands.player };
 }
+
+/** 正典の勝者(player=black)を自分視点の勝敗に変換 */
+export function canonicalWinnerSideToLocal(
+  winnerSide: Side | null,
+  myRole: PlayerSide,
+): Side | null {
+  if (!winnerSide) return null;
+  if (myRole === 'black') return winnerSide;
+  return winnerSide === 'player' ? 'enemy' : 'player';
+}
+
+/** wire/自分視点の勝敗を正典(player=black)に変換（レジストリ保存用） */
+export function localWinnerSideToCanonical(winnerSide: Side, myRole: PlayerSide): Side {
+  if (myRole === 'black') return winnerSide;
+  return winnerSide === 'player' ? 'enemy' : 'player';
+}

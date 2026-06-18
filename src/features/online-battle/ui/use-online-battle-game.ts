@@ -19,7 +19,11 @@ import {
   filterBattleMovesForServerWire,
   fromViewCoord,
 } from '@/lib/matching-server/game-bridge';
-import { canonicalToMatchingWire, isMyTurnInCanonical } from '@/lib/matching-server/canonical-game';
+import {
+  canonicalToMatchingWire,
+  canonicalWinnerSideToLocal,
+  isMyTurnInCanonical,
+} from '@/lib/matching-server/canonical-game';
 import { parseMatchingSquare } from '@/lib/matching-server/square';
 import { buildFireHandSkillFxFromWireHandsDiff } from '@/lib/matching-server/online-skill-hand-fx';
 import { buildStunSkillFxFromWireSkillStateDiff } from '@/lib/matching-server/online-skill-stun-fx';
@@ -27,6 +31,7 @@ import { resolveWinnerSideFromWire } from '@/lib/matching-server/online-battle-o
 import {
   formatMatchPlayerLabel,
   getActiveMatchProfile,
+  patchActiveMatchProfileSelfRating,
 } from '@/lib/matching-server/match-profile-store';
 import {
   getActiveMatchSession,
@@ -39,6 +44,7 @@ import {
   getDisplayBoardPieces,
   getDisplayHands,
   getMyLegalMoves,
+  getOpponentLegalMovesForInspect,
   getOnlineBattleGame,
   removeOnlineBattleGame,
   setOnlineBattlePieceCatalog,
@@ -67,6 +73,7 @@ import {
   safeRoomHazardCellsForDisplay,
   SAFE_ROOM_CELL_IMAGE_SOURCE,
   alignLegalMovesToBoardPieces,
+  buildEnemyPiecePreviewTargets,
   isFixedHouseFieldPieceForUi,
   uniqueTargetsFromMoves,
 } from '@/features/stage-shogi/ui/stage-shogi-screen.helpers';
@@ -117,12 +124,9 @@ import {
   detectHolySwordCaptureEvadeFromPieces,
   detectHolySwordCaptureEvadeFromWire,
 } from '@/lib/battle/holy-sword-capture-evade';
-import {
-  calculateEloRatingDelta,
-  formatPvpRatingDelta,
-  normalizePvpRating,
-} from '@/lib/online-match/elo-rating';
+import { formatPvpRatingDelta } from '@/lib/online-match/elo-rating';
 import { isRatedOnlineMatchEndReason } from '@/lib/online-match/online-match-rating-policy';
+import { buildPvpRatingPreview } from '@/lib/online-match/resolve-pvp-rating-preview';
 import {
   patchHomeSnapshotRating,
   syncHomeRatingAfterPvpMatch,
@@ -271,6 +275,9 @@ export function useOnlineBattleGame(matchId?: string) {
   const timeoutFiredForVersionRef = useRef<number | null>(null);
   const battleReadySentRef = useRef(false);
   const authoritativeServerGameRef = useRef<MatchingGameState | null>(null);
+  const authoritativeWinnerSideRef = useRef<'player' | 'enemy' | null>(null);
+  const matchRatingsRef = useRef<{ selfRating: number; opponentRating: number } | null>(null);
+  const matchStartedAtRef = useRef<string | null>(null);
   const playMoveAudio = useCallback(
     (move: BattleMove, actorSide: Side, board: BoardPiece[]) => {
       playBattleMoveOrPromoteSe(move, actorSide, board, battleAudioCatalog);
@@ -345,10 +352,18 @@ export function useOnlineBattleGame(matchId?: string) {
         displayWire,
         current.connectionStatus,
         current.logLines,
-        record.game.winnerSide,
+        canonicalWinnerSideToLocal(record.game.winnerSide, record.myRole),
       ),
     );
   }, []);
+
+  const buildAlignedOpponentLegalMoves = useCallback(
+    (boardPieces: BoardPiece[]) => {
+      if (!matchId) return [];
+      return alignLegalMovesToBoardPieces(boardPieces, getOpponentLegalMovesForInspect(matchId));
+    },
+    [matchId],
+  );
 
   const buildAlignedPlayerLegalMoves = useCallback(
     (boardPieces: BoardPiece[]) => {
@@ -428,10 +443,12 @@ export function useOnlineBattleGame(matchId?: string) {
       setPendingPromotion(null);
       clearSkillUiState();
       setSession((current) => {
+        const registryWinner = getOnlineBattleGame(matchIdValue)?.game.winnerSide ?? null;
         const winnerFromWire = resolveWinnerSideFromWire(nextGame, nextRole);
         const winnerSide =
+          authoritativeWinnerSideRef.current ??
           winnerFromWire ??
-          getOnlineBattleGame(matchIdValue)?.game.winnerSide ??
+          canonicalWinnerSideToLocal(registryWinner, nextRole) ??
           current.winnerSide;
         const endLogLine =
           winnerSide === 'enemy'
@@ -491,6 +508,16 @@ export function useOnlineBattleGame(matchId?: string) {
   roleRef.current = role;
 
   useEffect(() => {
+    const profile = getActiveMatchProfile();
+    if (profile) {
+      matchRatingsRef.current = {
+        selfRating: profile.self.rating,
+        opponentRating: profile.opponent.rating,
+      };
+    }
+  }, [session.playerLabel, session.opponentLabel]);
+
+  useEffect(() => {
     const serverWire = getAuthoritativeMatchGame() ?? authoritativeServerGameRef.current;
     const engineCatalog = enginePieceCatalogRef.current;
     if (
@@ -527,6 +554,9 @@ export function useOnlineBattleGame(matchId?: string) {
   // disconnect→再接続となり、サーバー側で切断扱い／「接続に失敗しました」になる）。
   useEffect(() => {
     let active = true;
+    authoritativeWinnerSideRef.current = null;
+    matchRatingsRef.current = null;
+    matchStartedAtRef.current = null;
     if (!isReady || !userId || !accessToken || !matchId) {
       setIsLoading(true);
       return () => {
@@ -734,6 +764,9 @@ export function useOnlineBattleGame(matchId?: string) {
           return;
         case 'battle_clock_started':
           if (payload.matchId !== matchId) return;
+          if (!matchStartedAtRef.current) {
+            matchStartedAtRef.current = new Date().toISOString();
+          }
           activateTurnClock(payload.turnSeconds);
           setSession((current) => ({
             ...current,
@@ -750,60 +783,85 @@ export function useOnlineBattleGame(matchId?: string) {
           return;
         case 'game_finished': {
           const won = payload.winnerUserId === userIdRef.current;
+          authoritativeWinnerSideRef.current = won ? 'player' : 'enemy';
           const activeMatchId = payload.matchId;
           const profile = getActiveMatchProfile();
-          const opponentRating = profile?.opponent.rating;
-          const selfRating = profile?.self.rating;
+          const activeRole = roleRef.current ?? getActiveMatchSession()?.role ?? null;
           const ratesMatch =
             payload.status === 'finished' && isRatedOnlineMatchEndReason(payload.reason);
           setSelectedCell(null);
           setLegalTargets([]);
           setPendingPromotion(null);
           clearSkillUiStateRef.current();
-          const previewDelta =
-            ratesMatch && selfRating !== undefined && opponentRating !== undefined
-              ? calculateEloRatingDelta(selfRating, opponentRating, won)
+          setSession((current) => {
+            const ratingPreview = ratesMatch
+              ? buildPvpRatingPreview({
+                  won,
+                  playerLabel: current.playerLabel,
+                  opponentLabel: current.opponentLabel,
+                  cached: matchRatingsRef.current,
+                })
               : null;
-          const previewAfter =
-            previewDelta != null && selfRating !== undefined
-              ? normalizePvpRating(selfRating + previewDelta)
-              : null;
-          setSession((current) => ({
-            ...current,
-            connectionStatus: `接続状態: 終了（${payload.reason}）`,
-            winnerSide: won ? 'player' : 'enemy',
-            turnLabel: '対局終了',
-            pvpRatingDelta: ratesMatch ? previewDelta : null,
-            pvpRatingAfter: ratesMatch ? previewAfter : null,
-            playerLabel:
-              previewAfter != null && profile
-                ? formatMatchPlayerLabel({ ...profile.self, rating: previewAfter }, 'あなた')
-                : current.playerLabel,
-            logLines: trimOnlineBattleLogLines([
-              ...current.logLines,
-              `対局終了: ${payload.reason}`,
-              ...(previewDelta != null
-                ? [`レート ${formatPvpRatingDelta(previewDelta)}`]
-                : ratesMatch
-                  ? []
-                  : ['レートは変動しません（異常終了）']),
-            ]),
-          }));
-          if (previewAfter != null) {
-            patchHomeSnapshotRating(previewAfter);
-          }
+            const previewDelta = ratingPreview?.delta ?? null;
+            const previewAfter = ratingPreview?.ratingAfter ?? null;
+            return {
+              ...current,
+              connectionStatus: `接続状態: 終了（${payload.reason}）`,
+              winnerSide: won ? 'player' : 'enemy',
+              turnLabel: '対局終了',
+              pvpRatingDelta: previewDelta,
+              pvpRatingAfter: previewAfter,
+              playerLabel:
+                previewAfter != null && profile
+                  ? formatMatchPlayerLabel({ ...profile.self, rating: previewAfter }, 'あなた')
+                  : current.playerLabel,
+              logLines: trimOnlineBattleLogLines([
+                ...current.logLines,
+                `対局終了: ${payload.reason}`,
+                ...(previewDelta != null
+                  ? [`レート ${formatPvpRatingDelta(previewDelta)}`]
+                  : ratesMatch
+                    ? ['レートを計算できませんでした']
+                    : ['レートは変動しません（異常終了）']),
+              ]),
+            };
+          });
           if (!ratesMatch) {
             return;
           }
           void (async () => {
+            const ratingPreview = buildPvpRatingPreview({
+              won,
+              cached: matchRatingsRef.current,
+            });
+            if (ratingPreview?.ratingAfter != null) {
+              patchHomeSnapshotRating(ratingPreview.ratingAfter);
+            }
+            const opponentRating =
+              matchRatingsRef.current?.opponentRating ?? profile?.opponent.rating;
+            const recordMatch =
+              profile && activeRole
+                ? {
+                    playerBlackUserId:
+                      activeRole === 'black' ? profile.self.userId : profile.opponent.userId,
+                    playerWhiteUserId:
+                      activeRole === 'white' ? profile.self.userId : profile.opponent.userId,
+                    winnerUserId: won ? profile.self.userId : profile.opponent.userId,
+                    reason: payload.reason,
+                    startedAt: matchStartedAtRef.current ?? undefined,
+                    finishedAt: new Date().toISOString(),
+                  }
+                : undefined;
             try {
               const applied = await applyPvpRatingAfterMatch({
                 matchId: activeMatchId,
                 won,
                 opponentRating,
+                recordMatch,
               });
               clearPvpRatingLeaderboardCache();
               syncHomeRatingAfterPvpMatch(applied.rating);
+              patchActiveMatchProfileSelfRating(applied.rating);
               setSession((current) => {
                 if (current.matchId !== activeMatchId) return current;
                 const nextProfile = getActiveMatchProfile();
@@ -824,7 +882,9 @@ export function useOnlineBattleGame(matchId?: string) {
                 };
               });
             } catch {
-              // サーバー側 outbox が後から反映する場合はプレビュー表示のまま
+              appendLogRef.current(
+                'レート反映に失敗しました。ホーム画面の再読み込み後にご確認ください。',
+              );
             }
           })();
           return;
@@ -1283,6 +1343,32 @@ export function useOnlineBattleGame(matchId?: string) {
       }
 
       const piece = findPieceAt(pieces, row, col);
+      if (piece?.side === 'enemy') {
+        const battleRecord = matchId ? getOnlineBattleGame(matchId) : null;
+        const previewTargets =
+          battleRecord != null
+            ? buildEnemyPiecePreviewTargets({
+                piece,
+                tappedRow: row,
+                tappedCol: col,
+                boardPieces: pieces,
+                opponentLegalMoves: buildAlignedOpponentLegalMoves(pieces),
+                position: battleRecord.position,
+                pieceDefsByCode,
+                pieceDefsByChar,
+                promotedPieceDefsByCode,
+                rockObstacleCells,
+              })
+            : [];
+        setSelectedCell(null);
+        setSelectedDropPieceCode(null);
+        setLegalTargets([]);
+        setEnemyPreviewTargets(previewTargets);
+        setPendingTimeActionCell(null);
+        setTimeActionMode(null);
+        return;
+      }
+
       if (!piece || piece.side !== 'player') {
         setSelectedCell(null);
         setLegalTargets([]);
@@ -1346,16 +1432,20 @@ export function useOnlineBattleGame(matchId?: string) {
     [
       beginHeartAllySelectionIfNeeded,
       beginSatoriEnemySelectionIfNeeded,
+      buildAlignedOpponentLegalMoves,
       buildAlignedPlayerLegalMoves,
       canInteract,
       commitMove,
       pieceCatalog,
       pieceDefsByChar,
+      pieceDefsByCode,
+      promotedPieceDefsByCode,
       pieces,
       pendingHeartAllyPick,
       pendingPromotion,
       pendingSatoriEnemyPick,
       record,
+      rockObstacleCells,
       role,
       selectedCell,
       selectedDropPieceCode,

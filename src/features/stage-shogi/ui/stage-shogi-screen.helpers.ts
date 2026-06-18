@@ -6,7 +6,10 @@ import {
   isGiantPieceForEngine,
 } from '@/ai/engine/giant-piece';
 import { henBoardEdgeCells, parseHenBoardEdge } from '@/ai/engine/hen-board-edge';
-import { immobilizedCellKeysForPosition } from '@/ai/engine/skill-runtime';
+import {
+  immobilizedCellKeysForPosition,
+  passiveAuraImmobilizedCellKeys,
+} from '@/ai/engine/skill-runtime';
 import {
   isKirinImmuneCapturerPiece,
   isKirinPiece,
@@ -31,6 +34,7 @@ import {
   BoardCell,
   HandsState,
   Side,
+  getLegalTargetsFromVectors,
   normalizeHandsStateKeys,
 } from '@/features/stage-shogi/domain/game-rules';
 import {
@@ -356,6 +360,116 @@ export function applyAdjacentMedicineMoveRangeBuff(
     ...v,
     maxStep: Math.max(1, (Number(v.maxStep) || 1) + 1),
   }));
+}
+
+type EnemyPreviewPieceDef = {
+  moveVectors?: MoveVector[];
+  canJump?: boolean;
+};
+
+/** 敵駒タップ時に表示する移動範囲マス（ノーマルダンジョン / オンライン対戦共通）。 */
+export function buildEnemyPiecePreviewTargets(input: {
+  piece: BoardPiece;
+  tappedRow: number;
+  tappedCol: number;
+  boardPieces: BoardPiece[];
+  opponentLegalMoves: BattleMove[];
+  position: BattleCanonicalPosition;
+  pieceDefsByCode: Record<string, EnemyPreviewPieceDef>;
+  pieceDefsByChar: Record<string, EnemyPreviewPieceDef>;
+  promotedPieceDefsByCode: Record<string, EnemyPreviewPieceDef>;
+  rockObstacleCells: BoardCell[];
+}): BoardCell[] {
+  const {
+    piece,
+    tappedRow,
+    tappedCol,
+    boardPieces,
+    opponentLegalMoves,
+    position,
+    pieceDefsByCode,
+    pieceDefsByChar,
+    promotedPieceDefsByCode,
+    rockObstacleCells,
+  } = input;
+  const origin = legalMoveOriginCellForPiece(piece, tappedRow, tappedCol);
+  const pieceKey = `${piece.side}:${piece.row}:${piece.col}`;
+  const immobilizedKeys = immobilizedKeysFromCanonical(position);
+  const auraImmobilized = passiveAuraImmobilizedCellKeys(
+    boardPieces.map((p) => ({
+      side: p.side,
+      row: p.row,
+      col: p.col,
+      pieceCode: p.pieceCode ?? null,
+      char: p.char,
+      promoted: Boolean(p.promoted),
+      imageSignedUrl: p.imageSignedUrl ?? null,
+    })),
+  );
+  const immobilizedBySkill =
+    !isGiantPieceForEngine(piece) &&
+    (immobilizedKeys.has(pieceKey) || auraImmobilized.has(pieceKey));
+  if (immobilizedBySkill) {
+    return [{ row: piece.row, col: piece.col }];
+  }
+
+  let previewTargets = uniqueTargetsFromMoves(
+    opponentLegalMoves.filter(
+      (m) =>
+        m.dropPieceCode === null &&
+        m.fromRow === origin.row &&
+        m.fromCol === origin.col &&
+        m.notation !== 'house_skill_only' &&
+        m.notation !== 'time_skill_only' &&
+        typeof m.notation === 'string' &&
+        !m.notation.startsWith('satori_stun:') &&
+        !m.notation.startsWith('heart_protect:'),
+    ),
+    origin,
+  );
+
+  if (
+    previewTargets.length === 0 &&
+    !immobilizedKeys.has(pieceKey) &&
+    !auraImmobilized.has(pieceKey)
+  ) {
+    const enemyPieceDef =
+      piece.promoted && piece.pieceCode
+        ? (promotedPieceDefsByCode[piece.pieceCode] ?? pieceDefsByCode[piece.pieceCode])
+        : ((piece.pieceCode ? pieceDefsByCode[piece.pieceCode] : null) ??
+          pieceDefsByChar[piece.char] ??
+          null);
+    const previewVectorsWithField = mergePeopleFieldDiagonalMoveVectors(
+      piece,
+      enemyPieceDef?.moveVectors ?? [],
+      boardPieces,
+    );
+    const previewVectors = applyAdjacentMedicineMoveRangeBuff(
+      piece,
+      previewVectorsWithField,
+      boardPieces,
+    );
+    const pathPieces = appendRockObstacleVirtualPiecesForPreview(
+      boardPieces,
+      rockObstacleCells,
+      piece.side,
+    );
+    const movementRuleByCell = movementRuleByCellFromCanonical(position);
+    const rawTargets = previewVectors.length
+      ? getLegalTargetsFromVectors(pathPieces, piece, previewVectors, BOARD_SIZE, {
+          canJump: enemyPieceDef?.canJump === true,
+        })
+      : [];
+    const movementRule = movementRuleByCell.get(pieceKey) ?? null;
+    previewTargets = applyMovementRuleToTargets(
+      { row: piece.row, col: piece.col },
+      rawTargets,
+      movementRule,
+      { movingPiece: piece, allPieces: boardPieces },
+    );
+  }
+
+  return previewTargets;
 }
 
 export function isEnemySide(side: string) {

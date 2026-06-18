@@ -16,6 +16,7 @@ import {
   canonicalToMatchingWire,
   injectSkillDefinitionsIntoPosition,
   isMyTurnInCanonical,
+  localWinnerSideToCanonical,
   matchingWireToCanonicalPosition,
   piecesForDisplay,
   handsForDisplay,
@@ -150,6 +151,21 @@ export function getMyLegalMoves(matchId: string): BattleMove[] {
   return legal.legalMoves;
 }
 
+/** 敵駒タップ時の移動範囲プレビュー用（相手手番として合法手を生成）。 */
+export function getOpponentLegalMovesForInspect(matchId: string): BattleMove[] {
+  const record = games.get(matchId);
+  if (!record) return [];
+  const opponentSide = record.myRole === 'black' ? 'enemy' : 'player';
+  const legal = generateLegalMoves({
+    position: {
+      ...record.position,
+      sideToMove: opponentSide,
+    },
+    pieceCatalog: record.pieceCatalog,
+  });
+  return legal.legalMoves;
+}
+
 export function getBoardPieces(matchId: string) {
   const record = games.get(matchId);
   if (!record) return [];
@@ -221,13 +237,17 @@ export function syncFromServerWire(input: {
   const position = resolveOnlineBattlePositionFromWire(input.wire, displayPieceCatalog);
   const existing = games.get(input.matchId);
   const winnerFromWire = resolveWinnerSideFromWire(input.wire, input.myRole);
+  const canonicalWinnerFromWire = winnerFromWire
+    ? localWinnerSideToCanonical(winnerFromWire, input.myRole)
+    : null;
   const resolvedGame =
     input.game ??
-    (winnerFromWire
+    (canonicalWinnerFromWire
       ? {
           status: 'finished' as const,
-          result: winnerFromWire === 'player' ? ('player_win' as const) : ('enemy_win' as const),
-          winnerSide: winnerFromWire,
+          result:
+            canonicalWinnerFromWire === 'player' ? ('player_win' as const) : ('enemy_win' as const),
+          winnerSide: canonicalWinnerFromWire,
         }
       : (existing?.game ?? { status: 'in_progress' as const, result: null, winnerSide: null }));
   const record: OnlineBattleGameRecord = {

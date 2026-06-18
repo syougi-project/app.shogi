@@ -17,9 +17,25 @@ export async function applyPvpRatingAfterMatch(input: {
   matchId: string;
   won: boolean;
   opponentRating?: number;
+  recordMatch?: {
+    playerBlackUserId: string;
+    playerWhiteUserId: string;
+    winnerUserId: string;
+    reason: string;
+    startedAt?: string;
+    finishedAt?: string;
+  };
 }): Promise<{ rating: number; delta: number }> {
   if (!isApiDataSource()) {
-    return { rating: 0, delta: 0 };
+    if (input.opponentRating == null) {
+      return { rating: 0, delta: 0 };
+    }
+    const delta = calculateEloRatingDelta(
+      normalizePvpRating(0),
+      normalizePvpRating(input.opponentRating),
+      input.won,
+    );
+    return { rating: Math.max(0, delta), delta };
   }
 
   const {
@@ -36,6 +52,7 @@ export async function applyPvpRatingAfterMatch(input: {
     matchId: input.matchId,
     won: input.won,
     opponentRating: input.opponentRating,
+    recordMatch: input.recordMatch,
   });
 
   return {

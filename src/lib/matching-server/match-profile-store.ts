@@ -19,6 +19,14 @@ export function clearActiveMatchProfile(): void {
   activeProfile = null;
 }
 
+export function patchActiveMatchProfileSelfRating(rating: number): void {
+  if (!activeProfile) return;
+  activeProfile = {
+    ...activeProfile,
+    self: { ...activeProfile.self, rating },
+  };
+}
+
 export function formatMatchPlayerLabel(profile: MatchPlayerProfile, prefix: string): string {
   const name = profile.displayName.trim() || profile.userId;
   return `${prefix}: ${name} (R${profile.rating})`;

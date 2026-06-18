@@ -1,5 +1,7 @@
 import {
   canonicalToMatchingWire,
+  canonicalWinnerSideToLocal,
+  localWinnerSideToCanonical,
   matchingWireToCanonicalPosition,
   resolveOnlineBattlePositionFromWire,
 } from '@/lib/matching-server/canonical-game';
@@ -367,5 +369,21 @@ describe('matching-server canonical-game', () => {
     expect((skillState?.board_hazards?.[0] as { remaining_turns?: number }).remaining_turns).toBe(
       1,
     );
+  });
+
+  it('maps canonical winner side to local perspective for white player', () => {
+    expect(canonicalWinnerSideToLocal('enemy', 'white')).toBe('player');
+    expect(canonicalWinnerSideToLocal('player', 'white')).toBe('enemy');
+    expect(canonicalWinnerSideToLocal('enemy', 'black')).toBe('enemy');
+    expect(canonicalWinnerSideToLocal('player', 'black')).toBe('player');
+  });
+
+  it('round-trips winner side between canonical and local perspective', () => {
+    for (const myRole of ['black', 'white'] as const) {
+      for (const local of ['player', 'enemy'] as const) {
+        const canonical = localWinnerSideToCanonical(local, myRole);
+        expect(canonicalWinnerSideToLocal(canonical, myRole)).toBe(local);
+      }
+    }
   });
 });
