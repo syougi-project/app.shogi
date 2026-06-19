@@ -4,9 +4,10 @@ import { useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ImageBackground, Modal, Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppLoadingScreen } from '@/components/organism/app-loading-screen';
+import { GlobalHomeHud } from '@/components/organism/global-home-hud';
 import { mergeIntroBanners } from '@/constants/gacha-intro-banners';
 import {
   bannerImageSource,
@@ -239,7 +240,6 @@ function IntroDrawButton({
 
 export function GachaRoomScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const vm = useGachaRoomScreen();
   const [introVisible, setIntroVisible] = useState(true);
 
@@ -294,19 +294,6 @@ export function GachaRoomScreen() {
     ? bannerImageSource(selectedBanner.key, selectedBanner.imageSignedUrl)
     : gachaRoomAssets.draw1;
 
-  const currencyRow = (
-    <View className="flex-row flex-wrap items-center gap-2">
-      <View className="flex-row items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5">
-        <Text className="text-xs text-slate-100">歩</Text>
-        <Text className="font-bold text-amber-200">{vm.pawnCurrency}</Text>
-      </View>
-      <View className="flex-row items-center gap-2 rounded-lg border border-amber-300/40 bg-white/10 px-3 py-1.5">
-        <Text className="text-xs text-amber-100">金</Text>
-        <Text className="font-bold text-yellow-300">{vm.goldCurrency}</Text>
-      </View>
-    </View>
-  );
-
   return (
     <SafeAreaView
       className="flex-1"
@@ -319,34 +306,12 @@ export function GachaRoomScreen() {
         <PieceOverlay piece={vm.lastResult.piece} onDismiss={vm.onPieceOverlayDismiss} />
       )}
 
-      {/* HTML .gacha-currency-fixed に相当 */}
-      <View
-        pointerEvents="box-none"
-        style={{
-          position: 'absolute',
-          top: insets.top + 8,
-          right: 16,
-          zIndex: 50,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-        }}
-      >
-        <View className="flex-row items-center gap-1">
-          <Text className="text-sm font-semibold text-slate-100">歩</Text>
-          <Text className="text-sm font-bold text-amber-300">{vm.pawnCurrency}</Text>
-        </View>
-        <View className="flex-row items-center gap-1">
-          <Text className="text-sm font-semibold text-slate-100">金</Text>
-          <Text className="text-sm font-bold text-yellow-300">{vm.goldCurrency}</Text>
-        </View>
-      </View>
+      <GlobalHomeHud pawnCurrency={vm.pawnCurrency} goldCurrency={vm.goldCurrency} />
 
       {introVisible ? (
         <ScrollView
           className="flex-1"
           contentContainerClassName="px-4 pb-10 pt-2"
-          style={{ paddingTop: insets.top + 40 }}
           showsVerticalScrollIndicator
         >
           <View className="mb-6 rounded-2xl border border-indigo-400/30 bg-[#0f172a]/95 p-4">
@@ -403,17 +368,14 @@ export function GachaRoomScreen() {
             style={{ minHeight: 520 }}
             imageStyle={{ opacity: 0.45 }}
           >
-            <View
-              className="min-h-[520px] flex-1 bg-black/50 px-4 pb-8 pt-2"
-              style={{ paddingTop: insets.top + 48 }}
-            >
+            <View className="min-h-[520px] flex-1 bg-black/50 px-4 pb-8 pt-2">
               {vm.noticeMessage ? (
                 <View className="mb-3 rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-2">
                   <Text className="text-sm font-bold text-amber-200">{vm.noticeMessage}</Text>
                 </View>
               ) : null}
 
-              <View className="mb-4 flex-row flex-wrap items-start justify-between gap-3">
+              <View className="mb-4">
                 <View className="max-w-[70%]">
                   <Text className="text-2xl font-black text-white drop-shadow-md">
                     {selectedBanner?.name ?? 'ガチャルーム'}
@@ -428,7 +390,6 @@ export function GachaRoomScreen() {
                     </Text>
                   ) : null}
                 </View>
-                <View className="items-end gap-2">{currencyRow}</View>
               </View>
 
               {selectedBanner?.pieceRateText ? (
