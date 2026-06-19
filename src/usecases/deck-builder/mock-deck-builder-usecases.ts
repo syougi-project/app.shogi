@@ -6,6 +6,10 @@ import {
 import { getPieceShopMockOwnedPiecesForDeckBuilder } from '@/features/piece-shop/lib/piece-shop-mock-store';
 import { filterOwnedPiecesForDeckBuilder } from '@/features/deck-builder/lib/deck-builder-excluded-pieces';
 import { sortOwnedPiecesForDeckBuilder } from '@/features/piece-shop/lib/sort-owned-pieces-for-deck-builder';
+import type {
+  ActiveDeckSummary,
+  LoadActiveDeckSummaryUseCase,
+} from '@/usecases/deck-builder/load-active-deck-summary-usecase';
 import type { LoadDeckBuilderUseCase } from '@/usecases/deck-builder/load-deck-builder-usecase';
 
 export class MockLoadDeckBuilderUseCase implements LoadDeckBuilderUseCase {
@@ -129,6 +133,16 @@ export class MockLoadDeckBuilderUseCase implements LoadDeckBuilderUseCase {
           savedAt: '2026-03-05 18:30',
         },
       ],
+    };
+  }
+}
+
+export class MockLoadActiveDeckSummaryUseCase implements LoadActiveDeckSummaryUseCase {
+  async execute(): Promise<ActiveDeckSummary> {
+    return {
+      deckId: null,
+      name: null,
+      placements: [],
     };
   }
 }

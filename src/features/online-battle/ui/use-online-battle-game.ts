@@ -10,8 +10,6 @@ import type {
   WebSocketServerMessage,
 } from '@/domain/matching-server/protocol';
 import { useAuthSession } from '@/hooks/common/auth-session-context';
-import { OnlineMatchApiDataSource } from '@/infra/datasources/online-match-datasource';
-import { getMatchingServerClient } from '@/infra/matching-server/matching-server-client';
 import { boardPiecesFromState, handSummary } from '@/lib/matching-server/board-view';
 import {
   battleMoveToServerPayload,
@@ -90,6 +88,8 @@ import {
   createLoadPieceCatalogUseCase,
   createLoadRawPieceCatalogUseCase,
 } from '@/usecases/piece-info/create-piece-info-usecases';
+import { createIssueMatchmakingTicketUseCase } from '@/usecases/online-match/create-online-match-usecases';
+import { createOnlineBattleConnection } from '@/usecases/online-battle/online-battle-connection';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
 import type { OnlineBattleSession } from '@/usecases/online-battle/load-online-battle-session-usecase';
@@ -246,7 +246,11 @@ export function useOnlineBattleGame(matchId?: string) {
     timeoutFiredForVersionRef.current = null;
     setTurnSecondsLeft(turnSeconds);
   }, []);
-  const client = useMemo(() => getMatchingServerClient(), []);
+  const client = useMemo(() => createOnlineBattleConnection(), []);
+  const issueMatchmakingTicketUseCase = useMemo(
+    () => createIssueMatchmakingTicketUseCase(accessToken ?? undefined),
+    [accessToken],
+  );
   const loadDisplayCatalogUseCase = useMemo(() => createLoadPieceCatalogUseCase(), []);
   const loadEngineCatalogUseCase = useMemo(() => createLoadRawPieceCatalogUseCase(), []);
   const enginePieceCatalogRef = useRef<PieceCatalogItem[]>([]);
@@ -932,7 +936,7 @@ export function useOnlineBattleGame(matchId?: string) {
 
     void (async () => {
       try {
-        const ticket = await new OnlineMatchApiDataSource(accessToken).issueMatchmakingTicket();
+        const ticket = await issueMatchmakingTicketUseCase.execute();
         await client.connect(userId, { matchId, ticket: ticket.ticket });
         if (!active) return;
         const nextRole = client.getRole() ?? getActiveMatchSession()?.role ?? stored?.role;
@@ -971,7 +975,7 @@ export function useOnlineBattleGame(matchId?: string) {
       setEnemyPreviewTargetsRef.current([]);
       unsubscribe();
     };
-  }, [accessToken, client, isReady, matchId, userId]);
+  }, [accessToken, client, isReady, issueMatchmakingTicketUseCase, matchId, userId]);
 
   useEffect(() => {
     return () => {

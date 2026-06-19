@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { MatchingSnapshot } from '@/domain/models/online-match';
 import type { WebSocketServerMessage } from '@/domain/matching-server/protocol';
 import { useAuthSession } from '@/hooks/common/auth-session-context';
 import { getHomeSnapshotState, loadHomeSnapshot } from '@/hooks/common/home-snapshot-store';
-import { getMatchingServerClient } from '@/infra/matching-server/matching-server-client';
-import { OnlineMatchApiDataSource } from '@/infra/datasources/online-match-datasource';
+import {
+  createCancelMatchingUseCase,
+  createStartMatchingUseCase,
+} from '@/usecases/matching/create-matching-usecases';
 import {
   loadCurrentBattleSetupId,
   clearCurrentBattleSetupId,
@@ -24,7 +26,11 @@ export function useMatchingScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [startedMatchId, setStartedMatchId] = useState<string | null>(null);
   const startedMatchIdRef = useRef<string | null>(null);
-  const client = getMatchingServerClient();
+  const startMatchingUseCase = useMemo(
+    () => createStartMatchingUseCase(accessToken ?? undefined),
+    [accessToken],
+  );
+  const cancelMatchingUseCase = useMemo(() => createCancelMatchingUseCase(), []);
 
   useEffect(() => {
     startedMatchIdRef.current = startedMatchId;
@@ -146,23 +152,21 @@ export function useMatchingScreen() {
         }
       };
 
-      const unsubscribe = client.subscribe(handleMessage);
+      const unsubscribe = startMatchingUseCase.subscribe(handleMessage);
 
       try {
-        const ticket = await new OnlineMatchApiDataSource(accessToken).issueMatchmakingTicket();
-        await client.connect(userId, { ticket: ticket.ticket });
         if (!active) return;
-        client.enterQueue({
+        await startMatchingUseCase.execute({
           userId,
-          rating: ticket.user.rating || selfRating,
-          displayName: ticket.user.displayName || selfName,
           battleSetupId,
+          selfName,
+          selfRating,
         });
       } catch {
         if (!active) return;
         setSnapshot({
           title: 'オンライン対戦',
-          status: client.getLastError() ?? '接続先が未設定です',
+          status: startMatchingUseCase.getLastError() ?? '接続先が未設定です',
           progress: 0,
           self: { displayName: selfName, rating: selfRating },
         });
@@ -183,17 +187,13 @@ export function useMatchingScreen() {
       active = false;
       cleanupMessage?.();
       if (userId && !startedMatchIdRef.current) {
-        client.cancelQueue(userId);
+        void cancelMatchingUseCase.execute({ userId });
       }
     };
-  }, [accessToken, client, isReady, userId]);
+  }, [accessToken, cancelMatchingUseCase, isReady, startMatchingUseCase, userId]);
 
   async function cancel() {
-    if (userId) {
-      client.cancelQueue(userId);
-    } else {
-      client.disconnect();
-    }
+    await cancelMatchingUseCase.execute({ userId });
   }
 
   return { snapshot, isLoading, cancel, startedMatchId };

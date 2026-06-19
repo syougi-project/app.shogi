@@ -34,8 +34,7 @@ import { useAssetPreload } from '@/hooks/common/use-asset-preload';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
 import { playSe } from '@/lib/audio/audio-manager';
 import { resolvePieceImageSource } from '@/lib/piece-image';
-import { supabase } from '@/lib/supabase/supabase-client';
-import { DeckBuilderApiDataSource } from '@/infra/datasources/deck-builder-datasource';
+import { createLoadActiveDeckSummaryUseCase } from '@/usecases/deck-builder/create-deck-builder-usecases';
 
 const FADE_IN_MS = 520;
 const FADE_HOLD_MS = 920;
@@ -118,7 +117,7 @@ export function HomeScreen() {
           }
           return;
         }
-        const deckSummary = await new DeckBuilderApiDataSource(nextToken).getActiveSummary();
+        const deckSummary = await createLoadActiveDeckSummaryUseCase(nextToken).execute();
         const nextPieces = deckSummary.placements.map((placement, idx) => ({
           key: `${placement.pieceId}-${placement.rowNo}-${placement.colNo}-${idx}`,
           char: placement.char,
@@ -138,13 +137,8 @@ export function HomeScreen() {
 
     void loadDeckPieces(accessToken);
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      void loadDeckPieces(session?.access_token ?? null);
-    });
-
     return () => {
       active = false;
-      authListener.subscription.unsubscribe();
     };
   }, [accessToken]);
 

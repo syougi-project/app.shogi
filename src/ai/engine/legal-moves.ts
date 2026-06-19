@@ -2734,6 +2734,157 @@ function generateDropMoves(input: {
   return moves;
 }
 
+function sideOpponent(side: Side): Side {
+  return side === 'player' ? 'enemy' : 'player';
+}
+
+function simulatePiecesAfterMove(input: {
+  pieces: AiBoardPiece[];
+  move: AiBattleMove;
+  actorSide: Side;
+  skillView: SkillRuntimeView;
+}): AiBoardPiece[] {
+  const { pieces, move, actorSide, skillView } = input;
+  const next = pieces.map((piece) => ({ ...piece }));
+
+  if (move.notation === 'time_skill_only' || move.notation === 'house_skill_only') {
+    return next;
+  }
+
+  if (move.dropPieceCode) {
+    const pieceCode = toBasePieceCode(move.dropPieceCode);
+    if (!pieceCode) return next;
+    const drop: AiBoardPiece = {
+      side: actorSide,
+      row: move.toRow,
+      col: move.toCol,
+      pieceCode,
+      char: CODE_TO_CHAR[pieceCode as keyof typeof CODE_TO_CHAR] ?? pieceCode,
+      promoted: false,
+      imageSignedUrl: null,
+    };
+    const slide = arrowSlideTargetForCell(skillView, move.toRow, move.toCol);
+    if (!slide) {
+      next.push(drop);
+      return next;
+    }
+    return [
+      ...next.filter(
+        (piece) =>
+          !(piece.side !== actorSide && piece.row === slide.row && piece.col === slide.col),
+      ),
+      { ...drop, row: slide.row, col: slide.col },
+    ];
+  }
+
+  if (move.fromRow == null || move.fromCol == null) return next;
+  const moving = next.find(
+    (piece) => piece.side === actorSide && piece.row === move.fromRow && piece.col === move.fromCol,
+  );
+  if (!moving) return next;
+
+  if (isGiantPieceForEngine(moving)) {
+    const destCells = giantAnchorFootprint(move.toRow, move.toCol);
+    return [
+      ...next.filter((piece) => {
+        if (piece === moving) return false;
+        if (piece.side === actorSide) return true;
+        return !destCells.some((cell) => cell.row === piece.row && cell.col === piece.col);
+      }),
+      {
+        ...moving,
+        row: move.toRow,
+        col: move.toCol,
+        promoted: move.promote ? true : (moving.promoted ?? false),
+      },
+    ];
+  }
+
+  let withoutCaptured = next.filter((piece) => {
+    if (piece === moving) return false;
+    if (piece.side === actorSide) return true;
+    return !(piece.row === move.toRow && piece.col === move.toCol);
+  });
+  let moved: AiBoardPiece = {
+    ...moving,
+    row: move.toRow,
+    col: move.toCol,
+    promoted: move.promote ? true : (moving.promoted ?? false),
+  };
+  const slide = arrowSlideTargetForCell(skillView, move.toRow, move.toCol);
+  if (slide) {
+    withoutCaptured = withoutCaptured.filter(
+      (piece) => !(piece.side !== actorSide && piece.row === slide.row && piece.col === slide.col),
+    );
+    moved = { ...moved, row: slide.row, col: slide.col };
+  }
+  return [...withoutCaptured, moved];
+}
+
+function isKingInCheck(input: {
+  pieces: AiBoardPiece[];
+  side: Side;
+  position: AiBattlePosition;
+  lookups: AiPieceLookups;
+}): boolean {
+  const king = input.pieces.find((piece) => piece.side === input.side && isKingPiece(piece));
+  if (!king) return false;
+
+  const opponent = sideOpponent(input.side);
+  const attackPosition: AiBattlePosition = {
+    ...input.position,
+    sideToMove: opponent,
+    boardState: {
+      ...(input.position.boardState ?? {}),
+      pieces: input.pieces,
+    },
+  };
+  const skillView = createSkillRuntimeView(attackPosition);
+  const occupancy = buildOccupancyMap(input.pieces);
+  const attackers = input.pieces.filter((piece) => piece.side === opponent);
+
+  return attackers
+    .filter(
+      (piece) =>
+        isKingPiece(piece) ||
+        isGiantPieceForEngine(piece) ||
+        !skillView.immobilizedCells.has(`${piece.side}:${piece.row}:${piece.col}`),
+    )
+    .some((piece) =>
+      generateBoardPieceMoves({
+        pieces: input.pieces,
+        piece,
+        position: attackPosition,
+        lookups: input.lookups,
+        occupancy,
+        skillView,
+      }).some((move) => move.toRow === king.row && move.toCol === king.col),
+    );
+}
+
+function filterMovesLeavingOwnKingSafe(input: {
+  moves: AiBattleMove[];
+  pieces: AiBoardPiece[];
+  position: AiBattlePosition;
+  lookups: AiPieceLookups;
+  skillView: SkillRuntimeView;
+}): AiBattleMove[] {
+  return input.moves.filter((move) => {
+    const nextPieces = simulatePiecesAfterMove({
+      pieces: input.pieces,
+      move,
+      actorSide: input.position.sideToMove,
+      skillView: input.skillView,
+    });
+    return !isKingInCheck({
+      pieces: nextPieces,
+      side: input.position.sideToMove,
+      position: input.position,
+      lookups: input.lookups,
+    });
+  });
+}
+
 export function generateLegalMoves(input: {
   position: AiBattlePosition;
   pieceCatalog: AiPieceDefinition[];
@@ -2832,11 +2983,18 @@ export function generateLegalMoves(input: {
     pieces,
     position.sideToMove,
   );
+  const kingSafeLegalMoves = filterMovesLeavingOwnKingSafe({
+    moves: legalMoves,
+    pieces,
+    position,
+    lookups,
+    skillView,
+  });
 
   return {
     sideToMove: position.sideToMove,
     moveNo: position.moveCount + 1,
     stateHash: position.stateHash,
-    legalMoves,
+    legalMoves: kingSafeLegalMoves,
   };
 }

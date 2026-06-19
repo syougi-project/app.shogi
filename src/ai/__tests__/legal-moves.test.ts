@@ -51,6 +51,25 @@ const pieceCatalog: AiPieceDefinition[] = [
     isRepeatable: true,
   },
   {
+    pieceCode: 'GI',
+    canonicalCode: 'GI',
+    sfenCode: 'S',
+    char: '銀',
+    name: '銀',
+    unlock: 'default',
+    desc: '',
+    skill: '',
+    move: '',
+    moveVectors: [
+      { dx: -1, dy: -1, maxStep: 1 },
+      { dx: 0, dy: -1, maxStep: 1 },
+      { dx: 1, dy: -1, maxStep: 1 },
+      { dx: -1, dy: 1, maxStep: 1 },
+      { dx: 1, dy: 1, maxStep: 1 },
+    ],
+    isRepeatable: true,
+  },
+  {
     pieceCode: 'KE',
     canonicalCode: 'KE',
     sfenCode: 'N',
@@ -238,6 +257,72 @@ describe('ai engine legal moves', () => {
     const first = generateLegalMoves({ position, pieceCatalog });
     const kingMoves = first.legalMoves.filter((m) => m.fromRow === 8 && m.fromCol === 4);
     expect(kingMoves.length).toBeGreaterThan(0);
+  });
+
+  it('filters enemy moves that do not escape check from a promoted silver', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'enemy',
+      turnNumber: 2,
+      moveCount: 1,
+      sfen: '9/9/9/9/4k4/3+S5/9/p8/4K4 w - 2',
+      stateHash: 'seed-promoted-silver-check',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 4, col: 4, pieceCode: 'OU', char: '玉', promoted: false },
+          { side: 'enemy', row: 7, col: 0, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'player', row: 5, col: 3, pieceCode: 'GI', char: '成銀', promoted: true },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+
+    const legal = generateLegalMoves({ position, pieceCatalog });
+
+    expect(legal.legalMoves.some((move) => move.fromRow === 7 && move.fromCol === 0)).toBe(false);
+    expect(legal.legalMoves.length).toBeGreaterThan(0);
+    expect(legal.legalMoves.every((move) => move.fromRow === 4 && move.fromCol === 4)).toBe(true);
+  });
+
+  it('returns no legal moves when enemy cannot escape a promoted silver check', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'enemy',
+      turnNumber: 2,
+      moveCount: 1,
+      sfen: '9/9/9/3ppp3/3pkp3/3+Spp3/9/9/3RK4 w - 2',
+      stateHash: 'seed-promoted-silver-mate',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 4, col: 4, pieceCode: 'OU', char: '玉', promoted: false },
+          { side: 'enemy', row: 3, col: 3, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'enemy', row: 3, col: 4, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'enemy', row: 3, col: 5, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'enemy', row: 4, col: 3, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'enemy', row: 4, col: 5, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'player', row: 5, col: 3, pieceCode: 'GI', char: '成銀', promoted: true },
+          { side: 'enemy', row: 5, col: 4, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'enemy', row: 5, col: 5, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'player', row: 8, col: 3, pieceCode: 'HI', char: '飛', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+        skill_state: {
+          piece_statuses: [
+            { side: 'enemy', row: 3, col: 3, status_type: 'stun', remaining_turns: 1 },
+            { side: 'enemy', row: 3, col: 4, status_type: 'stun', remaining_turns: 1 },
+            { side: 'enemy', row: 3, col: 5, status_type: 'stun', remaining_turns: 1 },
+            { side: 'enemy', row: 4, col: 3, status_type: 'stun', remaining_turns: 1 },
+            { side: 'enemy', row: 4, col: 5, status_type: 'stun', remaining_turns: 1 },
+            { side: 'enemy', row: 5, col: 4, status_type: 'stun', remaining_turns: 1 },
+            { side: 'enemy', row: 5, col: 5, status_type: 'stun', remaining_turns: 1 },
+          ],
+        },
+      },
+      hands: { player: {}, enemy: {} },
+    };
+
+    const legal = generateLegalMoves({ position, pieceCatalog });
+
+    expect(legal.legalMoves).toHaveLength(0);
   });
 
   it('keeps king movable even when char is 玉', () => {

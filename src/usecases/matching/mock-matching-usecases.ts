@@ -9,6 +9,14 @@ export class MockStartMatchingUseCase implements StartMatchingUseCase {
       progress: 62,
     };
   }
+
+  subscribe(): () => void {
+    return () => undefined;
+  }
+
+  getLastError(): string | null {
+    return null;
+  }
 }
 
 export class MockCancelMatchingUseCase implements CancelMatchingUseCase {
