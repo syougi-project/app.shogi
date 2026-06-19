@@ -3,7 +3,7 @@
  * 表示用・配置禁止の判定に共通利用する。
  */
 export type BossPieceLike = {
-  char: string;
+  char?: string;
   name?: string | null;
   pieceCode?: string | null;
 };
@@ -19,7 +19,7 @@ function normKanji(s: string): string {
 
 /** ステージボス専用駒（朧・死・魂・巨・あ・K・実・異・鬼 など）および対応 pieceCode。 */
 export function isBossPiece(input: BossPieceLike): boolean {
-  const ch = normKanji(input.char);
+  const ch = normKanji(input.char ?? '');
   if (
     ch === '朧' ||
     ch === '死' ||

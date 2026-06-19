@@ -106,6 +106,6 @@ describe('ai model piece', () => {
       { dx: -1, dy: 0, maxStep: 2 },
       { dx: 1, dy: 0, maxStep: 2 },
     ]);
-    expect(catalog[0]?.move).toBe('前後左右に各2マスまで移動できる。');
+    expect(catalog[0]?.move).toBe('前後左右2マスに移動できる。');
   });
 });

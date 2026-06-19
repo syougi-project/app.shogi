@@ -338,8 +338,7 @@ function isDeckAreaRow(row: number): boolean {
 /** ステージボス専用駒はマイデッキ下段に配置不可 */
 export function isPieceBannedFromMyDeck(piece: OwnedPiece): boolean {
   return (
-    isBossPiece({ char: piece.char, name: piece.name, pieceCode: piece.pieceCode }) ||
-    isPieceExcludedFromDeckBuilder(piece)
+    isBossPiece({ char: piece.char, name: piece.name }) || isPieceExcludedFromDeckBuilder(piece)
   );
 }
 
