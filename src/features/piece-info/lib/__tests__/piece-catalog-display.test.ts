@@ -432,4 +432,150 @@ describe('piece-catalog-display', () => {
       { dx: 1, dy: 1, maxStep: 1 },
     ]);
   });
+
+  it('葉は斜め2マスの移動説明とベクトルに差し替える', () => {
+    const piece = catalogItem({
+      char: '葉',
+      pieceCode: 'HAA',
+      move: '斜めに2マスまで移動できる。',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('斜めに2マスまで移動できる。');
+    expect(display.moveVectors).toEqual([
+      { dx: -1, dy: -1, maxStep: 2 },
+      { dx: 1, dy: -1, maxStep: 2 },
+      { dx: -1, dy: 1, maxStep: 2 },
+      { dx: 1, dy: 1, maxStep: 2 },
+    ]);
+  });
+
+  it('銅は桂馬飛び+前方スライドの移動説明とベクトルに差し替える', () => {
+    const piece = catalogItem({
+      char: '銅',
+      pieceCode: 'COPPER',
+      move: '桂馬飛び＋前方に何マスでも移動できる。',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('桂馬飛び＋前方に何マスでも移動できる。');
+    expect(display.moveVectors).toEqual([
+      { dx: -1, dy: -2, maxStep: 1 },
+      { dx: 1, dy: -2, maxStep: 1 },
+      { dx: 0, dy: -1, maxStep: 8 },
+    ]);
+  });
+
+  it('霧は斜め+左右1マスの移動説明とベクトルに差し替える', () => {
+    const piece = catalogItem({
+      char: '霧',
+      pieceCode: 'MIST',
+      move: '斜め1マス＋左右1マスに移動できる。',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('斜め1マス＋左右1マスに移動できる。');
+    expect(display.moveVectors).toHaveLength(6);
+  });
+
+  it('家と畑は固定駒の移動説明と空ベクトルに差し替える', () => {
+    const house = normalizePieceCatalogItemForDisplay(
+      catalogItem({
+        char: '家',
+        pieceCode: 'HOUSE',
+        move: '固定駒のため移動できない。',
+        moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+      }),
+    );
+    const field = normalizePieceCatalogItemForDisplay(
+      catalogItem({
+        char: '畑',
+        pieceCode: 'FIELD',
+        move: '固定駒のため移動できない。',
+        moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+      }),
+    );
+    expect(house.move).toBe('固定駒のため移動できない。');
+    expect(house.moveVectors).toEqual([]);
+    expect(field.move).toBe('固定駒のため移動できない。');
+    expect(field.moveVectors).toEqual([]);
+  });
+
+  it('刀は前方1マスの移動説明とベクトルに差し替える', () => {
+    const piece = catalogItem({
+      char: '刀',
+      pieceCode: 'SWORD',
+      move: '前方1マス。',
+      moveVectors: [
+        { dx: 0, dy: -1, maxStep: 8 },
+        { dx: -1, dy: 0, maxStep: 8 },
+      ],
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('前方1マス。');
+    expect(display.moveVectors).toEqual([{ dx: 0, dy: -1, maxStep: 1 }]);
+  });
+
+  it('禽は前後左右スライドの移動説明とベクトルに差し替える', () => {
+    const piece = catalogItem({
+      char: '禽',
+      pieceCode: 'BIRD',
+      move: '前後左右に何マスでも移動できる。',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('前後左右に何マスでも移動できる。');
+    expect(display.moveVectors).toEqual([
+      { dx: 0, dy: -1, maxStep: 8 },
+      { dx: -1, dy: 0, maxStep: 8 },
+      { dx: 1, dy: 0, maxStep: 8 },
+      { dx: 0, dy: 1, maxStep: 8 },
+    ]);
+    expect(display.isRepeatable).toBe(true);
+  });
+
+  it('豚は前後左右2マスの移動説明とベクトルに差し替える', () => {
+    const piece = catalogItem({
+      char: '豚',
+      pieceCode: 'PIG',
+      move: '前後左右2マスに移動できる。',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('前後左右2マスに移動できる。');
+    expect(display.moveVectors).toEqual([
+      { dx: 0, dy: -1, maxStep: 2 },
+      { dx: 0, dy: 1, maxStep: 2 },
+      { dx: -1, dy: 0, maxStep: 2 },
+      { dx: 1, dy: 0, maxStep: 2 },
+    ]);
+  });
+
+  it('鶏は8方向桂馬飛びの移動説明とベクトルに差し替える', () => {
+    const piece = catalogItem({
+      char: '鶏',
+      pieceCode: 'CHICKEN',
+      move: '前後左右に桂馬飛びできる。',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('前後左右に桂馬飛びできる。');
+    expect(display.moveVectors).toHaveLength(8);
+  });
+
+  it('膠はpieceCodeが8CC6260でも前斜め+後ろ1マスのベクトルに差し替える', () => {
+    const piece = catalogItem({
+      char: '膠',
+      pieceCode: 'piece_8cc6260b7fff',
+      move: '前斜め前斜め後ろ1マス',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('前斜め前斜め後ろ1マス');
+    expect(display.moveVectors).toEqual([
+      { dx: -1, dy: -1, maxStep: 1 },
+      { dx: 1, dy: -1, maxStep: 1 },
+      { dx: 0, dy: 1, maxStep: 1 },
+    ]);
+  });
 });

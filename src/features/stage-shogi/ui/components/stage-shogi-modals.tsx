@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { Modal, Pressable, Text, View } from 'react-native';
 
+import { isBossPiece } from '@/features/deck-builder/lib/boss-pieces';
 import { BattleEndResultOverlay } from '@/features/stage-shogi/ui/components/battle-end-result-overlay';
 import { Side } from '@/features/stage-shogi/domain/game-rules';
 import type { StageClearGrantedCurrency } from '@/lib/stage/stage-clear-currency-reward';
@@ -165,15 +166,13 @@ export function StageShogiInspectModal({
   inspectingPiece: InspectingPieceState;
   onClose: () => void;
 }) {
-  const inspectCode = (inspectingPiece?.pieceCode ?? '').toUpperCase();
-  const isBossPiece =
-    inspectCode === 'REDONI' ||
-    inspectCode === 'BLUEONI' ||
-    inspectCode === 'BLACKONI' ||
-    inspectCode === 'KBOSS' ||
-    inspectCode === 'A' ||
-    inspectingPiece?.char === 'K' ||
-    inspectingPiece?.char === 'あ';
+  const bossPiece =
+    inspectingPiece != null &&
+    isBossPiece({
+      char: inspectingPiece.char,
+      name: inspectingPiece.name,
+      pieceCode: inspectingPiece.pieceCode,
+    });
   return (
     <Modal visible={!!inspectingPiece} transparent animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 items-center justify-center bg-black/45 px-6">
@@ -209,7 +208,7 @@ export function StageShogiInspectModal({
           <Text className="mt-1 text-center text-base font-black text-[#2f1b14]">
             {inspectingPiece?.name}
           </Text>
-          {isBossPiece ? (
+          {bossPiece ? (
             <Text className="mt-1 text-center text-xs font-black text-[#7f1d1d]">ボス駒</Text>
           ) : null}
           <Text className="mt-3 text-xs font-black text-[#7f1d1d]">【スキル】</Text>

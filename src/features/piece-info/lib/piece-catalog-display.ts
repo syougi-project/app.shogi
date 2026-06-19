@@ -31,6 +31,21 @@ import {
   EN_MOVE_VECTORS,
   KOU_MOVE_DESCRIPTION_JA,
   KOU_MOVE_VECTORS,
+  LEAF_MOVE_DESCRIPTION_JA,
+  LEAF_MOVE_VECTORS,
+  MIST_MOVE_DESCRIPTION_JA,
+  MIST_MOVE_VECTORS,
+  FIXED_PIECE_MOVE_DESCRIPTION_JA,
+  KATANA_MOVE_DESCRIPTION_JA,
+  KATANA_MOVE_VECTORS,
+  BIRD_MOVE_DESCRIPTION_JA,
+  BIRD_MOVE_VECTORS,
+  CHICKEN_MOVE_DESCRIPTION_JA,
+  CHICKEN_MOVE_VECTORS,
+  COPPER_MOVE_DESCRIPTION_JA,
+  COPPER_MOVE_VECTORS,
+  PIG_MOVE_DESCRIPTION_JA,
+  PIG_MOVE_VECTORS,
   SO_MOVE_DESCRIPTION_JA,
   SO_MOVE_VECTORS,
   HEN_MOVE_DESCRIPTION_JA,
@@ -158,7 +173,64 @@ function isTaneCatalogPiece(piece: PieceCatalogItem): boolean {
 
 function isLeafCatalogPiece(piece: PieceCatalogItem): boolean {
   const code = (piece.pieceCode ?? '').toUpperCase();
-  return piece.char === '葉' || code === 'HAA' || code === 'LEAF' || code.includes('HAA');
+  return (
+    piece.char === '葉' ||
+    code === 'HAA' ||
+    code === 'LEAF' ||
+    code.includes('HAA') ||
+    code.includes('CB83395BA23F')
+  );
+}
+
+function isCopperCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '銅' || code.includes('COPPER') || code.includes('B57883AB1D84');
+}
+
+function isMistCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '霧' || code.includes('MIST') || code.includes('AE158934197B');
+}
+
+function isHouseCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '家' || code.includes('HOUSE') || code.includes('D4B4C9E252E1');
+}
+
+function isFieldCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return (
+    piece.char === '畑' ||
+    code.includes('FIELD') ||
+    code.includes('E2E88EBD1EB1') ||
+    code === 'ZTA' ||
+    code === 'ZIE'
+  );
+}
+
+function isKatanaCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return (
+    piece.char === '刀' ||
+    code.includes('KATANA') ||
+    code.includes('SWORD') ||
+    code.includes('C8C3CC0CAA2A')
+  );
+}
+
+function isBirdCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '禽' || code.includes('BIRD') || code.includes('29ECAB1EF3C3');
+}
+
+function isPigCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '豚' || code.includes('PIG') || code.includes('3EFA5702E75B');
+}
+
+function isChickenCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '鶏' || code.includes('CHICKEN') || code.includes('F1A6EF3B99DF');
 }
 
 function isMaiCatalogPiece(piece: PieceCatalogItem): boolean {
@@ -277,7 +349,13 @@ function isEnCatalogPiece(piece: PieceCatalogItem): boolean {
 
 function isKouCatalogPiece(piece: PieceCatalogItem): boolean {
   const code = (piece.pieceCode ?? '').toUpperCase();
-  return piece.char === '膠' || code.includes('GACHA_KOU') || code.includes('PIECE_GACHA_KOU');
+  return (
+    piece.char === '膠' ||
+    code.includes('GACHA_KOU') ||
+    code.includes('PIECE_GACHA_KOU') ||
+    code.includes('8CC6260B7FFF') ||
+    code.includes('MOVE_GACHA_KO')
+  );
 }
 
 function isShopPCatalogPiece(piece: PieceCatalogItem): boolean {
@@ -552,6 +630,30 @@ export function normalizeCatalogMoveText(piece: PieceCatalogItem): string {
   if (isRunCatalogPiece(piece)) {
     return RUN_CATALOG_MOVE_TEXT;
   }
+  if (isLeafCatalogPiece(piece)) {
+    return LEAF_MOVE_DESCRIPTION_JA;
+  }
+  if (isCopperCatalogPiece(piece)) {
+    return COPPER_MOVE_DESCRIPTION_JA;
+  }
+  if (isMistCatalogPiece(piece)) {
+    return MIST_MOVE_DESCRIPTION_JA;
+  }
+  if (isHouseCatalogPiece(piece) || isFieldCatalogPiece(piece)) {
+    return FIXED_PIECE_MOVE_DESCRIPTION_JA;
+  }
+  if (isKatanaCatalogPiece(piece)) {
+    return KATANA_MOVE_DESCRIPTION_JA;
+  }
+  if (isBirdCatalogPiece(piece)) {
+    return BIRD_MOVE_DESCRIPTION_JA;
+  }
+  if (isPigCatalogPiece(piece)) {
+    return PIG_MOVE_DESCRIPTION_JA;
+  }
+  if (isChickenCatalogPiece(piece)) {
+    return CHICKEN_MOVE_DESCRIPTION_JA;
+  }
   if (isConcaveCatalogPiece(piece)) {
     return CONCAVE_CATALOG_MOVE_TEXT;
   }
@@ -588,6 +690,30 @@ export function normalizeCatalogMoveVectors(
   }
   if (isRunCatalogPiece(piece)) {
     return RUN_CATALOG_MOVE_VECTORS;
+  }
+  if (isLeafCatalogPiece(piece)) {
+    return LEAF_MOVE_VECTORS;
+  }
+  if (isCopperCatalogPiece(piece)) {
+    return COPPER_MOVE_VECTORS;
+  }
+  if (isMistCatalogPiece(piece)) {
+    return MIST_MOVE_VECTORS;
+  }
+  if (isHouseCatalogPiece(piece) || isFieldCatalogPiece(piece)) {
+    return [];
+  }
+  if (isKatanaCatalogPiece(piece)) {
+    return KATANA_MOVE_VECTORS;
+  }
+  if (isBirdCatalogPiece(piece)) {
+    return BIRD_MOVE_VECTORS;
+  }
+  if (isPigCatalogPiece(piece)) {
+    return PIG_MOVE_VECTORS;
+  }
+  if (isChickenCatalogPiece(piece)) {
+    return CHICKEN_MOVE_VECTORS;
   }
   if (isTaneCatalogPiece(piece)) {
     return TANE_SILVER_MOVE_VECTORS;
@@ -688,8 +814,14 @@ export function normalizePieceCatalogItemForDisplay<T extends PieceCatalogItem>(
     skill: normalizeCatalogSkillText(piece),
     move: normalizeCatalogMoveText(piece),
     moveVectors: normalizeCatalogMoveVectors(piece),
-    isRepeatable: isGachaForwardDiagBackCatalogPiece(piece) ? false : piece.isRepeatable,
+    isRepeatable: resolveCatalogIsRepeatable(piece),
   };
+}
+
+function resolveCatalogIsRepeatable(piece: PieceCatalogItem): boolean {
+  if (isGachaForwardDiagBackCatalogPiece(piece)) return false;
+  if (isBirdCatalogPiece(piece)) return true;
+  return piece.isRepeatable;
 }
 
 export function buildPieceCatalogByCharMap(

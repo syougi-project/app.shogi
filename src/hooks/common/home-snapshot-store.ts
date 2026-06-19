@@ -42,6 +42,10 @@ let snapshot: HomeSnapshot = emptySnapshot;
 let lastLoadedAt = 0;
 let inFlight: Promise<HomeSnapshot> | null = null;
 let error: Error | null = null;
+/** PvP 反映直後は snapshot 再取得で古いレートに戻らないよう一時的に固定する */
+let pinnedPvpRating: number | null = null;
+let pinnedPvpRatingAt = 0;
+const PINNED_PVP_RATING_TTL_MS = 5 * 60 * 1000;
 let state: HomeSnapshotStoreState = {
   snapshot,
   isLoading: false,
@@ -77,10 +81,29 @@ export function patchHomeSnapshotRating(rating: number): void {
   notify();
 }
 
-/** 対人レート反映後にホーム HUD の表示を即時更新し、サーバー snapshot とも同期する。 */
+function mergePinnedPvpRating(next: HomeSnapshot): HomeSnapshot {
+  if (pinnedPvpRating == null) return next;
+  if (Date.now() - pinnedPvpRatingAt > PINNED_PVP_RATING_TTL_MS) {
+    pinnedPvpRating = null;
+    return next;
+  }
+  if (next.rating === pinnedPvpRating) {
+    pinnedPvpRating = null;
+    return next;
+  }
+  return { ...next, rating: pinnedPvpRating };
+}
+
+/** 対人レート反映後は snapshot 再読込よりピン値を優先する */
+export function pinHomeSnapshotRating(rating: number): void {
+  pinnedPvpRating = Math.max(0, Math.floor(rating));
+  pinnedPvpRatingAt = Date.now();
+  patchHomeSnapshotRating(pinnedPvpRating);
+}
+
+/** 対人レート反映後にホーム HUD の表示を即時更新する（サーバー再取得はピン解除まで行わない） */
 export function syncHomeRatingAfterPvpMatch(rating: number): void {
-  patchHomeSnapshotRating(rating);
-  void loadHomeSnapshot(true).catch(() => undefined);
+  pinHomeSnapshotRating(rating);
 }
 
 export function patchHomeSnapshotStamina(next: {
@@ -119,6 +142,8 @@ export function resetHomeSnapshotForAccountChange(): void {
   lastLoadedAt = 0;
   inFlight = null;
   error = null;
+  pinnedPvpRating = null;
+  pinnedPvpRatingAt = 0;
   resetClientStaminaStateForAccountChange();
   syncState();
   notify();
@@ -134,7 +159,7 @@ export function loadHomeSnapshot(force = false): Promise<HomeSnapshot> {
   inFlight = getLoadHomeSnapshotUseCase()
     .execute()
     .then((next) => {
-      snapshot = mergeServerHomeStamina(next);
+      snapshot = mergePinnedPvpRating(mergeServerHomeStamina(next));
       lastLoadedAt = Date.now();
       error = null;
       if (!isApiDataSource()) {

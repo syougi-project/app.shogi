@@ -7,7 +7,7 @@ export type TutorialDialogue = {
 export const tutorialDialogues: TutorialDialogue[] = [
   {
     name: 'シン',
-    text: '真名仮名の世界へようこそ                                 　　　俺の名前は瑪師(ばし)だ',
+    text: '真名仮名の世界へようこそ                                 　　　俺の名前は瑪師だ',
   },
   {
     name: 'シン',

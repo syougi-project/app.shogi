@@ -335,20 +335,10 @@ function isDeckAreaRow(row: number): boolean {
   return row >= DECK_ROW_OFFSET && row < BOARD_ROWS;
 }
 
-/** ステージ30系（K・実・異）・鬼系・ボス専用駒はマイデッキ下段に配置不可 */
+/** ステージボス専用駒はマイデッキ下段に配置不可 */
 export function isPieceBannedFromMyDeck(piece: OwnedPiece): boolean {
-  const normalizedName = (piece.name ?? '').normalize('NFKC');
-  const isOniBoss =
-    piece.char === '鬼' ||
-    normalizedName === '赤鬼' ||
-    normalizedName === '青鬼' ||
-    normalizedName === '黒鬼';
   return (
-    piece.char === 'K' ||
-    piece.char === '実' ||
-    piece.char === '異' ||
-    isOniBoss ||
-    isBossPiece({ char: piece.char, name: piece.name }) ||
+    isBossPiece({ char: piece.char, name: piece.name, pieceCode: piece.pieceCode }) ||
     isPieceExcludedFromDeckBuilder(piece)
   );
 }

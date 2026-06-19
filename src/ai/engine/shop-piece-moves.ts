@@ -94,13 +94,68 @@ export const AN_MOVE_DESCRIPTION_JA = '前後左右1マス+桂馬飛び';
 
 export const AN_SKILL_DESCRIPTION_JA = '移動時10%の確率で、相手の特殊駒を1体「歩」に変える。';
 
-export const COPPER_MOVE_DESCRIPTION_JA = '桂馬飛び+前方に何マスでも';
+export const COPPER_MOVE_DESCRIPTION_JA = '桂馬飛び＋前方に何マスでも移動できる。';
 
 /** 銅 — 桂馬飛び + 前方に何マスでも（HTML copperMoves 準拠）。 */
 export const COPPER_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
   { dx: -1, dy: -2, maxStep: 1 },
   { dx: 1, dy: -2, maxStep: 1 },
   { dx: 0, dy: -1, maxStep: 8 },
+];
+
+export const LEAF_MOVE_DESCRIPTION_JA = '斜めに2マスまで移動できる。';
+
+/** 葉 — 斜め4方向に最大2マス（piece_info / BFF カタログ準拠）。 */
+export const LEAF_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: -1, dy: -1, maxStep: 2 },
+  { dx: 1, dy: -1, maxStep: 2 },
+  { dx: -1, dy: 1, maxStep: 2 },
+  { dx: 1, dy: 1, maxStep: 2 },
+];
+
+export const MIST_MOVE_DESCRIPTION_JA = '斜め1マス＋左右1マスに移動できる。';
+
+/** 霧 — 斜め4方向 + 左右1マス（HTML mistMoves / BFF カタログ準拠）。 */
+export const MIST_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: -1, dy: -1, maxStep: 1 },
+  { dx: 1, dy: -1, maxStep: 1 },
+  { dx: -1, dy: 0, maxStep: 1 },
+  { dx: 1, dy: 0, maxStep: 1 },
+  { dx: -1, dy: 1, maxStep: 1 },
+  { dx: 1, dy: 1, maxStep: 1 },
+];
+
+export const FIXED_PIECE_MOVE_DESCRIPTION_JA = '固定駒のため移動できない。';
+
+export const KATANA_MOVE_DESCRIPTION_JA = '前方1マス。';
+
+/** 刀 — 前方1マスのみ（legal-moves / katana パターン準拠）。 */
+export const KATANA_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: 0, dy: -1, maxStep: 1 },
+];
+
+export const BIRD_MOVE_DESCRIPTION_JA = '前後左右に何マスでも移動できる。';
+
+/** 禽 — 前後左右レイ（legal-moves normalizeVectorsForBird 準拠）。 */
+export const BIRD_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: 0, dy: -1, maxStep: 8 },
+  { dx: -1, dy: 0, maxStep: 8 },
+  { dx: 1, dy: 0, maxStep: 8 },
+  { dx: 0, dy: 1, maxStep: 8 },
+];
+
+export const CHICKEN_MOVE_DESCRIPTION_JA = '前後左右に桂馬飛びできる。';
+
+/** 鶏 — 8方向桂馬飛び（BFF chicken パターン / HTML chickenMoves 準拠）。 */
+export const CHICKEN_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: -1, dy: -2, maxStep: 1 },
+  { dx: 1, dy: -2, maxStep: 1 },
+  { dx: -2, dy: -1, maxStep: 1 },
+  { dx: 2, dy: -1, maxStep: 1 },
+  { dx: -2, dy: 1, maxStep: 1 },
+  { dx: 2, dy: 1, maxStep: 1 },
+  { dx: -1, dy: 2, maxStep: 1 },
+  { dx: 1, dy: 2, maxStep: 1 },
 ];
 
 export const WAVE_MOVE_DESCRIPTION_JA = '前後左右に各2マスまで移動できる。';
@@ -113,7 +168,7 @@ export const WAVE_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
   { dx: 1, dy: 0, maxStep: 2 },
 ];
 
-export const PIG_MOVE_DESCRIPTION_JA = '前後左右に各2マスまで移動できる。';
+export const PIG_MOVE_DESCRIPTION_JA = '前後左右2マスに移動できる。';
 
 /** 豚（HTML: pigMoves）— 継承前は前後左右に各2マスまで。 */
 export const PIG_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [

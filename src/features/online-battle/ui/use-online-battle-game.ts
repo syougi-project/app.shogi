@@ -128,7 +128,7 @@ import { formatPvpRatingDelta } from '@/lib/online-match/elo-rating';
 import { isRatedOnlineMatchEndReason } from '@/lib/online-match/online-match-rating-policy';
 import { buildPvpRatingPreview } from '@/lib/online-match/resolve-pvp-rating-preview';
 import {
-  patchHomeSnapshotRating,
+  pinHomeSnapshotRating,
   syncHomeRatingAfterPvpMatch,
 } from '@/hooks/common/home-snapshot-store';
 import { applyPvpRatingAfterMatch } from '@/lib/online-match/player-pvp-rating';
@@ -835,7 +835,7 @@ export function useOnlineBattleGame(matchId?: string) {
               cached: matchRatingsRef.current,
             });
             if (ratingPreview?.ratingAfter != null) {
-              patchHomeSnapshotRating(ratingPreview.ratingAfter);
+              pinHomeSnapshotRating(ratingPreview.ratingAfter);
             }
             const opponentRating =
               matchRatingsRef.current?.opponentRating ?? profile?.opponent.rating;
