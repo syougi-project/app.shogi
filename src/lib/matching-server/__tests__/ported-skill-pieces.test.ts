@@ -51,7 +51,7 @@ describe('matching-server online skill pieces', () => {
     const pieces =
       (
         position.boardState as {
-          pieces?: Array<{ pieceCode?: string; char?: string; row?: number; col?: number }>;
+          pieces?: { pieceCode?: string; char?: string; row?: number; col?: number }[];
         }
       ).pieces ?? [];
     const skillState = (position.boardState as { skill_state?: MatchingGameState['skillState'] })
@@ -92,7 +92,7 @@ describe('matching-server online skill pieces', () => {
     });
 
     const pieces =
-      (committed.position.boardState as { pieces?: Array<{ pieceCode?: string }> }).pieces ?? [];
+      (committed.position.boardState as { pieces?: { pieceCode?: string }[] }).pieces ?? [];
     expect(committed.position.moveCount).toBe(1);
     expect(committed.position.sideToMove).toBe('enemy');
     expect(pieces.some((piece) => piece.pieceCode === actorPieceCode)).toBe(true);

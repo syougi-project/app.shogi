@@ -23,8 +23,7 @@ describe('matching-server canonical-game', () => {
 
     const position = matchingWireToCanonicalPosition(wire, []);
     const pieces =
-      (position.boardState as { pieces?: Array<{ pieceCode?: string; char: string }> }).pieces ??
-      [];
+      (position.boardState as { pieces?: { pieceCode?: string; char: string }[] }).pieces ?? [];
 
     expect(pieces.find((piece) => piece.pieceCode === 'FU')?.char).toBe('歩');
     expect(pieces.find((piece) => piece.pieceCode === 'OU')?.char).toBe('王');
@@ -60,8 +59,7 @@ describe('matching-server canonical-game', () => {
 
     const position = matchingWireToCanonicalPosition(wire, catalog);
     const pieces =
-      (position.boardState as { pieces?: Array<{ pieceCode?: string; char: string }> }).pieces ??
-      [];
+      (position.boardState as { pieces?: { pieceCode?: string; char: string }[] }).pieces ?? [];
 
     expect(pieces.find((piece) => piece.pieceCode === 'GACHA_KOU')?.char).toBe('膠');
   });
@@ -95,8 +93,7 @@ describe('matching-server canonical-game', () => {
 
     const position = matchingWireToCanonicalPosition(wire, catalog);
     const pieces =
-      (position.boardState as { pieces?: Array<{ pieceCode?: string; char: string }> }).pieces ??
-      [];
+      (position.boardState as { pieces?: { pieceCode?: string; char: string }[] }).pieces ?? [];
 
     expect(pieces.find((piece) => piece.char === '爆')?.pieceCode).toBe('GACHA_BAKU');
   });
@@ -117,13 +114,13 @@ describe('matching-server canonical-game', () => {
     const pieces =
       (
         position.boardState as {
-          pieces?: Array<{
+          pieces?: {
             pieceCode?: string;
             char?: string;
             cowChargeCount?: number;
             row?: number;
             col?: number;
-          }>;
+          }[];
         }
       ).pieces ?? [];
 
@@ -150,13 +147,13 @@ describe('matching-server canonical-game', () => {
     const pieces =
       (
         position.boardState as {
-          pieces?: Array<{
+          pieces?: {
             pieceCode?: string;
             char?: string;
             promoted?: boolean;
             row?: number;
             col?: number;
-          }>;
+          }[];
         }
       ).pieces ?? [];
 
@@ -313,7 +310,7 @@ describe('matching-server canonical-game', () => {
 
     const position = resolveOnlineBattlePositionFromWire(wire, []);
     const pieces =
-      (position.boardState as { pieces?: Array<{ pieceCode?: string; row: number; col: number }> })
+      (position.boardState as { pieces?: { pieceCode?: string; row: number; col: number }[] })
         .pieces ?? [];
 
     expect(

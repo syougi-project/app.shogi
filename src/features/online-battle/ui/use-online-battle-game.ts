@@ -69,7 +69,6 @@ import {
   batsuHazardCellsForDisplay,
   thornHazardCellsForDisplay,
   safeRoomHazardCellsForDisplay,
-  SAFE_ROOM_CELL_IMAGE_SOURCE,
   alignLegalMovesToBoardPieces,
   buildEnemyPiecePreviewTargets,
   isFixedHouseFieldPieceForUi,
@@ -274,6 +273,7 @@ export function useOnlineBattleGame(matchId?: string) {
   const preMoveWireHandsRef = useRef<MatchingGameState['hands'] | null>(null);
   const preMoveWireSkillStateRef = useRef<MatchingGameState['skillState'] | null>(null);
   const preMoveSkillFxRef = useRef<SkillVisualEffect[]>([]);
+  const pieceCatalogRef = useRef(pieceCatalog);
   const timeoutMoveInFlightRef = useRef(false);
   const turnTimerDeadlineRef = useRef<number | null>(null);
   const timeoutFiredForVersionRef = useRef<number | null>(null);
@@ -294,6 +294,9 @@ export function useOnlineBattleGame(matchId?: string) {
     },
     [battleAudioCatalog],
   );
+  const playSkillAudioRef = useRef(playSkillAudio);
+  pieceCatalogRef.current = pieceCatalog;
+  playSkillAudioRef.current = playSkillAudio;
   const playRemoteLastMoveAudio = useCallback(
     (
       nextGame: MatchingGameState,
@@ -619,7 +622,7 @@ export function useOnlineBattleGame(matchId?: string) {
             getAuthoritativeMatchGame()?.skillState ??
             null;
           const catalogForLog =
-            getOnlineBattleGame(payload.matchId)?.displayPieceCatalog ?? pieceCatalog;
+            getOnlineBattleGame(payload.matchId)?.displayPieceCatalog ?? pieceCatalogRef.current;
           const logSkillVisualEffects: SkillVisualEffect[] = [];
           const remoteSkillFxToQueue: SkillVisualEffect[] = [];
           if (payload.lastSkillTriggered && payload.lastMove && wireHandsBefore) {
@@ -705,7 +708,11 @@ export function useOnlineBattleGame(matchId?: string) {
             if (skipRemoteFx && payload.lastSkillTriggered && payload.lastMove && nextRole) {
               if (!holySwordEvaded) {
                 const board = getDisplayBoardPieces(payload.matchId);
-                playSkillAudio(movePayloadToBattleMove(payload.lastMove), 'player', board);
+                playSkillAudioRef.current(
+                  movePayloadToBattleMove(payload.lastMove),
+                  'player',
+                  board,
+                );
               }
             }
             applyServerGameRef.current(payload.matchId, nextRole, nextGame, moveText);
@@ -975,7 +982,15 @@ export function useOnlineBattleGame(matchId?: string) {
       setEnemyPreviewTargetsRef.current([]);
       unsubscribe();
     };
-  }, [accessToken, client, isReady, issueMatchmakingTicketUseCase, matchId, userId]);
+  }, [
+    accessToken,
+    activateTurnClock,
+    client,
+    isReady,
+    issueMatchmakingTicketUseCase,
+    matchId,
+    userId,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1141,7 +1156,7 @@ export function useOnlineBattleGame(matchId?: string) {
   ]);
 
   useEffect(() => {
-    if (session.winnerSide || !game || !isTurnClockActive) {
+    if (session.winnerSide || game?.version == null || !isTurnClockActive) {
       if (!isTurnClockActive) {
         turnTimerDeadlineRef.current = null;
       }
@@ -1446,6 +1461,7 @@ export function useOnlineBattleGame(matchId?: string) {
       promotedPieceDefsByCode,
       pieces,
       pendingHeartAllyPick,
+      matchId,
       pendingPromotion,
       pendingSatoriEnemyPick,
       record,

@@ -17,7 +17,6 @@ import {
   injectSkillDefinitionsIntoPosition,
   isMyTurnInCanonical,
   localWinnerSideToCanonical,
-  matchingWireToCanonicalPosition,
   piecesForDisplay,
   handsForDisplay,
   resolveOnlineBattlePositionFromWire,

@@ -61,7 +61,6 @@ import {
   hasAdjacentEnemyPiece,
   isGameAlreadyFinishedError,
   isSelfCaptureLikeMove,
-  legalMovesForBoardPiece,
   legalMovesForBoardPieceAt,
   legalMoveOriginCellForPiece,
   legalMovesForDropPiece,

@@ -1,3 +1,5 @@
+import { deleteAccount } from '../delete-account-usecase';
+
 const mockSignOut = jest.fn();
 
 jest.mock('@/lib/supabase/supabase-client', () => ({
@@ -7,8 +9,6 @@ jest.mock('@/lib/supabase/supabase-client', () => ({
     },
   },
 }));
-
-import { deleteAccount } from '../delete-account-usecase';
 
 describe('deleteAccount', () => {
   beforeEach(() => {

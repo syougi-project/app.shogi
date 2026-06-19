@@ -91,11 +91,11 @@ describe('online poison parity', () => {
       pieceCatalog: catalog,
       move: poisonMove!,
     });
-    const pieces = committed.position.boardState.pieces as Array<{
+    const pieces = committed.position.boardState.pieces as {
       row: number;
       col: number;
       pieceCode: string;
-    }>;
+    }[];
     expect(pieces.some((p) => p.row === 4 && p.col === 4 && p.pieceCode === 'FU')).toBe(false);
   });
 });

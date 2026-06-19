@@ -135,21 +135,6 @@ export function resolveOnlineBattlePositionFromWire(
   return injectSkillDefinitionsIntoPosition(position, pieceCatalog);
 }
 
-function normalizeBattlePositionFromWireCanonical(
-  raw: MatchingGameState['canonicalState'],
-): AiBattlePosition {
-  const canonical = raw as AiBattlePosition;
-  return {
-    sideToMove: canonical.sideToMove === 'enemy' ? 'enemy' : 'player',
-    turnNumber: Math.max(1, canonical.turnNumber ?? 1),
-    moveCount: Math.max(0, canonical.moveCount ?? 0),
-    sfen: canonical.sfen ?? 'online-match',
-    stateHash: canonical.stateHash ?? null,
-    boardState: canonical.boardState ?? {},
-    hands: canonical.hands ?? { player: {}, enemy: {} },
-  };
-}
-
 export function injectSkillDefinitionsIntoPosition(
   position: AiBattlePosition,
   pieceCatalog: PieceCatalogItem[],

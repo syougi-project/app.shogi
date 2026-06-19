@@ -1,8 +1,7 @@
 import { applyMove } from '@/ai/engine/apply-move';
 import { generateLegalMoves } from '@/ai/engine/legal-moves';
-import { normalizePieceCatalog } from '@/ai/model';
+import { normalizePieceCatalog, piecesFromBoardState } from '@/ai/model';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
-import { piecesFromBoardState } from '@/ai/model';
 import { createPosition } from '@/ai/engine/shared';
 
 const catalog: PieceCatalogItem[] = normalizePieceCatalog([

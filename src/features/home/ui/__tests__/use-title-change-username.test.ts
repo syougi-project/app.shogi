@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { useTitleChangeUsername } from '../use-title-change-username';
 
 const mockGetDisplayName = jest.fn();
 const mockUpdateDisplayName = jest.fn();
@@ -9,8 +10,6 @@ jest.mock('@/infra/datasources/player-api-datasource', () => ({
     updateDisplayName: (...args: unknown[]) => mockUpdateDisplayName(...args),
   })),
 }));
-
-import { useTitleChangeUsername } from '../use-title-change-username';
 
 describe('useTitleChangeUsername', () => {
   beforeEach(() => {
