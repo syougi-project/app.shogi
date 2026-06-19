@@ -17,7 +17,7 @@ export function HomeComingSoonHintButton({
   frameClassName = 'h-[60px]',
   imageHeight = 70,
 }: HomeComingSoonHintButtonProps) {
-  const { opacity, visible, show } = useHomeFadeHint();
+  const { opacity, scale, translateY, visible, show } = useHomeFadeHint();
 
   return (
     <View className="relative min-w-0 flex-1 basis-0">
@@ -37,11 +37,14 @@ export function HomeComingSoonHintButton({
           pointerEvents="none"
           style={{
             position: 'absolute',
-            top: -56,
+            top: 0,
+            bottom: 0,
             left: 0,
             right: 0,
             alignItems: 'center',
+            justifyContent: 'center',
             opacity,
+            transform: [{ translateY }, { scale }],
             zIndex: 30,
           }}
         >

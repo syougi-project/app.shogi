@@ -10,6 +10,12 @@ export const HOME_SIDE_ACTION_TOP = 192;
 /** ガチャ玉アイコンサイズ（px） */
 export const HOME_GACHA_ICON_SIZE = 84;
 
+/** ホーム画面「設定」ボタン（ユーザーバー下・ガチャ玉アイコン上） */
+export const HOME_SETTINGS_BUTTON_TOP = 142;
+export const HOME_SETTINGS_BUTTON_LEFT = 14;
+export const HOME_SETTINGS_BUTTON_WIDTH = 96;
+export const HOME_SETTINGS_BUTTON_HEIGHT = 64;
+
 /** 対人対戦バッジの高さ（px） */
 export const HOME_PVP_BADGE_HEIGHT = 112;
 

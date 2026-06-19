@@ -22,10 +22,6 @@ import {
   TITLE_INFORMATION_BUTTON_LEFT,
   TITLE_INFORMATION_BUTTON_TOP,
   TITLE_INFORMATION_BUTTON_WIDTH,
-  TITLE_SETTINGS_BUTTON_HEIGHT,
-  TITLE_SETTINGS_BUTTON_LEFT,
-  TITLE_SETTINGS_BUTTON_TOP,
-  TITLE_SETTINGS_BUTTON_WIDTH,
   TITLE_TUTORIAL_BUTTON_BOTTOM,
   TITLE_TUTORIAL_BUTTON_HEIGHT,
   TITLE_TUTORIAL_BUTTON_RIGHT,
@@ -34,17 +30,7 @@ import {
 import { useAssetPreload } from '@/hooks/common/use-asset-preload';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
 import { playSe } from '@/lib/audio/audio-manager';
-import {
-  DeleteAccountConfirmModal,
-  TitleSettingsModal,
-} from '@/features/home/ui/title-settings-modal';
-import { useAuthSession } from '@/hooks/common/auth-session-context';
 import { createLoadAnnouncementsUseCase } from '@/usecases/announcement/create-announcement-usecases';
-import { deleteAccount } from '@/usecases/auth/delete-account-usecase';
-import {
-  loadHomeSnapshot,
-  resetHomeSnapshotForAccountChange,
-} from '@/hooks/common/home-snapshot-store';
 
 function formatAnnouncementDate(value: string): string {
   const date = new Date(value);
@@ -58,13 +44,8 @@ function formatAnnouncementDate(value: string): string {
 
 export function TitleScreen() {
   const router = useRouter();
-  const { accessToken, reinitializeSession } = useAuthSession();
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isAnnouncementOpen, setIsAnnouncementOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [deleteConfirmStep, setDeleteConfirmStep] = useState<'first' | 'second' | null>(null);
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   const [isAnnouncementLoading, setIsAnnouncementLoading] = useState(false);
   const [announcementError, setAnnouncementError] = useState<string | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -78,7 +59,6 @@ export function TitleScreen() {
     return [
       homeAssets.titleBackground,
       homeAssets.informationButton,
-      homeAssets.settingsButton,
       homeAssets.tutorialButton,
       ...optionalTargets,
     ].filter(Boolean);
@@ -139,74 +119,6 @@ export function TitleScreen() {
     setIsAnnouncementOpen(false);
   }
 
-  function openSettings() {
-    if (isTransitioning) {
-      return;
-    }
-    void playSe('tap');
-    setIsSettingsOpen(true);
-  }
-
-  function closeSettings() {
-    void playSe('cancel');
-    setIsSettingsOpen(false);
-  }
-
-  function startChangeUsername() {
-    void playSe('tap');
-    setIsSettingsOpen(false);
-  }
-
-  function startDeleteAccount() {
-    void playSe('tap');
-    setIsSettingsOpen(false);
-    setDeleteAccountError(null);
-    setDeleteConfirmStep('first');
-  }
-
-  function cancelDeleteAccount() {
-    if (isDeletingAccount) {
-      return;
-    }
-    void playSe('cancel');
-    setDeleteConfirmStep(null);
-    setDeleteAccountError(null);
-  }
-
-  function confirmDeleteAccountFirst() {
-    void playSe('tap');
-    setDeleteAccountError(null);
-    setDeleteConfirmStep('second');
-  }
-
-  function backToDeleteAccountFirst() {
-    void playSe('tap');
-    setDeleteAccountError(null);
-    setDeleteConfirmStep('first');
-  }
-
-  async function confirmDeleteAccountSecond() {
-    if (!accessToken || isDeletingAccount) {
-      return;
-    }
-    void playSe('tap');
-    setIsDeletingAccount(true);
-    setDeleteAccountError(null);
-
-    try {
-      await deleteAccount(accessToken);
-      resetHomeSnapshotForAccountChange();
-      setDeleteConfirmStep(null);
-      await reinitializeSession();
-      await loadHomeSnapshot(true).catch(() => undefined);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'アカウントの削除に失敗しました。';
-      setDeleteAccountError(message);
-    } finally {
-      setIsDeletingAccount(false);
-    }
-  }
-
   if (!isReady || isTransitioning) {
     return <AppLoadingScreen />;
   }
@@ -250,26 +162,6 @@ export function TitleScreen() {
           >
             <Image
               source={homeAssets.informationButton}
-              contentFit="contain"
-              style={{ width: '100%', height: '100%' }}
-            />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="設定を開く"
-            onPress={openSettings}
-            style={{
-              position: 'absolute',
-              zIndex: 10,
-              left: TITLE_SETTINGS_BUTTON_LEFT,
-              top: TITLE_SETTINGS_BUTTON_TOP,
-              width: TITLE_SETTINGS_BUTTON_WIDTH,
-              height: TITLE_SETTINGS_BUTTON_HEIGHT,
-            }}
-            className="active:scale-95"
-          >
-            <Image
-              source={homeAssets.settingsButton}
               contentFit="contain"
               style={{ width: '100%', height: '100%' }}
             />
@@ -326,22 +218,6 @@ export function TitleScreen() {
               </View>
             </View>
           </Modal>
-          <TitleSettingsModal
-            visible={isSettingsOpen}
-            accessToken={accessToken}
-            onClose={closeSettings}
-            onRequestChangeUsername={startChangeUsername}
-            onRequestDelete={startDeleteAccount}
-          />
-          <DeleteAccountConfirmModal
-            step={deleteConfirmStep}
-            isDeleting={isDeletingAccount}
-            errorMessage={deleteAccountError}
-            onCancel={cancelDeleteAccount}
-            onConfirmFirst={confirmDeleteAccountFirst}
-            onConfirmSecond={confirmDeleteAccountSecond}
-            onBackToFirst={backToDeleteAccountFirst}
-          />
         </View>
       </SafeAreaView>
     </ImageBackground>

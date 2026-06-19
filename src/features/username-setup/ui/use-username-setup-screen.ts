@@ -2,6 +2,10 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 
 import { useAuthSession } from '@/hooks/common/auth-session-context';
+import {
+  loadHomeSnapshot,
+  resetHomeSnapshotForAccountChange,
+} from '@/hooks/common/home-snapshot-store';
 import { supabase } from '@/lib/supabase/supabase-client';
 import { setupUsername } from '@/usecases/player/setup-username-usecase';
 
@@ -34,7 +38,7 @@ async function refreshAnonymousSession(): Promise<string> {
 
 export function useUsernameSetupScreen() {
   const router = useRouter();
-  const { accessToken } = useAuthSession();
+  const { accessToken, reinitializeSession } = useAuthSession();
   const [token, setToken] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [username, setUsername] = useState('');
@@ -51,8 +55,15 @@ export function useUsernameSetupScreen() {
     setIsSubmitting(true);
     setError(null);
 
+    const refreshHomeAfterUsernameSetup = async () => {
+      resetHomeSnapshotForAccountChange();
+      await reinitializeSession();
+      await loadHomeSnapshot(true).catch(() => undefined);
+    };
+
     try {
       await setupUsername(token, username);
+      await refreshHomeAfterUsernameSetup();
       router.replace('/');
       return;
     } catch (e) {
@@ -61,6 +72,7 @@ export function useUsernameSetupScreen() {
           const refreshedToken = await refreshAnonymousSession();
           setToken(refreshedToken);
           await setupUsername(refreshedToken, username);
+          await refreshHomeAfterUsernameSetup();
           router.replace('/');
           return;
         } catch (retryError) {

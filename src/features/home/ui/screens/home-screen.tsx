@@ -28,12 +28,21 @@ import { HomeActionGridSection } from '@/features/home/ui/sections/home-action-g
 import { HomeBackgroundSection } from '@/features/home/ui/sections/home-background-section';
 import { gachaBallColorIndexForCurrentPeriod } from '@/features/home/lib/gacha-ball-schedule';
 import { HomeHeaderSection } from '@/features/home/ui/sections/home-header-section';
+import {
+  DeleteAccountConfirmModal,
+  TitleSettingsModal,
+} from '@/features/home/ui/title-settings-modal';
 import { useHomeScreen } from '@/features/home/ui/use-home-screen';
 import { useAuthSession } from '@/hooks/common/auth-session-context';
+import {
+  loadHomeSnapshot,
+  resetHomeSnapshotForAccountChange,
+} from '@/hooks/common/home-snapshot-store';
 import { useAssetPreload } from '@/hooks/common/use-asset-preload';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
 import { playSe } from '@/lib/audio/audio-manager';
 import { resolvePieceImageSource } from '@/lib/piece-image';
+import { deleteAccount } from '@/usecases/auth/delete-account-usecase';
 import { createLoadActiveDeckSummaryUseCase } from '@/usecases/deck-builder/create-deck-builder-usecases';
 
 const FADE_IN_MS = 520;
@@ -60,7 +69,11 @@ type DeckCarouselPiece = {
 export function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { accessToken } = useAuthSession();
+  const { accessToken, reinitializeSession } = useAuthSession();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [deleteConfirmStep, setDeleteConfirmStep] = useState<'first' | 'second' | null>(null);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   const [gachaModalOpen, setGachaModalOpen] = useState(false);
   const [gachaModalPanel, setGachaModalPanel] = useState<GachaModalPanel>('viewer');
   const [viewerBallSource, setViewerBallSource] = useState<number | null>(null);
@@ -71,6 +84,71 @@ export function HomeScreen() {
   const { snapshot, isLoading } = useHomeScreen();
   const { isReady: areAssetsReady } = useAssetPreload(homeAssets.preloadTargets);
   useScreenBgm('home');
+
+  const openSettings = useCallback(() => {
+    void playSe('tap');
+    setIsSettingsOpen(true);
+  }, []);
+
+  const closeSettings = useCallback(() => {
+    void playSe('cancel');
+    setIsSettingsOpen(false);
+  }, []);
+
+  const startChangeUsername = useCallback(() => {
+    void playSe('tap');
+    setIsSettingsOpen(false);
+  }, []);
+
+  const startDeleteAccount = useCallback(() => {
+    void playSe('tap');
+    setIsSettingsOpen(false);
+    setDeleteAccountError(null);
+    setDeleteConfirmStep('first');
+  }, []);
+
+  const cancelDeleteAccount = useCallback(() => {
+    if (isDeletingAccount) {
+      return;
+    }
+    void playSe('cancel');
+    setDeleteConfirmStep(null);
+    setDeleteAccountError(null);
+  }, [isDeletingAccount]);
+
+  const confirmDeleteAccountFirst = useCallback(() => {
+    void playSe('tap');
+    setDeleteAccountError(null);
+    setDeleteConfirmStep('second');
+  }, []);
+
+  const backToDeleteAccountFirst = useCallback(() => {
+    void playSe('tap');
+    setDeleteAccountError(null);
+    setDeleteConfirmStep('first');
+  }, []);
+
+  const confirmDeleteAccountSecond = useCallback(async () => {
+    if (!accessToken || isDeletingAccount) {
+      return;
+    }
+    void playSe('tap');
+    setIsDeletingAccount(true);
+    setDeleteAccountError(null);
+
+    try {
+      await deleteAccount(accessToken);
+      resetHomeSnapshotForAccountChange();
+      setDeleteConfirmStep(null);
+      await reinitializeSession();
+      await loadHomeSnapshot(true).catch(() => undefined);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'アカウントの削除に失敗しました。';
+      setDeleteAccountError(message);
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }, [accessToken, isDeletingAccount, reinitializeSession]);
 
   const closeGachaModalCompletely = useCallback(() => {
     void playSe('tap');
@@ -220,6 +298,7 @@ export function HomeScreen() {
             void playSe('tap');
             router.replace('/');
           }}
+          onPressSettings={openSettings}
           onPressMatching={() => {
             void playSe('tap');
             router.push('/online-match-mode' as never);
@@ -234,6 +313,22 @@ export function HomeScreen() {
           nextRecoveryAt={snapshot.nextRecoveryAt}
         />
       </View>
+      <TitleSettingsModal
+        visible={isSettingsOpen}
+        accessToken={accessToken}
+        onClose={closeSettings}
+        onRequestChangeUsername={startChangeUsername}
+        onRequestDelete={startDeleteAccount}
+      />
+      <DeleteAccountConfirmModal
+        step={deleteConfirmStep}
+        isDeleting={isDeletingAccount}
+        errorMessage={deleteAccountError}
+        onCancel={cancelDeleteAccount}
+        onConfirmFirst={confirmDeleteAccountFirst}
+        onConfirmSecond={() => void confirmDeleteAccountSecond()}
+        onBackToFirst={backToDeleteAccountFirst}
+      />
       <SafeAreaView edges={['left', 'right', 'bottom']} className="flex-1 bg-black/10">
         <View className="flex-1">
           <HomeBackgroundSection />

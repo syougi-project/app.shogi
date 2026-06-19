@@ -7,6 +7,9 @@ const mockSignOut = jest.fn();
 const mockSignInAnonymously = jest.fn();
 const mockSetupUsername = jest.fn();
 const mockUseAuthSession = jest.fn();
+const mockReinitializeSession = jest.fn();
+const mockResetHomeSnapshotForAccountChange = jest.fn();
+const mockLoadHomeSnapshot = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
@@ -16,6 +19,12 @@ jest.mock('expo-router', () => ({
 
 jest.mock('@/hooks/common/auth-session-context', () => ({
   useAuthSession: () => mockUseAuthSession(),
+}));
+
+jest.mock('@/hooks/common/home-snapshot-store', () => ({
+  resetHomeSnapshotForAccountChange: (...args: unknown[]) =>
+    mockResetHomeSnapshotForAccountChange(...args),
+  loadHomeSnapshot: (...args: unknown[]) => mockLoadHomeSnapshot(...args),
 }));
 
 jest.mock('@/lib/supabase/supabase-client', () => ({
@@ -43,7 +52,10 @@ describe('useUsernameSetupScreen', () => {
       accessToken: currentToken,
       needsUsernameSetup: true,
       error: null,
+      reinitializeSession: mockReinitializeSession,
     });
+    mockReinitializeSession.mockResolvedValue(undefined);
+    mockLoadHomeSnapshot.mockResolvedValue(undefined);
     mockSignOut.mockResolvedValue({ error: null });
     mockSignInAnonymously.mockResolvedValue({
       data: { user: { id: 'user-refreshed' }, session: { access_token: refreshedToken } },
@@ -67,6 +79,9 @@ describe('useUsernameSetupScreen', () => {
     });
 
     expect(mockSetupUsername).toHaveBeenCalledWith(currentToken, '将棋太郎');
+    expect(mockResetHomeSnapshotForAccountChange).toHaveBeenCalledTimes(1);
+    expect(mockReinitializeSession).toHaveBeenCalledTimes(1);
+    expect(mockLoadHomeSnapshot).toHaveBeenCalledWith(true);
     expect(mockReplace).toHaveBeenCalledWith('/');
     expect(result.current.error).toBeNull();
   });
@@ -78,6 +93,7 @@ describe('useUsernameSetupScreen', () => {
       accessToken: null,
       needsUsernameSetup: true,
       error: null,
+      reinitializeSession: mockReinitializeSession,
     });
 
     const { result } = renderHook(() => useUsernameSetupScreen());
@@ -134,6 +150,9 @@ describe('useUsernameSetupScreen', () => {
     expect(mockSignInAnonymously).toHaveBeenCalledTimes(1);
     expect(mockSetupUsername).toHaveBeenNthCalledWith(1, currentToken, '再試行ユーザー');
     expect(mockSetupUsername).toHaveBeenNthCalledWith(2, refreshedToken, '再試行ユーザー');
+    expect(mockResetHomeSnapshotForAccountChange).toHaveBeenCalledTimes(1);
+    expect(mockReinitializeSession).toHaveBeenCalledTimes(1);
+    expect(mockLoadHomeSnapshot).toHaveBeenCalledWith(true);
     expect(mockReplace).toHaveBeenCalledWith('/');
   });
 

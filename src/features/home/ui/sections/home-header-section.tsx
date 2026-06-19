@@ -5,6 +5,10 @@ import { HomeCommonHeader } from '@/components/organism/home-common-header';
 import { homeAssets } from '@/constants/home-assets';
 import {
   HOME_GACHA_ICON_SIZE,
+  HOME_SETTINGS_BUTTON_HEIGHT,
+  HOME_SETTINGS_BUTTON_LEFT,
+  HOME_SETTINGS_BUTTON_TOP,
+  HOME_SETTINGS_BUTTON_WIDTH,
   HOME_PVP_BADGE_HEIGHT,
   HOME_PVP_BADGE_WIDTH,
   HOME_PVP_BUTTON_RIGHT,
@@ -17,6 +21,7 @@ import {
 
 type HomeHeaderSectionProps = {
   onPressBackToTitle: () => void;
+  onPressSettings: () => void;
   onPressMatching: () => void;
   onPressGachaBallIcon: () => void;
   playerName: string;
@@ -30,6 +35,7 @@ type HomeHeaderSectionProps = {
 
 export function HomeHeaderSection({
   onPressBackToTitle,
+  onPressSettings,
   onPressMatching,
   onPressGachaBallIcon,
   playerName,
@@ -66,6 +72,26 @@ export function HomeHeaderSection({
       >
         <Image
           source={homeAssets.titleBackButton}
+          contentFit="contain"
+          style={{ width: '100%', height: '100%' }}
+        />
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="設定を開く"
+        onPress={onPressSettings}
+        pointerEvents="auto"
+        style={{
+          top: HOME_SETTINGS_BUTTON_TOP,
+          left: HOME_SETTINGS_BUTTON_LEFT,
+          width: HOME_SETTINGS_BUTTON_WIDTH,
+          height: HOME_SETTINGS_BUTTON_HEIGHT,
+        }}
+        className="absolute z-10 active:scale-95"
+      >
+        <Image
+          source={homeAssets.settingsButton}
           contentFit="contain"
           style={{ width: '100%', height: '100%' }}
         />
