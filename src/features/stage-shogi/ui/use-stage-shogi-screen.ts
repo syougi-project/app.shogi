@@ -120,6 +120,8 @@ export type PendingPromotion = {
 
 export type TimeActionMode = 'skill' | 'normal';
 
+const RECOVERED_MOVE_SYNC_MESSAGE = '局面を自動更新しました。対局を続行します。';
+
 /** マスが変わる移動・打ち（同一マスでのスキルのみ着手は除く） */
 function isPhysicalBattleMove(move: BattleMove): boolean {
   const notation = typeof move.notation === 'string' ? move.notation : '';
@@ -652,7 +654,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     setSideToMove('player');
     setMoveNo(1);
     setGameId(null);
-    setAiError(null);
+    setAiError((prev) => (prev === RECOVERED_MOVE_SYNC_MESSAGE ? prev : null));
     setSelectedCell(null);
     setSelectedDropPieceCode(null);
     setLegalTargets([]);
@@ -965,6 +967,25 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     });
   }
 
+  async function sendCommittedPlayerMoveAfterPaint(
+    move: BattleMove,
+    optimisticBaseline: BoardPiece[],
+    preservedMovedPiece: PreservedMovedPiece | undefined,
+    rollbackSnapshot?: { pieces: BoardPiece[]; hands: HandsState },
+  ) {
+    if (process.env.NODE_ENV !== 'test') {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    }
+    await sendCommittedPlayerMoveToServer(
+      move,
+      optimisticBaseline,
+      preservedMovedPiece,
+      rollbackSnapshot,
+    );
+  }
+
   async function waitForAiMoveVisualCommit() {
     await waitForNextFrame();
     await new Promise<void>((resolve) => {
@@ -1214,7 +1235,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
         if (isRecoverableMoveSyncError(error)) {
           const recovered = await recoverFromIllegalMoveIfNeeded();
           if (recovered) {
-            setAiError('局面を自動更新しました。対局を続行します。');
+            setAiError(RECOVERED_MOVE_SYNC_MESSAGE);
             return;
           }
           pendingAiResumeRef.current = null;
@@ -1459,7 +1480,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       if (isRecoverableMoveSyncError(error)) {
         const recovered = await recoverFromIllegalMoveIfNeeded();
         if (recovered) {
-          setAiError('局面を自動更新しました。対局を続行します。');
+          setAiError(RECOVERED_MOVE_SYNC_MESSAGE);
           return;
         }
         pendingAiResumeRef.current = null;
@@ -1533,7 +1554,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       promotedPieceDefsByCode,
     );
 
-    await sendCommittedPlayerMoveToServer(
+    await sendCommittedPlayerMoveAfterPaint(
       move,
       optimisticBaseline,
       preservedMovedPiece,
@@ -1568,7 +1589,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     setPlayerLegalMoves([]);
     setPendingPromotion(null);
     setAiError(null);
-    await sendCommittedPlayerMoveToServer(
+    await sendCommittedPlayerMoveAfterPaint(
       move,
       piecesRenderRef.current,
       undefined,
@@ -1603,7 +1624,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     setPendingTimeActionCell(null);
     setTimeActionMode(null);
     setAiError(null);
-    await sendCommittedPlayerMoveToServer(
+    await sendCommittedPlayerMoveAfterPaint(
       move,
       piecesRenderRef.current,
       undefined,
@@ -1710,7 +1731,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       promotedPieceDefsByCode,
     );
 
-    void sendCommittedPlayerMoveToServer(
+    void sendCommittedPlayerMoveAfterPaint(
       move,
       optimisticBaseline,
       preservedMovedPiece,
