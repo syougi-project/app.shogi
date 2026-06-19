@@ -172,7 +172,7 @@ function createAppSkillPosition(pieceCode: string, actorPieceCode: string): AiBa
         { side: 'player', row: 4, col: 3, pieceCode: 'FU', char: '歩', promoted: false },
         { side: 'enemy', row: 6, col: 5, pieceCode: 'FU', char: '歩', promoted: false },
         { side: 'enemy', row: 6, col: 3, pieceCode: 'GI', char: '銀', promoted: false },
-        { side: 'enemy', row: 7, col: 4, pieceCode: 'KI', char: '金', promoted: false },
+        { side: 'enemy', row: 7, col: 8, pieceCode: 'KI', char: '金', promoted: false },
       ],
       skill_state: {
         board_hazards: [],

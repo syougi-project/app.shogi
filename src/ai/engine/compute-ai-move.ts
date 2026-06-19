@@ -2,7 +2,6 @@ import type { AiBattleMove, AiBattlePosition, AiPieceDefinition, Side } from '@/
 import type { BattleAiTurn } from '@/usecases/stage-battle/game-move-contract';
 import type { StageAiConfig } from '@/constants/stage-ai-config';
 import { normalizeBattlePosition, toBasePieceCode } from '@/ai/model';
-import { assertMoveAllowedBySessionCatalog } from '@/ai/engine/guardrails';
 import { PIECE_VALUES } from '@/ai/engine/shared';
 import { applyMove } from '@/ai/engine/apply-move';
 import { ensureShinTurnMimicForBattle, generateLegalMoves } from '@/ai/engine/legal-moves';
@@ -150,16 +149,11 @@ export function computeAiMove(input: {
   const selected = pickWeightedMove(scoredMoves, config, random);
   const selectedMove = selected.move;
   const bestScore = selected.score;
-  assertMoveAllowedBySessionCatalog({
-    position: input.position,
-    pieceCatalog: input.pieceCatalog,
-    move: selectedMove,
-    actor: 'enemy',
-  });
   const committed = applyMove({
     position: input.position,
     pieceCatalog: input.pieceCatalog,
     move: selectedMove,
+    options: { trustedLegalMove: true },
   });
 
   return {

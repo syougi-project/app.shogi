@@ -1321,7 +1321,7 @@ export function applyMove(input: {
   position: BattleCanonicalPosition;
   pieceCatalog: AiPieceDefinition[];
   move: AiBattleMove;
-  options?: { suppressRandomSkillProcs?: boolean };
+  options?: { suppressRandomSkillProcs?: boolean; trustedLegalMove?: boolean };
 }): BattleCommittedMove {
   const current = normalizeBattlePosition(input.position);
   const move = normalizeBattleMove(input.move);
@@ -1345,12 +1345,14 @@ export function applyMove(input: {
   );
   const preMoveSkillView = createSkillRuntimeView(current);
   ensureShinTurnMimicForBattle(current, input.pieceCatalog);
-  assertMoveAllowedBySessionCatalog({
-    position: current,
-    pieceCatalog: input.pieceCatalog,
-    move,
-    actor: actorSide,
-  });
+  if (input.options?.trustedLegalMove !== true) {
+    assertMoveAllowedBySessionCatalog({
+      position: current,
+      pieceCatalog: input.pieceCatalog,
+      move,
+      actor: actorSide,
+    });
+  }
 
   let nextPieces = pieces.map((piece) => ({ ...piece }));
   let movedPieceAfterApply: (typeof nextPieces)[number] | null = null;

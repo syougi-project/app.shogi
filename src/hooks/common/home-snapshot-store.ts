@@ -111,6 +111,7 @@ export function patchHomeSnapshotStamina(next: {
   nextRecoveryAt: string | null;
 }): void {
   snapshot = { ...snapshot, stamina: next.stamina, nextRecoveryAt: next.nextRecoveryAt };
+  lastLoadedAt = Date.now();
   syncState();
   notify();
 }
