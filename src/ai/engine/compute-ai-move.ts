@@ -8,14 +8,19 @@ import { applyMove } from '@/ai/engine/apply-move';
 import { ensureShinTurnMimicForBattle, generateLegalMoves } from '@/ai/engine/legal-moves';
 import { normalizeStageAiConfig } from '@/constants/stage-ai-config';
 
+function movingPieceActivityScore(pieceCode: string): number {
+  if (pieceCode === 'OU') return -80;
+  return Math.min(PIECE_VALUES[pieceCode] ?? 100, 600) / 20;
+}
+
 function moveScore(move: AiBattleMove, side: Side): number {
   const captured = toBasePieceCode(move.capturedPieceCode);
   const pieceCode = toBasePieceCode(move.pieceCode) ?? 'FU';
   const forward = side === 'enemy' ? move.toRow : 8 - move.toRow;
   const captureValue = captured ? (PIECE_VALUES[captured] ?? 150) : 0;
-  const selfValue = PIECE_VALUES[pieceCode] ?? 100;
+  const activityScore = movingPieceActivityScore(pieceCode);
   const promotionBonus = move.promote ? 120 : 0;
-  return captureValue * 10 + promotionBonus + selfValue + forward * 4;
+  return captureValue * 10 + promotionBonus + activityScore + forward * 4;
 }
 
 function moveKey(move: AiBattleMove): string {
