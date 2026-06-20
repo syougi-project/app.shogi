@@ -39,7 +39,7 @@ export const seSources: Record<SeTrack, number | null> = {
   tap: require('../../assets/audio/se/tap.wav'),
   confirm: require('../../assets/audio/se/confirm.wav'),
   cancel: require('../../assets/audio/se/cancel.wav'),
-  battlePieceMove: require('../../assets/audio/se/battle/駒打つ.mp3'),
-  battlePromote: require('../../assets/audio/se/battle/駒成る.mp3'),
+  battlePieceMove: require('../../assets/bundled/0083-audio-se-battle-e0b112f8f3.mp3'),
+  battlePromote: require('../../assets/bundled/0082-audio-se-battle-b96d36b0bc.mp3'),
   battleSkill: require('../../assets/audio/se/battle/battle-skill.wav'),
 };

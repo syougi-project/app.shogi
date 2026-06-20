@@ -1,6 +1,6 @@
 export const pieceShopAssets = {
   background: require('../../assets/piece-shop/pieceShop.png'),
-  backButton: require('../../assets/piece-shop/戻る.png'),
+  backButton: require('../../assets/bundled/0192-piece-shop-5616db2518.png'),
   pieces: {
     走: require('../../assets/piece-shop/piece-so.png'),
     種: require('../../assets/piece-shop/piece-tane.png'),

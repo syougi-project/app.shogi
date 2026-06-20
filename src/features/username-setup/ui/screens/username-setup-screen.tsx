@@ -5,7 +5,7 @@ import { AppLoadingScreen } from '@/components/organism/app-loading-screen';
 import { homeAssets } from '@/constants/home-assets';
 import { useUsernameSetupScreen } from '@/features/username-setup/ui/use-username-setup-screen';
 
-const usernameBackground = require('../../../../../assets/home/ui/ユーザーネーム.png');
+const usernameBackground = require('../../../../../assets/bundled/0128-home-ui-6979e56460.png');
 
 export function UsernameSetupScreen() {
   const { username, setUsername, isInitializing, isSubmitting, error, handleSubmit } =

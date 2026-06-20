@@ -67,23 +67,23 @@ export const KING_PIECE_SIZE_PERCENT = 136;
 export const BOARD_PIECE_SIZE_OVERRIDES: Partial<Record<string, number>> = {
   波: 128,
 };
-export const POISON_CELL_IMAGE_SOURCE = require('../../../../assets/cells/毒マス.png');
+export const POISON_CELL_IMAGE_SOURCE = require('../../../../assets/bundled/0111-cells-8f963d40a8.png');
 /** 牢・柵スキルで行動不能になった駒の上に重ねる */
-export const PRISON_CHAIN_IMAGE_SOURCE = require('../../../../assets/cells/鎖.png');
+export const PRISON_CHAIN_IMAGE_SOURCE = require('../../../../assets/bundled/0113-cells-2433da7a05.png');
 /** 穴スキルの侵入不可セル表示 */
-export const BATSU_CELL_IMAGE_SOURCE = require('../../../../assets/cells/バツマス.png');
+export const BATSU_CELL_IMAGE_SOURCE = require('../../../../assets/bundled/0105-cells-da2b84eb4a.png');
 /** 薔スキルの茨化セル表示 */
-export const THORN_CELL_IMAGE_SOURCE = require('../../../../assets/cells/茨マス.png');
+export const THORN_CELL_IMAGE_SOURCE = require('../../../../assets/bundled/0112-cells-255fdf414b.png');
 
-export const SAFE_ROOM_CELL_IMAGE_SOURCE = require('../../../../assets/cells/セーフルーム.png');
+export const SAFE_ROOM_CELL_IMAGE_SOURCE = require('../../../../assets/bundled/0104-cells-a7fe3000d6.png');
 /** 菊スキル: 復活効果付与中の駒のバッジ */
-export const CHRYSANTHEMUM_REVIVAL_IMAGE_SOURCE = require('../../../../assets/cells/復活.png');
+export const CHRYSANTHEMUM_REVIVAL_IMAGE_SOURCE = require('../../../../assets/bundled/0110-cells-4d0d7d10d9.png');
 /** 岩スキルの障害物セル表示 */
-export const ROCK_OBSTACLE_IMAGE_SOURCE = require('../../../../assets/pieces/岩の障害物.png');
-export const ARROW_UP_CELL_IMAGE_SOURCE = require('../../../../assets/cells/上.png');
-export const ARROW_LEFT_CELL_IMAGE_SOURCE = require('../../../../assets/cells/左.png');
-export const ARROW_DOWN_CELL_IMAGE_SOURCE = require('../../../../assets/cells/下.png');
-export const ARROW_RIGHT_CELL_IMAGE_SOURCE = require('../../../../assets/cells/右.png');
+export const ROCK_OBSTACLE_IMAGE_SOURCE = require('../../../../assets/bundled/0195-pieces-7457dfcf8b.png');
+export const ARROW_UP_CELL_IMAGE_SOURCE = require('../../../../assets/bundled/0106-cells-32514515a4.png');
+export const ARROW_LEFT_CELL_IMAGE_SOURCE = require('../../../../assets/bundled/0109-cells-076f10f0da.png');
+export const ARROW_DOWN_CELL_IMAGE_SOURCE = require('../../../../assets/bundled/0107-cells-b652886276.png');
+export const ARROW_RIGHT_CELL_IMAGE_SOURCE = require('../../../../assets/bundled/0108-cells-5c247a17be.png');
 
 const STANDARD_PIECE_CODES = new Set(['FU', 'KY', 'KE', 'GI', 'KI', 'KA', 'HI', 'OU']);
 

@@ -3,7 +3,7 @@ import type { ImageSourcePropType } from 'react-native';
 /** HTML 版 gacha_room と同種の画像・演出動画 */
 export const gachaRoomAssets = {
   background: require('../../assets/gacha/background.png'),
-  backButton: require('../../assets/gacha/戻る.png'),
+  backButton: require('../../assets/bundled/0125-gacha-43132c47da.png'),
   draw1: require('../../assets/gacha/draw-1.png'),
   draw0: require('../../assets/gacha/draw-0.png'),
   drawGold: require('../../assets/gacha/draw-gold.png'),
@@ -13,9 +13,9 @@ export const gachaRoomAssets = {
   drawAdv: require('../../assets/gacha/draw-adv.png'),
   videos: {
     /** 外れ */
-    miss: require('../../assets/gacha/ガチャ1.mp4'),
+    miss: require('../../assets/bundled/0123-gacha-ab229e7b93.mp4'),
     /** 当たり駒 */
-    hit: require('../../assets/gacha/ガチャ2.mp4'),
+    hit: require('../../assets/bundled/0124-gacha-1e2eff38ad.mp4'),
   },
   /**
    * バナー画像は `assets/gacha/` 直下に配置（ASCII ファイル名でバンドル互換性を確保）

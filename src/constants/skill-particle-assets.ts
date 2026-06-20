@@ -9,19 +9,19 @@ import type { SkillVisualEffect } from '@/domain/battle/skill-visual-effect';
  * ファイル名: `piece-{駒の漢字}.png`
  */
 export const SKILL_PARTICLE_BY_PIECE_CHAR: Partial<Record<string, ImageSourcePropType>> = {
-  時: require('../../assets/battle/skill-particles/piece-時.png'),
-  水: require('../../assets/battle/skill-particles/piece-水.png'),
-  波: require('../../assets/battle/skill-particles/piece-波.png'),
-  火: require('../../assets/battle/skill-particles/piece-火.png'),
-  炎: require('../../assets/battle/skill-particles/piece-炎.png'),
-  煽: require('../../assets/battle/skill-particles/piece-煽.png'),
-  爆: require('../../assets/battle/skill-particles/piece-爆.png'),
-  盾: require('../../assets/battle/skill-particles/piece-盾.png'),
-  鉄: require('../../assets/battle/skill-particles/piece-鉄.png'),
-  雷: require('../../assets/battle/skill-particles/piece-雷.png'),
-  電: require('../../assets/battle/skill-particles/piece-電.png'),
-  風: require('../../assets/battle/skill-particles/piece-風.png'),
-  魔: require('../../assets/battle/skill-particles/piece-魔.png'),
+  時: require('../../assets/bundled/0091-battle-skill-particles-da5f92e0bb.png'),
+  水: require('../../assets/bundled/0092-battle-skill-particles-2999c72a8f.png'),
+  波: require('../../assets/bundled/0093-battle-skill-particles-24f1691022.png'),
+  火: require('../../assets/bundled/0094-battle-skill-particles-85b0abb603.png'),
+  炎: require('../../assets/bundled/0095-battle-skill-particles-dd8d740470.png'),
+  煽: require('../../assets/bundled/0096-battle-skill-particles-7f0996bb79.png'),
+  爆: require('../../assets/bundled/0097-battle-skill-particles-4cb63884d7.png'),
+  盾: require('../../assets/bundled/0098-battle-skill-particles-445e47e88a.png'),
+  鉄: require('../../assets/bundled/0099-battle-skill-particles-a24b79ea3b.png'),
+  雷: require('../../assets/bundled/0100-battle-skill-particles-fa20eec5b0.png'),
+  電: require('../../assets/bundled/0101-battle-skill-particles-f9b9a78059.png'),
+  風: require('../../assets/bundled/0102-battle-skill-particles-eae3b94181.png'),
+  魔: require('../../assets/bundled/0103-battle-skill-particles-11788baf6e.png'),
 };
 
 export function resolveSkillParticleForPieceChar(
