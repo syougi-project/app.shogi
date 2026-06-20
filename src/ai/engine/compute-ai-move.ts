@@ -1,25 +1,197 @@
-import type { AiBattleMove, AiBattlePosition, AiPieceDefinition, Side } from '@/ai/model';
+import type {
+  AiBattleMove,
+  AiBattlePosition,
+  AiBoardPiece,
+  AiPieceDefinition,
+  Side,
+} from '@/ai/model';
 import type { BattleAiTurn } from '@/usecases/stage-battle/game-move-contract';
 import type { StageAiConfig } from '@/constants/stage-ai-config';
-import { normalizeBattlePosition, toBasePieceCode } from '@/ai/model';
+import { normalizeBattlePosition, piecesFromBoardState, toBasePieceCode } from '@/ai/model';
 import { PIECE_VALUES } from '@/ai/engine/shared';
 import { applyMove } from '@/ai/engine/apply-move';
 import { ensureShinTurnMimicForBattle, generateLegalMoves } from '@/ai/engine/legal-moves';
 import { normalizeStageAiConfig } from '@/constants/stage-ai-config';
 
-function movingPieceActivityScore(pieceCode: string): number {
-  if (pieceCode === 'OU') return -80;
-  return Math.min(PIECE_VALUES[pieceCode] ?? 100, 600) / 20;
+function movingPieceActivityScore(pieceCode: string, config: StageAiConfig): number {
+  if (pieceCode === 'OU') return -config.kingMovePenalty;
+  return (
+    Math.min(PIECE_VALUES[pieceCode] ?? 100, config.activityPieceValueCap) /
+    config.activityScoreDivisor
+  );
 }
 
-function moveScore(move: AiBattleMove, side: Side): number {
+function moveScore(move: AiBattleMove, side: Side, config: StageAiConfig): number {
   const captured = toBasePieceCode(move.capturedPieceCode);
   const pieceCode = toBasePieceCode(move.pieceCode) ?? 'FU';
   const forward = side === 'enemy' ? move.toRow : 8 - move.toRow;
   const captureValue = captured ? (PIECE_VALUES[captured] ?? 150) : 0;
-  const activityScore = movingPieceActivityScore(pieceCode);
-  const promotionBonus = move.promote ? 120 : 0;
-  return captureValue * 10 + promotionBonus + activityScore + forward * 4;
+  const activityScore = movingPieceActivityScore(pieceCode, config);
+  const promotionBonus = move.promote ? config.promotionBonus : 0;
+  return (
+    captureValue * config.captureValueWeight +
+    promotionBonus +
+    activityScore +
+    forward * config.forwardProgressWeight
+  );
+}
+
+function opponentOf(side: Side): Side {
+  return side === 'enemy' ? 'player' : 'enemy';
+}
+
+function findKing(pieces: AiBoardPiece[], side: Side): AiBoardPiece | null {
+  return (
+    pieces.find((piece) => {
+      if (piece.side !== side) return false;
+      const code = toBasePieceCode(piece.pieceCode);
+      return code === 'OU' || piece.char === '王' || piece.char === '玉';
+    }) ?? null
+  );
+}
+
+function cellKey(row: number, col: number): string {
+  return `${row}:${col}`;
+}
+
+function pieceAt(pieces: AiBoardPiece[], row: number, col: number): AiBoardPiece | null {
+  return pieces.find((piece) => piece.row === row && piece.col === col) ?? null;
+}
+
+function inBoard(row: number, col: number): boolean {
+  return row >= 0 && row < 9 && col >= 0 && col < 9;
+}
+
+function legalMovesForSide(input: {
+  position: AiBattlePosition;
+  side: Side;
+  pieceCatalog: AiPieceDefinition[];
+}): AiBattleMove[] {
+  const position = normalizeBattlePosition({
+    ...input.position,
+    sideToMove: input.side,
+  });
+  ensureShinTurnMimicForBattle(position, input.pieceCatalog);
+  return generateLegalMoves({
+    position,
+    pieceCatalog: input.pieceCatalog,
+  }).legalMoves;
+}
+
+function evaluateKingSafety(input: {
+  position: AiBattlePosition;
+  side: Side;
+  pieceCatalog: AiPieceDefinition[];
+  config: StageAiConfig;
+}): { score: number; kingInDanger: boolean } {
+  const pieces = piecesFromBoardState(input.position);
+  const king = findKing(pieces, input.side);
+  if (!king) {
+    return {
+      score: -input.config.kingInDangerPenalty,
+      kingInDanger: true,
+    };
+  }
+
+  const attacker = opponentOf(input.side);
+  const attackerMoves = legalMovesForSide({
+    position: input.position,
+    side: attacker,
+    pieceCatalog: input.pieceCatalog,
+  });
+  const attackedTargets = new Set(attackerMoves.map((move) => cellKey(move.toRow, move.toCol)));
+  const kingKey = cellKey(king.row, king.col);
+  const kingInDanger =
+    attackedTargets.has(kingKey) ||
+    attackerMoves.some((move) => toBasePieceCode(move.capturedPieceCode) === 'OU');
+
+  let attackedAroundKing = 0;
+  let safeEscapeSquares = 0;
+  for (let dr = -1; dr <= 1; dr += 1) {
+    for (let dc = -1; dc <= 1; dc += 1) {
+      if (dr === 0 && dc === 0) continue;
+      const row = king.row + dr;
+      const col = king.col + dc;
+      if (!inBoard(row, col)) continue;
+      const key = cellKey(row, col);
+      const occupant = pieceAt(pieces, row, col);
+      const attacked = attackedTargets.has(key);
+      if (attacked) attackedAroundKing += 1;
+      if (occupant?.side === input.side) continue;
+      if (!attacked) safeEscapeSquares += 1;
+    }
+  }
+
+  return {
+    score:
+      (kingInDanger ? -input.config.kingInDangerPenalty : 0) -
+      attackedAroundKing * input.config.kingAdjacentAttackPenalty +
+      safeEscapeSquares * input.config.kingEscapeSquareBonus,
+    kingInDanger,
+  };
+}
+
+function tacticalReplyPenalty(input: {
+  position: AiBattlePosition;
+  pieceCatalog: AiPieceDefinition[];
+  config: StageAiConfig;
+}): number {
+  if (input.config.searchDepth < 2 || input.config.opponentReplyPenaltyWeight <= 0) return 0;
+  const replies = legalMovesForSide({
+    position: input.position,
+    side: 'player',
+    pieceCatalog: input.pieceCatalog,
+  });
+  if (replies.length === 0) return 0;
+  const bestReplyScore = Math.max(
+    ...replies.map((reply) => moveScore(reply, 'player', input.config)),
+  );
+  return Math.max(0, bestReplyScore) * input.config.opponentReplyPenaltyWeight;
+}
+
+function evaluateCandidateMove(input: {
+  position: AiBattlePosition;
+  pieceCatalog: AiPieceDefinition[];
+  move: AiBattleMove;
+  config: StageAiConfig;
+  beforeEnemySafety: { kingInDanger: boolean };
+}): number {
+  let score = moveScore(input.move, 'enemy', input.config);
+  if (input.beforeEnemySafety.kingInDanger && toBasePieceCode(input.move.pieceCode) === 'OU') {
+    score += input.config.kingMovePenalty * 0.6;
+  }
+
+  const needsAfterPosition =
+    input.config.kingInDangerPenalty > 0 ||
+    input.config.kingAdjacentAttackPenalty > 0 ||
+    input.config.kingEscapeSquareBonus > 0 ||
+    input.config.opponentReplyPenaltyWeight > 0;
+  if (!needsAfterPosition) return score;
+
+  try {
+    const committed = applyMove({
+      position: input.position,
+      pieceCatalog: input.pieceCatalog,
+      move: input.move,
+      options: { trustedLegalMove: true, suppressRandomSkillProcs: true },
+    });
+    const afterPosition = normalizeBattlePosition(committed.position);
+    score += evaluateKingSafety({
+      position: afterPosition,
+      side: 'enemy',
+      pieceCatalog: input.pieceCatalog,
+      config: input.config,
+    }).score;
+    score -= tacticalReplyPenalty({
+      position: afterPosition,
+      pieceCatalog: input.pieceCatalog,
+      config: input.config,
+    });
+  } catch {
+    score -= input.config.kingInDangerPenalty;
+  }
+
+  return score;
 }
 
 function moveKey(move: AiBattleMove): string {
@@ -139,11 +311,23 @@ export function computeAiMove(input: {
     };
   }
 
+  const beforeEnemySafety = evaluateKingSafety({
+    position,
+    side: 'enemy',
+    pieceCatalog: input.pieceCatalog,
+    config,
+  });
   const scoredMoves = legal.legalMoves
     .map((move) => ({
       move,
       score:
-        moveScore(move, 'enemy') - repetitionPenalty(move, input.recentEnemyMoves ?? [], config),
+        evaluateCandidateMove({
+          position,
+          pieceCatalog: input.pieceCatalog,
+          move,
+          config,
+          beforeEnemySafety,
+        }) - repetitionPenalty(move, input.recentEnemyMoves ?? [], config),
     }))
     .sort((a, b) => b.score - a.score);
   const selected = pickWeightedMove(scoredMoves, config, random);

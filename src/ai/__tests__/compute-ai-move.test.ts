@@ -266,4 +266,45 @@ describe('ai engine compute ai move', () => {
       pieceCode: 'FU',
     });
   });
+
+  it('avoids exposing its king to the next player capture when king safety is weighted', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'enemy',
+      turnNumber: 2,
+      moveCount: 1,
+      sfen: '4k4/4g4/3G4/9/9/9/9/9/4R3K w - 2',
+      stateHash: 'seed-king-safety',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'enemy', row: 1, col: 4, pieceCode: 'KI', char: '金', promoted: false },
+          { side: 'enemy', row: 3, col: 8, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'player', row: 2, col: 3, pieceCode: 'KI', char: '金', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'HI', char: '飛', promoted: false },
+          { side: 'player', row: 8, col: 8, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+
+    const result = computeAiMove({
+      position,
+      pieceCatalog,
+      config: {
+        candidateScoreTolerance: 0,
+        temperature: 0,
+        kingInDangerPenalty: 10000,
+        kingAdjacentAttackPenalty: 80,
+        kingEscapeSquareBonus: 20,
+      },
+    });
+
+    expect(result.selectedMove).not.toMatchObject({
+      fromRow: 1,
+      fromCol: 4,
+      toRow: 2,
+      toCol: 3,
+      pieceCode: 'KI',
+    });
+  });
 });
