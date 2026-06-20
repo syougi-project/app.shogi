@@ -1,5 +1,4 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +12,7 @@ import { PieceSwipeCarousel } from '@/features/piece-info/ui/components/piece-sw
 import { PieceInfoBackButton } from '@/features/piece-info/ui/parts/piece-info-back-button';
 import { usePieceCatalogScreen } from '@/features/piece-info/ui/use-piece-catalog-screen';
 import { useAssetPreload } from '@/hooks/common/use-asset-preload';
+import { useSafeRouterBack } from '@/lib/navigation/safe-router-back';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
 import { playSe } from '@/lib/audio/audio-manager';
 import { MoveVector } from '@/domain/models/piece';
@@ -68,7 +68,7 @@ function MovementGrid({ vectors, isRepeatable }: { vectors: MoveVector[]; isRepe
 }
 
 export function PieceInfoScreen() {
-  const router = useRouter();
+  const goBack = useSafeRouterBack('/home');
   const { piece, items, index, total, selectIndex, isLoading } = usePieceCatalogScreen();
   const carouselItems = useMemo(() => (items.length > 0 ? items : [piece]), [items, piece]);
   const remotePieceUrls = useMemo(
@@ -105,7 +105,7 @@ export function PieceInfoScreen() {
         <PieceInfoBackButton
           onPress={() => {
             void playSe('tap');
-            router.back();
+            goBack();
           }}
         />
 

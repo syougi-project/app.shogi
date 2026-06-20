@@ -1,12 +1,19 @@
+import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { ExpProgressBar } from '@/components/atom/exp-progress-bar';
 import { HeaderLabel } from '@/components/atom/header-label';
+import { homeAssets } from '@/constants/home-assets';
+import {
+  HOME_SETTINGS_BUTTON_HEIGHT,
+  HOME_SETTINGS_BUTTON_WIDTH,
+} from '@/features/home/ui/home-layout';
 
 type PlayerStatusProps = {
   userName: string;
   onUserNamePress?: () => void;
+  onPressSettings?: () => void;
   rating: number;
   stamina?: number;
   maxStamina?: number;
@@ -45,6 +52,7 @@ function useCountdown(nextRecoveryAt?: string | null): string | null {
 export function PlayerStatus({
   userName,
   onUserNamePress,
+  onPressSettings,
   rating,
   stamina = 50,
   maxStamina = 50,
@@ -58,7 +66,25 @@ export function PlayerStatus({
 
   return (
     <View className="mr-3 flex-1 pr-2">
-      <HeaderLabel text={userName} onPress={onUserNamePress} />
+      <View className="max-w-full flex-row items-center gap-1 self-start">
+        <View className="min-w-0 shrink">
+          <HeaderLabel text={userName} onPress={onUserNamePress} />
+        </View>
+        {onPressSettings ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="設定を開く"
+            onPress={onPressSettings}
+            className="shrink-0 active:scale-95"
+          >
+            <Image
+              source={homeAssets.settingsButton}
+              contentFit="contain"
+              style={{ width: HOME_SETTINGS_BUTTON_WIDTH, height: HOME_SETTINGS_BUTTON_HEIGHT }}
+            />
+          </Pressable>
+        ) : null}
+      </View>
       <View className="mt-2 flex-row items-center">
         <View className="flex-1 gap-1">
           <View className="flex-row items-center">

@@ -2,12 +2,15 @@ import type { ImageSourcePropType } from 'react-native';
 
 /** HTML 版 gacha_room と同種の画像・演出動画 */
 export const gachaRoomAssets = {
+  background: require('../../assets/gacha/background.png'),
   backButton: require('../../assets/gacha/戻る.png'),
   draw1: require('../../assets/gacha/draw-1.png'),
   draw0: require('../../assets/gacha/draw-0.png'),
   drawGold: require('../../assets/gacha/draw-gold.png'),
   /** ガチャ選択画面: うかんむり・ひへん・しんにょうの「ガチャを引く」 */
   drawWalk: require('../../assets/gacha/draw-walk.png'),
+  /** 本日の広告無償ガチャ用「ガチャを引く」 */
+  drawAdv: require('../../assets/gacha/draw-adv.png'),
   videos: {
     /** 外れ */
     miss: require('../../assets/gacha/ガチャ1.mp4'),

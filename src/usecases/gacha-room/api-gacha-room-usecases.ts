@@ -24,6 +24,7 @@ export class ApiRollGachaUseCase implements RollGachaUseCase {
     return this.dataSource.roll({
       gachaId: input.gachaId,
       gachaBallColorIndex: input.gachaBallColorIndex,
+      adFreeRoll: input.adFreeRoll,
     });
   }
 }

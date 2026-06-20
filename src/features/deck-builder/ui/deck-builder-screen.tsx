@@ -20,6 +20,7 @@ import {
   isPieceBannedFromMyDeck,
   useDeckBuilderScreen,
 } from '@/features/deck-builder/ui/use-deck-builder-screen';
+import { navigateBackOrReplace } from '@/lib/navigation/safe-router-back';
 import { useAssetPreload } from '@/hooks/common/use-asset-preload';
 import { useAuthSession } from '@/hooks/common/auth-session-context';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
@@ -169,7 +170,7 @@ export function DeckBuilderScreen({ mode = 'default' }: DeckBuilderScreenProps) 
           <DeckBuilderBackButton
             onPress={() => {
               void playSe('tap');
-              router.back();
+              navigateBackOrReplace(router, '/home');
             }}
           />
         </View>

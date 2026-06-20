@@ -450,6 +450,23 @@ describe('piece-catalog-display', () => {
     ]);
   });
 
+  it('水は斜め2マスの移動説明とベクトルに差し替える', () => {
+    const piece = catalogItem({
+      char: '水',
+      pieceCode: 'WATER',
+      move: '斜めに2マスまで移動できる。',
+      moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+    });
+    const display = normalizePieceCatalogItemForDisplay(piece);
+    expect(display.move).toBe('斜めに2マスまで移動できる。');
+    expect(display.moveVectors).toEqual([
+      { dx: -1, dy: -1, maxStep: 2 },
+      { dx: 1, dy: -1, maxStep: 2 },
+      { dx: -1, dy: 1, maxStep: 2 },
+      { dx: 1, dy: 1, maxStep: 2 },
+    ]);
+  });
+
   it('銅は桂馬飛び+前方スライドの移動説明とベクトルに差し替える', () => {
     const piece = catalogItem({
       char: '銅',

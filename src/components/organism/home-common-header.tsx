@@ -7,6 +7,7 @@ import { homeAssets } from '@/constants/home-assets';
 type HomeCommonHeaderProps = {
   userName: string;
   onUserNamePress?: () => void;
+  onPressSettings?: () => void;
   rating?: number;
   pawnCurrency?: number;
   goldCurrency?: number;
@@ -23,6 +24,7 @@ const USER_BAR_IMAGE_OFFSET_Y = 4;
 export function HomeCommonHeader({
   userName,
   onUserNamePress,
+  onPressSettings,
   rating = 0,
   pawnCurrency = 0,
   goldCurrency = 0,
@@ -62,6 +64,7 @@ export function HomeCommonHeader({
           <PlayerStatus
             userName={userName}
             onUserNamePress={onUserNamePress}
+            onPressSettings={onPressSettings}
             rating={rating}
             stamina={stamina}
             maxStamina={maxStamina}

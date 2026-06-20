@@ -25,7 +25,8 @@ export class RequestAiMoveUseCase {
       record.position.stateHash &&
       input.stateHash !== record.position.stateHash
     ) {
-      throw new Error('stateHash does not match current position');
+      // クライアント sync タイミングで hash が一時的にずれることがある（ローカル対戦）。
+      // 着手番号と sideToMove が正しければ registry 側を正とする。
     }
 
     const turn = computeLocalAiTurn({

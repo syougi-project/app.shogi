@@ -1,3 +1,5 @@
+import { resolveDevLanUrlFromEnv } from '@/lib/config/resolve-dev-lan-url';
+
 export type ApiError = {
   code: string;
   message: string;
@@ -28,7 +30,7 @@ function normalizeApiBaseUrl(raw: string): string {
 
 function baseUrl() {
   const raw = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
-  const normalized = normalizeApiBaseUrl(raw);
+  const normalized = resolveDevLanUrlFromEnv(normalizeApiBaseUrl(raw), 'http', '3000');
   if (!hasLoggedApiBase) {
     hasLoggedApiBase = true;
     console.log('[api-client] EXPO_PUBLIC_API_BASE_URL =', normalized);

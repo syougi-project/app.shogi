@@ -1,6 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ImageBackground, Modal, Pressable, ScrollView, Text, View } from 'react-native';
@@ -23,6 +22,7 @@ import { useAssetPreload } from '@/hooks/common/use-asset-preload';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
 import { listLocalPieceImageModules, resolvePieceImageSource } from '@/lib/piece-image';
 import { playSe } from '@/lib/audio/audio-manager';
+import { useSafeRouterBack } from '@/lib/navigation/safe-router-back';
 import type { GachaBanner } from '@/usecases/gacha-room/load-gacha-lobby-usecase';
 
 function rarityColor(rarity: string): string {
@@ -209,29 +209,41 @@ function PieceOverlay({
   );
 }
 
-function IntroDrawButton({
+function GachaDrawButton({
   banner,
-  active: _active,
-  onSelect,
+  useAdDraw,
+  disabled = false,
+  onPress,
 }: {
   banner: GachaBanner;
-  active: boolean;
-  onSelect: () => void;
+  useAdDraw: boolean;
+  disabled?: boolean;
+  onPress: () => void;
 }) {
   const key = resolveGachaBannerKey(banner.key);
   const isKanken1 = key === 'kanken1';
 
-  const drawImage = isKanken1 ? gachaRoomAssets.drawGold : gachaRoomAssets.drawWalk;
-  const size = isKanken1 ? { width: 390, height: 150 } : { width: 360, height: 144 };
+  const drawImage = useAdDraw
+    ? gachaRoomAssets.drawAdv
+    : isKanken1
+      ? gachaRoomAssets.drawGold
+      : gachaRoomAssets.drawWalk;
+  const size = useAdDraw
+    ? { width: 360, height: 144 }
+    : isKanken1
+      ? { width: 390, height: 150 }
+      : { width: 360, height: 144 };
 
   return (
     <Pressable
+      disabled={disabled}
       onPress={() => {
         void playSe('tap');
-        onSelect();
+        void playSe('confirm');
+        onPress();
       }}
-      className="items-center active:opacity-90"
-      style={isKanken1 ? { marginTop: 25 } : undefined}
+      className={`items-center active:opacity-90 ${disabled ? 'opacity-50' : ''}`}
+      style={isKanken1 && !useAdDraw ? { marginTop: 25 } : undefined}
     >
       <Image source={drawImage} contentFit="contain" style={size} />
     </Pressable>
@@ -239,7 +251,7 @@ function IntroDrawButton({
 }
 
 export function GachaRoomScreen() {
-  const router = useRouter();
+  const goBack = useSafeRouterBack('/home');
   const vm = useGachaRoomScreen();
   const [introVisible, setIntroVisible] = useState(true);
 
@@ -254,9 +266,11 @@ export function GachaRoomScreen() {
 
   const { isReady: areAssetsReady } = useAssetPreload(
     [
+      gachaRoomAssets.background,
       gachaRoomAssets.backButton,
       gachaRoomAssets.drawWalk,
       gachaRoomAssets.drawGold,
+      gachaRoomAssets.drawAdv,
       ...(Object.values(gachaRoomAssets.bannerByKey) as number[]),
       ...listLocalPieceImageModules(),
     ],
@@ -295,26 +309,22 @@ export function GachaRoomScreen() {
     : gachaRoomAssets.draw1;
 
   return (
-    <SafeAreaView
-      className="flex-1"
-      edges={['left', 'right', 'bottom']}
-      style={{ position: 'relative', backgroundColor: '#020617' }}
-    >
-      {vm.phase === 'video' && <GachaVideoOverlay isHit={isHit} onEnd={vm.onVideoEnd} />}
+    <ImageBackground source={gachaRoomAssets.background} resizeMode="cover" className="flex-1">
+      <SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']}>
+        {vm.phase === 'video' && <GachaVideoOverlay isHit={isHit} onEnd={vm.onVideoEnd} />}
 
-      {vm.phase === 'pieceOverlay' && vm.lastResult?.type === 'hit' && (
-        <PieceOverlay piece={vm.lastResult.piece} onDismiss={vm.onPieceOverlayDismiss} />
-      )}
+        {vm.phase === 'pieceOverlay' && vm.lastResult?.type === 'hit' && (
+          <PieceOverlay piece={vm.lastResult.piece} onDismiss={vm.onPieceOverlayDismiss} />
+        )}
 
-      <GlobalHomeHud pawnCurrency={vm.pawnCurrency} goldCurrency={vm.goldCurrency} />
+        <GlobalHomeHud pawnCurrency={vm.pawnCurrency} goldCurrency={vm.goldCurrency} />
 
-      {introVisible ? (
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName="px-4 pb-10 pt-2"
-          showsVerticalScrollIndicator
-        >
-          <View className="mb-6 rounded-2xl border border-indigo-400/30 bg-[#0f172a]/95 p-4">
+        {introVisible ? (
+          <ScrollView
+            className="flex-1"
+            contentContainerClassName="px-4 pb-10 pt-2"
+            showsVerticalScrollIndicator
+          >
             <View
               className="mb-4 flex-row items-center"
               style={{ marginLeft: GACHA_ROOM_BACK_BUTTON_INTRO_MARGIN_LEFT }}
@@ -322,137 +332,158 @@ export function GachaRoomScreen() {
               <GachaRoomBackButton
                 onPress={() => {
                   void playSe('tap');
-                  router.back();
+                  goBack();
                 }}
               />
             </View>
-            <Text className="mb-4 text-lg font-semibold text-white">ガチャ一覧</Text>
+            <Text className="mb-4 text-center text-xl font-black text-white drop-shadow-md">
+              ガチャ一覧
+            </Text>
+            {vm.featuredAdGachaLabel ? (
+              <View className="mb-4 rounded-xl border border-amber-300/50 bg-amber-500/15 px-3 py-2">
+                <Text className="text-center text-xs font-bold text-amber-100">
+                  {vm.dailyAdGacha?.used
+                    ? `本日の広告無償ガチャは使用済みです（次回更新: 0:00）`
+                    : `本日の広告無償ガチャ: ${vm.featuredAdGachaLabel}（1日1回・0:00更新）`}
+                </Text>
+              </View>
+            ) : null}
             {introBanners.map((banner) => {
-              const active =
-                resolveGachaBannerKey(banner.key) === resolveGachaBannerKey(vm.selectedKey);
               const src = bannerImageSource(banner.key, banner.imageSignedUrl);
+              const isFeaturedAd = vm.isFeaturedAdGacha(banner.key);
+              const canAdRoll = vm.canRollWithAd(banner.key);
               return (
                 <View key={banner.key} className="mb-5">
-                  <View className="relative overflow-hidden rounded-xl border border-white/10">
+                  <View
+                    className={`relative overflow-hidden rounded-xl border bg-white/20 ${
+                      isFeaturedAd ? 'border-amber-300/80' : 'border-[#8b0000]/25'
+                    }`}
+                  >
+                    {isFeaturedAd ? (
+                      <View className="absolute left-2 top-2 z-10 rounded-full bg-amber-400/90 px-2 py-0.5">
+                        <Text className="text-[10px] font-black text-[#4a3200]">
+                          {canAdRoll ? '本日広告無料' : '本日の対象ガチャ'}
+                        </Text>
+                      </View>
+                    ) : null}
                     <Image source={src} contentFit="cover" style={{ width: '100%', height: 200 }} />
-                    <View className="absolute bottom-1 left-0 right-0 items-center">
-                      <IntroDrawButton
+                    <View className="absolute bottom-1 left-0 right-0 items-center gap-1">
+                      <GachaDrawButton
                         banner={banner}
-                        active={active}
-                        onSelect={() => {
+                        useAdDraw={canAdRoll}
+                        disabled={!canRoll}
+                        onPress={() => {
                           vm.setSelectedKey(banner.key);
                           setIntroVisible(false);
+                          if (canAdRoll) {
+                            void vm.rollWithAd(banner.key);
+                            return;
+                          }
                         }}
                       />
                     </View>
                   </View>
                   {banner.pieceRateText ? (
-                    <Text className="mt-2 text-center text-xs text-slate-300">
+                    <Text className="mt-2 text-center text-xs font-semibold text-white drop-shadow-sm">
                       {banner.pieceRateText}
                     </Text>
                   ) : null}
                 </View>
               );
             })}
-          </View>
-        </ScrollView>
-      ) : (
-        <ScrollView
-          className="flex-1"
-          contentContainerClassName="flex-grow pb-10"
-          keyboardShouldPersistTaps="handled"
-        >
-          <ImageBackground
-            source={bgSource}
-            resizeMode="cover"
-            style={{ minHeight: 520 }}
-            imageStyle={{ opacity: 0.45 }}
+          </ScrollView>
+        ) : (
+          <ScrollView
+            className="flex-1"
+            contentContainerClassName="flex-grow pb-10"
+            keyboardShouldPersistTaps="handled"
           >
-            <View className="min-h-[520px] flex-1 bg-black/50 px-4 pb-8 pt-2">
-              {vm.noticeMessage ? (
-                <View className="mb-3 rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-2">
-                  <Text className="text-sm font-bold text-amber-200">{vm.noticeMessage}</Text>
-                </View>
-              ) : null}
+            <ImageBackground
+              source={bgSource}
+              resizeMode="cover"
+              style={{ minHeight: 520 }}
+              imageStyle={{ opacity: 0.45 }}
+            >
+              <View className="min-h-[520px] flex-1 bg-black/50 px-4 pb-8 pt-2">
+                {vm.noticeMessage ? (
+                  <View className="mb-3 rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-2">
+                    <Text className="text-sm font-bold text-amber-200">{vm.noticeMessage}</Text>
+                  </View>
+                ) : null}
 
-              <View className="mb-4">
-                <View className="max-w-[70%]">
-                  <Text className="text-2xl font-black text-white drop-shadow-md">
-                    {selectedBanner?.name ?? 'ガチャルーム'}
-                  </Text>
-                  {selectedBanner?.description ? (
-                    <Text className="mt-1 text-sm text-slate-200">
-                      {selectedBanner.description}
+                <View className="mb-4">
+                  <View className="max-w-[70%]">
+                    <Text className="text-2xl font-black text-white drop-shadow-md">
+                      {selectedBanner?.name ?? 'ガチャルーム'}
                     </Text>
-                  ) : selectedBanner?.pieceRateText ? (
-                    <Text className="mt-1 text-sm text-slate-200">
+                    {selectedBanner?.description ? (
+                      <Text className="mt-1 text-sm text-slate-200">
+                        {selectedBanner.description}
+                      </Text>
+                    ) : selectedBanner?.pieceRateText ? (
+                      <Text className="mt-1 text-sm text-slate-200">
+                        {selectedBanner.pieceRateText}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+
+                {selectedBanner?.pieceRateText ? (
+                  <View className="mb-4 self-end rounded-full bg-amber-500/30 px-3 py-1">
+                    <Text className="text-xs font-semibold text-amber-200">
                       {selectedBanner.pieceRateText}
                     </Text>
-                  ) : null}
+                  </View>
+                ) : null}
+
+                <GachaLineupSection banner={selectedBanner} />
+
+                <GachaDrawButton
+                  banner={selectedBanner ?? introBanners[0]!}
+                  useAdDraw={selectedBanner != null && vm.canRollWithAd(selectedBanner.key)}
+                  disabled={!canRoll || selectedBanner == null}
+                  onPress={() => {
+                    if (!canRoll || !selectedBanner) return;
+                    if (vm.canRollWithAd(selectedBanner.key)) {
+                      void vm.rollWithAd(selectedBanner.key);
+                      return;
+                    }
+                    void vm.roll(selectedBanner.key);
+                  }}
+                />
+                <View className="mb-6" />
+                <Text className="mb-2 text-center text-xs text-slate-400">
+                  消費: 歩 x{selectedBanner?.pawnCost ?? 0} / 金 x{selectedBanner?.goldCost ?? 0}
+                </Text>
+
+                <View className="rounded-xl border border-white/15 bg-white/10 p-4">
+                  <View className="mb-2 flex-row items-center gap-2">
+                    <MaterialIcons name="thumb-up" size={20} color="#bef264" />
+                    <Text className="text-lg font-semibold text-white">今回の結果</Text>
+                  </View>
+                  <ResultBlock vm={vm} selected={selectedBanner} />
                 </View>
+
+                <Text className="mx-1 mt-6 text-center text-xs leading-5 text-slate-400">
+                  ※ 当たり駒は駒コレクションに記録されます。{'\n'}※
+                  はずれの場合でも歩や金の通貨が返却され、ショップで利用できます。
+                </Text>
+
+                <Pressable
+                  onPress={() => {
+                    void playSe('tap');
+                    setIntroVisible(true);
+                  }}
+                  className="mx-auto mt-6 flex-row items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 active:bg-white/20"
+                >
+                  <MaterialIcons name="arrow-back" color="#fff" size={18} />
+                  <Text className="text-sm font-semibold text-white">ガチャ選択画面に戻る</Text>
+                </Pressable>
               </View>
-
-              {selectedBanner?.pieceRateText ? (
-                <View className="mb-4 self-end rounded-full bg-amber-500/30 px-3 py-1">
-                  <Text className="text-xs font-semibold text-amber-200">
-                    {selectedBanner.pieceRateText}
-                  </Text>
-                </View>
-              ) : null}
-
-              <GachaLineupSection banner={selectedBanner} />
-
-              <Pressable
-                disabled={!canRoll}
-                onPress={() => {
-                  void playSe('tap');
-                  if (!canRoll || !selectedBanner) return;
-                  void playSe('confirm');
-                  void vm.roll(selectedBanner.key);
-                }}
-                className="mb-6 w-full flex-row items-center justify-center gap-2 rounded-xl border-2 border-yellow-400/80 py-3.5 active:opacity-90 disabled:opacity-50"
-                style={{
-                  backgroundColor: '#c026d3',
-                  shadowColor: '#a855f7',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.35,
-                  shadowRadius: 8,
-                }}
-              >
-                <MaterialIcons name="autorenew" color="#fff" size={24} />
-                <Text className="text-lg font-bold text-white">ガチャを引く</Text>
-              </Pressable>
-              <Text className="mb-2 text-center text-xs text-slate-400">
-                消費: 歩 x{selectedBanner?.pawnCost ?? 0} / 金 x{selectedBanner?.goldCost ?? 0}
-              </Text>
-
-              <View className="rounded-xl border border-white/15 bg-white/10 p-4">
-                <View className="mb-2 flex-row items-center gap-2">
-                  <MaterialIcons name="thumb-up" size={20} color="#bef264" />
-                  <Text className="text-lg font-semibold text-white">今回の結果</Text>
-                </View>
-                <ResultBlock vm={vm} selected={selectedBanner} />
-              </View>
-
-              <Text className="mx-1 mt-6 text-center text-xs leading-5 text-slate-400">
-                ※ 当たり駒は駒コレクションに記録されます。{'\n'}※
-                はずれの場合でも歩や金の通貨が返却され、ショップで利用できます。
-              </Text>
-
-              <Pressable
-                onPress={() => {
-                  void playSe('tap');
-                  setIntroVisible(true);
-                }}
-                className="mx-auto mt-6 flex-row items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-4 py-2 active:bg-white/20"
-              >
-                <MaterialIcons name="arrow-back" color="#fff" size={18} />
-                <Text className="text-sm font-semibold text-white">ガチャ選択画面に戻る</Text>
-              </Pressable>
-            </View>
-          </ImageBackground>
-        </ScrollView>
-      )}
-    </SafeAreaView>
+            </ImageBackground>
+          </ScrollView>
+        )}
+      </SafeAreaView>
+    </ImageBackground>
   );
 }

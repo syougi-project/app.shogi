@@ -1,5 +1,7 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Text, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useCallback } from 'react';
+import { BackHandler, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { AppLoadingScreen } from '@/components/organism/app-loading-screen';
 import { UiScreenShell } from '@/components/organism/ui-screen-shell';
@@ -22,12 +24,13 @@ import { StageShogiBackButton } from '@/features/stage-shogi/ui/parts/stage-shog
 import { useStageShogiScreen } from '@/features/stage-shogi/ui/use-stage-shogi-screen';
 import { useAssetPreload } from '@/hooks/common/use-asset-preload';
 import { playSe } from '@/lib/audio/audio-manager';
+import { useSafeRouterBack } from '@/lib/navigation/safe-router-back';
 import { useAuthSession } from '@/hooks/common/use-auth-session';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
 import { listLocalPieceImageModules } from '@/lib/piece-image';
 
 export function StageShogiScreen() {
-  const router = useRouter();
+  const goBack = useSafeRouterBack('/stage-select');
   const params = useLocalSearchParams<{ stage?: string }>();
   const stageParam = Array.isArray(params.stage) ? params.stage[0] : params.stage;
   const { isReady: isAuthReady, userId } = useAuthSession();
@@ -38,6 +41,17 @@ export function StageShogiScreen() {
     ...skillParticleAssetPreloadTargets,
   ]);
   useScreenBgm('battle');
+
+  useFocusEffect(
+    useCallback(() => {
+      const onHardwareBack = () => {
+        goBack();
+        return true;
+      };
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+      return () => subscription.remove();
+    }, [goBack]),
+  );
 
   if (vm.isLoading || !areAssetsReady || vm.isBootstrappingBattle) {
     return <AppLoadingScreen imageSource={homeAssets.loadingImage} />;
@@ -221,7 +235,7 @@ export function StageShogiScreen() {
       <StageShogiBackButton
         onPress={() => {
           void playSe('tap');
-          router.back();
+          goBack();
         }}
       />
     </View>

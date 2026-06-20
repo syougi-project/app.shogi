@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { enrichGachaBanner } from '@/constants/gacha-lineup-catalog';
 import { resolveGachaRollCode } from '@/constants/gacha-room-assets';
+import {
+  canRollGachaWithAd,
+  featuredAdGachaDisplayName,
+  isDailyFeaturedAdGachaBanner,
+  type DailyAdGachaStatus,
+} from '@/features/gacha-room/lib/daily-ad-gacha';
 import { gachaBallColorIndexForCurrentPeriod } from '@/features/home/lib/gacha-ball-schedule';
+import { showRewardedAd } from '@/lib/ads/show-rewarded-ad';
 import { ApiClientError } from '@/infra/http/api-client';
 import { GachaBanner } from '@/usecases/gacha-room/load-gacha-lobby-usecase';
 import {
@@ -21,12 +28,17 @@ export type GachaRoomVM = {
   selectedKey: GachaBanner['key'];
   setSelectedKey: (key: GachaBanner['key']) => void;
   banners: GachaBanner[];
+  dailyAdGacha: DailyAdGachaStatus | null;
+  canRollWithAd: (gachaKey: GachaBanner['key']) => boolean;
+  isFeaturedAdGacha: (gachaKey: GachaBanner['key']) => boolean;
+  featuredAdGachaLabel: string | null;
   pawnCurrency: number;
   goldCurrency: number;
   noticeMessage: string | null;
   phase: GachaPhase;
   lastResult: RollGachaResult | null;
   roll: (gachaKey?: GachaBanner['key']) => Promise<void>;
+  rollWithAd: (gachaKey?: GachaBanner['key']) => Promise<void>;
   onVideoEnd: () => void;
   onPieceOverlayDismiss: () => void;
 };
@@ -36,6 +48,7 @@ export function useGachaRoomScreen(): GachaRoomVM {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<GachaBanner['key']>('ukanmuri');
   const [banners, setBanners] = useState<GachaBanner[]>([]);
+  const [dailyAdGacha, setDailyAdGacha] = useState<DailyAdGachaStatus | null>(null);
   const [pawnCurrency, setPawnCurrency] = useState(0);
   const [goldCurrency, setGoldCurrency] = useState(0);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
@@ -60,11 +73,13 @@ export function useGachaRoomScreen(): GachaRoomVM {
         }
         setPawnCurrency(snapshot.pawnCurrency);
         setGoldCurrency(snapshot.goldCurrency);
+        setDailyAdGacha(snapshot.dailyAdGacha ?? null);
       })
       .catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : 'ガチャ一覧の取得に失敗しました';
         setLoadError(msg);
         setBanners([]);
+        setDailyAdGacha(null);
       })
       .finally(() => {
         setIsLoading(false);
@@ -75,18 +90,36 @@ export function useGachaRoomScreen(): GachaRoomVM {
     reloadLobby();
   }, [reloadLobby]);
 
-  async function roll(gachaKey?: GachaBanner['key']) {
+  const canRollWithAd = useCallback(
+    (gachaKey: GachaBanner['key']) =>
+      dailyAdGacha != null && canRollGachaWithAd(gachaKey, dailyAdGacha),
+    [dailyAdGacha],
+  );
+
+  const isFeaturedAdGacha = useCallback(
+    (gachaKey: GachaBanner['key']) => {
+      if (!dailyAdGacha) return false;
+      return isDailyFeaturedAdGachaBanner(gachaKey, dailyAdGacha);
+    },
+    [dailyAdGacha],
+  );
+
+  const featuredAdGachaLabel = useMemo(() => {
+    if (!dailyAdGacha) return null;
+    return featuredAdGachaDisplayName(dailyAdGacha.featuredGachaKey);
+  }, [dailyAdGacha]);
+
+  async function executeRoll(gachaKey: GachaBanner['key'], adFreeRoll: boolean) {
     if (isRollingRef.current) return;
     if (phase !== 'idle' && phase !== 'done') return;
-    const targetKey = gachaKey ?? selectedKey;
     isRollingRef.current = true;
-    setSelectedKey(targetKey);
+    setSelectedKey(gachaKey);
     setNoticeMessage(null);
-    setPhase('rolling');
     setLastResult(null);
     pendingResultRef.current = null;
+    setPhase(adFreeRoll ? 'video' : 'rolling');
     try {
-      const rollCode = resolveGachaRollCode(targetKey, banners);
+      const rollCode = resolveGachaRollCode(gachaKey, banners);
       if (rollCode == null) {
         setNoticeMessage(
           banners.length === 0
@@ -99,15 +132,25 @@ export function useGachaRoomScreen(): GachaRoomVM {
       const result = await rollUseCase.execute({
         gachaId: rollCode,
         gachaBallColorIndex: gachaBallColorIndexForCurrentPeriod(),
+        adFreeRoll,
       });
       pendingResultRef.current = result;
       setLastResult(result);
       setPawnCurrency(result.pawnCurrency);
       setGoldCurrency(result.goldCurrency);
-      setPhase('video');
+      if (adFreeRoll) {
+        setDailyAdGacha((current) => (current ? { ...current, used: true } : current));
+      } else {
+        setPhase('video');
+      }
     } catch (error: unknown) {
       if (error instanceof ApiClientError && error.code === 'INSUFFICIENT_CURRENCY') {
         setNoticeMessage('通貨が足りません');
+        setPhase('idle');
+        return;
+      }
+      if (error instanceof ApiClientError && error.code === 'AD_GACHA_UNAVAILABLE') {
+        setNoticeMessage(error.message || '本日の広告無償ガチャは利用できません');
         setPhase('idle');
         return;
       }
@@ -122,6 +165,26 @@ export function useGachaRoomScreen(): GachaRoomVM {
     } finally {
       isRollingRef.current = false;
     }
+  }
+
+  async function roll(gachaKey?: GachaBanner['key']) {
+    await executeRoll(gachaKey ?? selectedKey, false);
+  }
+
+  async function rollWithAd(gachaKey?: GachaBanner['key']) {
+    const targetKey = gachaKey ?? selectedKey;
+    if (!canRollWithAd(targetKey)) {
+      setNoticeMessage('本日の広告無償ガチャは利用できません');
+      return;
+    }
+    const ad = await showRewardedAd();
+    if (!ad.ok) {
+      if (!ad.cancelled) {
+        setNoticeMessage('広告の視聴に失敗しました');
+      }
+      return;
+    }
+    await executeRoll(targetKey, true);
   }
 
   const onVideoEnd = useCallback(() => {
@@ -149,12 +212,17 @@ export function useGachaRoomScreen(): GachaRoomVM {
     selectedKey,
     setSelectedKey,
     banners,
+    dailyAdGacha,
+    canRollWithAd,
+    isFeaturedAdGacha,
+    featuredAdGachaLabel,
     pawnCurrency,
     goldCurrency,
     noticeMessage,
     phase,
     lastResult,
     roll,
+    rollWithAd,
     onVideoEnd,
     onPieceOverlayDismiss,
   };

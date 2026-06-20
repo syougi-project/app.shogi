@@ -33,6 +33,8 @@ import {
   KOU_MOVE_VECTORS,
   LEAF_MOVE_DESCRIPTION_JA,
   LEAF_MOVE_VECTORS,
+  WATER_MOVE_DESCRIPTION_JA,
+  WATER_MOVE_VECTORS,
   MIST_MOVE_DESCRIPTION_JA,
   MIST_MOVE_VECTORS,
   FIXED_PIECE_MOVE_DESCRIPTION_JA,
@@ -180,6 +182,11 @@ function isLeafCatalogPiece(piece: PieceCatalogItem): boolean {
     code.includes('HAA') ||
     code.includes('CB83395BA23F')
   );
+}
+
+function isWaterCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  return piece.char === '水' || code === 'WATER' || code === 'SUI' || code.includes('30C762304200');
 }
 
 function isCopperCatalogPiece(piece: PieceCatalogItem): boolean {
@@ -633,6 +640,9 @@ export function normalizeCatalogMoveText(piece: PieceCatalogItem): string {
   if (isLeafCatalogPiece(piece)) {
     return LEAF_MOVE_DESCRIPTION_JA;
   }
+  if (isWaterCatalogPiece(piece)) {
+    return WATER_MOVE_DESCRIPTION_JA;
+  }
   if (isCopperCatalogPiece(piece)) {
     return COPPER_MOVE_DESCRIPTION_JA;
   }
@@ -693,6 +703,9 @@ export function normalizeCatalogMoveVectors(
   }
   if (isLeafCatalogPiece(piece)) {
     return LEAF_MOVE_VECTORS;
+  }
+  if (isWaterCatalogPiece(piece)) {
+    return WATER_MOVE_VECTORS;
   }
   if (isCopperCatalogPiece(piece)) {
     return COPPER_MOVE_VECTORS;

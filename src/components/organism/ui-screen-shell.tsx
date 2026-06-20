@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackButton } from '@/components/atom/back-button';
 import { GlobalHomeHud } from '@/components/organism/global-home-hud';
+import { navigateBackOrReplace } from '@/lib/navigation/safe-router-back';
 import { playSe } from '@/lib/audio/audio-manager';
 
 type UiScreenShellProps = {
@@ -78,7 +79,7 @@ export function UiScreenShell({
                 <BackButton
                   onPress={() => {
                     void playSe('tap');
-                    router.back();
+                    navigateBackOrReplace(router, '/home');
                   }}
                 />
               ))) ??
@@ -111,7 +112,7 @@ export function UiScreenShell({
             <BackButton
               onPress={() => {
                 void playSe('tap');
-                router.back();
+                navigateBackOrReplace(router, '/home');
               }}
             />
           ))

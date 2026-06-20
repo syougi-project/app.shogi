@@ -19,13 +19,18 @@ export class GachaApiDataSource {
     return getJson<GachaLobbySnapshot>('/api/v1/gacha/lobby', { token });
   }
 
-  async roll(input: { gachaId: string; gachaBallColorIndex?: number }): Promise<RollGachaResult> {
+  async roll(input: {
+    gachaId: string;
+    gachaBallColorIndex?: number;
+    adFreeRoll?: boolean;
+  }): Promise<RollGachaResult> {
     const token = await this.getToken();
     return postJson<RollGachaResult>(
       '/api/v1/gacha/roll',
       {
         gachaId: toGachaRollCode(input.gachaId),
         gachaBallColorIndex: input.gachaBallColorIndex ?? 0,
+        adFreeRoll: input.adFreeRoll === true,
       },
       { token },
     );

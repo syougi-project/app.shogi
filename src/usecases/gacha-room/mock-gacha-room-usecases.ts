@@ -13,6 +13,11 @@ import {
   grantGachaCollectible,
   spendGachaRollCost,
 } from '@/features/gacha-room/lib/gacha-mock-store';
+import { canRollGachaWithAd, normalizeAdGachaCode } from '@/features/gacha-room/lib/daily-ad-gacha';
+import {
+  getDailyAdGachaStatus,
+  markDailyAdGachaUsed,
+} from '@/features/gacha-room/lib/daily-ad-gacha-store';
 import {
   gachaCurrencyRewardAmount,
   lineupToGachaRollPieces,
@@ -135,12 +140,16 @@ function pickWeightedRandom<T extends { weight: number; char: string }>(
 
 export class MockLoadGachaLobbyUseCase implements LoadGachaLobbyUseCase {
   async execute(): Promise<GachaLobbySnapshot> {
-    const { pawnCurrency, goldCurrency } = getGachaMockWallet();
+    const [{ pawnCurrency, goldCurrency }, dailyAdGacha] = await Promise.all([
+      Promise.resolve(getGachaMockWallet()),
+      getDailyAdGachaStatus(),
+    ]);
     return {
       banners,
       pawnCurrency,
       goldCurrency,
       history: [],
+      dailyAdGacha,
     };
   }
 }
@@ -159,13 +168,36 @@ export class MockRollGachaUseCase implements RollGachaUseCase {
       };
     }
 
-    const spent = spendGachaRollCost(input.gachaId);
-    if (!spent.ok) {
-      throw new ApiClientError({
-        code: 'INSUFFICIENT_CURRENCY',
-        message: '通貨が足りません',
-      });
+    if (input.adFreeRoll) {
+      const status = await getDailyAdGachaStatus();
+      if (!canRollGachaWithAd(input.gachaId, status)) {
+        throw new ApiClientError({
+          code: 'AD_GACHA_UNAVAILABLE',
+          message: '本日の広告無償ガチャは利用できません',
+        });
+      }
+      if (normalizeAdGachaCode(input.gachaId) == null) {
+        throw new ApiClientError({
+          code: 'AD_GACHA_UNAVAILABLE',
+          message: 'このガチャは広告無償の対象外です',
+        });
+      }
+    } else {
+      const spent = spendGachaRollCost(input.gachaId);
+      if (!spent.ok) {
+        throw new ApiClientError({
+          code: 'INSUFFICIENT_CURRENCY',
+          message: '通貨が足りません',
+        });
+      }
     }
+
+    const finalize = async (result: RollGachaResult): Promise<RollGachaResult> => {
+      if (input.adFreeRoll) {
+        await markDailyAdGachaUsed();
+      }
+      return result;
+    };
 
     const colorIndex = input.gachaBallColorIndex ?? 0;
 
@@ -176,13 +208,13 @@ export class MockRollGachaUseCase implements RollGachaUseCase {
         const wallet = addGachaMockCurrency(
           picked.currencyType === 'pawn' ? { pawn: amount } : { gold: amount },
         );
-        return {
+        return finalize({
           type: 'miss',
           currency: picked.currencyType,
           amount,
           pawnCurrency: wallet.pawnCurrency,
           goldCurrency: wallet.goldCurrency,
-        };
+        });
       }
 
       const piece = {
@@ -196,35 +228,35 @@ export class MockRollGachaUseCase implements RollGachaUseCase {
         const isNew = grantGachaCollectible(picked.char);
         if (!isNew) {
           const wallet = grantDuplicateGoldReward();
-          return {
+          return finalize({
             type: 'hit',
             piece,
             alreadyOwned: true,
             duplicateGoldGranted: 1,
             pawnCurrency: wallet.pawnCurrency,
             goldCurrency: wallet.goldCurrency,
-          };
+          });
         }
         const wallet = getGachaMockWallet();
-        return {
+        return finalize({
           type: 'hit',
           piece,
           alreadyOwned: false,
           pawnCurrency: wallet.pawnCurrency,
           goldCurrency: wallet.goldCurrency,
-        };
+        });
       }
     }
 
     const isGold = Math.random() < config.goldFailRate;
     const amount = isGold ? config.goldFailReward : config.pawnFailReward;
     const wallet = addGachaMockCurrency(isGold ? { gold: amount } : { pawn: amount });
-    return {
+    return finalize({
       type: 'miss',
       currency: isGold ? 'gold' : 'pawn',
       amount,
       pawnCurrency: wallet.pawnCurrency,
       goldCurrency: wallet.goldCurrency,
-    };
+    });
   }
 }

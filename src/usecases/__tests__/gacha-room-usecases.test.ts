@@ -1,12 +1,16 @@
 import { resetGachaMockStore } from '@/features/gacha-room/lib/gacha-mock-store';
+import { resetDailyAdGachaStore } from '@/features/gacha-room/lib/daily-ad-gacha-store';
+import { getDailyAdGachaStatus } from '@/features/gacha-room/lib/daily-ad-gacha-store';
+import { canRollGachaWithAd } from '@/features/gacha-room/lib/daily-ad-gacha';
 import {
   MockLoadGachaLobbyUseCase,
   MockRollGachaUseCase,
 } from '@/usecases/gacha-room/mock-gacha-room-usecases';
 
 describe('gacha room usecases', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetGachaMockStore();
+    await resetDailyAdGachaStore();
   });
 
   it('loads gacha banners, wallet, and history', async () => {
@@ -17,6 +21,27 @@ describe('gacha room usecases', () => {
     expect(snapshot.pawnCurrency).toBe(3000);
     expect(snapshot.goldCurrency).toBe(20);
     expect(snapshot.history).toEqual([]);
+    expect(snapshot.dailyAdGacha?.dayKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(snapshot.dailyAdGacha?.used).toBe(false);
+  });
+
+  it('allows one ad-free roll per day for featured gacha only', async () => {
+    const status = await getDailyAdGachaStatus();
+    const usecase = new MockRollGachaUseCase();
+
+    const result = await usecase.execute({
+      gachaId: status.featuredGachaKey,
+      adFreeRoll: true,
+    });
+    expect(result.pawnCurrency).toBe(3000);
+
+    const afterUse = await getDailyAdGachaStatus();
+    expect(afterUse.used).toBe(true);
+    expect(canRollGachaWithAd(status.featuredGachaKey, afterUse)).toBe(false);
+
+    await expect(
+      usecase.execute({ gachaId: status.featuredGachaKey, adFreeRoll: true }),
+    ).rejects.toMatchObject({ code: 'AD_GACHA_UNAVAILABLE' });
   });
 
   it('rolls ukanmuri currency pawn from weighted table', async () => {

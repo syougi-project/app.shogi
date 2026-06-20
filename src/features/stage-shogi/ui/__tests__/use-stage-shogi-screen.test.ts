@@ -557,6 +557,122 @@ describe('useStageShogiScreen', () => {
     );
   });
 
+  it('プレイヤー着手後に CPU 手番を requestAiMove へ渡す', async () => {
+    const pieceCatalog = [
+      createCatalogItem({
+        pieceCode: 'FU',
+        char: '歩',
+        name: '歩兵',
+        sfenCode: 'P',
+        moveVectors: [{ dx: 0, dy: -1, maxStep: 1 }],
+      }),
+      createCatalogItem({
+        pieceCode: 'OU',
+        char: '王',
+        name: '王',
+        sfenCode: 'K',
+        moveVectors: [{ dx: -1, dy: -1, maxStep: 1 }],
+      }),
+    ];
+    const legalMoves = createLegalMoves([
+      {
+        fromRow: 2,
+        fromCol: 0,
+        toRow: 1,
+        toCol: 0,
+        pieceCode: 'FU',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: null,
+        notation: null,
+      },
+    ]);
+    mockCommitGameMoveExecute.mockResolvedValue({
+      moveNo: 1,
+      actorSide: 'player',
+      move: legalMoves.legalMoves[0],
+      skillTriggered: false,
+      turnConsumed: true,
+      position: createPosition('9/9/P8/9/9/9/9/9/9/9', {
+        sideToMove: 'enemy',
+        turnNumber: 2,
+        moveCount: 1,
+        stateHash: 'after-player',
+      }),
+      game: createGame(),
+    });
+    mockRequestAiMoveExecute.mockResolvedValue({
+      selectedMove: {
+        fromRow: 0,
+        fromCol: 0,
+        toRow: 1,
+        toCol: 0,
+        pieceCode: 'FU',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: null,
+        notation: null,
+      },
+      skillTriggered: false,
+      turnConsumed: true,
+      meta: null,
+      position: createPosition('9/9/9/P8/9/9/9/9/9/9', {
+        sideToMove: 'player',
+        turnNumber: 3,
+        moveCount: 2,
+        stateHash: 'after-cpu',
+      }),
+      game: createGame(),
+    });
+
+    const { result } = await renderReadyHook({
+      snapshot: createSnapshot([
+        {
+          side: 'player',
+          row: 2,
+          col: 0,
+          pieceId: 1,
+          pieceCode: 'FU',
+          char: '歩',
+          imageBucket: null,
+          imageKey: null,
+          imageSignedUrl: null,
+        },
+        {
+          side: 'enemy',
+          row: 0,
+          col: 0,
+          pieceId: 2,
+          pieceCode: 'FU',
+          char: '歩',
+          imageBucket: null,
+          imageKey: null,
+          imageSignedUrl: null,
+        },
+      ]),
+      pieceCatalog,
+      legalMoves,
+    });
+
+    act(() => {
+      result.current.handleBoardCellPress(2, 0);
+    });
+    act(() => {
+      result.current.handleBoardCellPress(1, 0);
+    });
+
+    await waitFor(() => expect(mockCommitGameMoveExecute).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(mockRequestAiMoveExecute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          gameId: 'game-1',
+          moveNo: 2,
+        }),
+      ),
+    );
+    await waitFor(() => expect(result.current.sideToMove).toBe('player'));
+  });
+
   it('違法手エラー時は最新局面へ自動復旧して継続メッセージを出す', async () => {
     const pieceCatalog = [
       createCatalogItem({

@@ -384,8 +384,51 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
   const skillToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRecoveringFromIllegalMoveRef = useRef(false);
   const pendingAiResumeRef = useRef<{ moveNo: number; side: Side } | null>(null);
+  const needsEnemyAiMoveRef = useRef(false);
+  const autoAiAttemptByKeyRef = useRef<Map<string, number>>(new Map());
   const illegalRecoverSignatureRef = useRef<string | null>(null);
   const illegalRecoverAttemptsRef = useRef(0);
+  const gameIdRef = useRef<string | null>(null);
+  const sideToMoveRef = useRef<Side>('player');
+  const moveNoRef = useRef(1);
+  const isCreatingGameRef = useRef(false);
+  const winnerRef = useRef<Side | null>(null);
+
+  useEffect(() => {
+    gameIdRef.current = gameId;
+  }, [gameId]);
+
+  useEffect(() => {
+    sideToMoveRef.current = sideToMove;
+  }, [sideToMove]);
+
+  useEffect(() => {
+    moveNoRef.current = moveNo;
+  }, [moveNo]);
+
+  useEffect(() => {
+    isCreatingGameRef.current = isCreatingGame;
+  }, [isCreatingGame]);
+
+  useEffect(() => {
+    winnerRef.current = winner;
+  }, [winner]);
+
+  function resolveEnemyAiMoveNo(): number {
+    if (aiPositionRef.current != null) {
+      return aiPositionRef.current.moveCount + 1;
+    }
+    return Math.max(1, moveNoRef.current);
+  }
+
+  function queueEnemyAiMove(moveNo: number) {
+    needsEnemyAiMoveRef.current = true;
+    pendingAiResumeRef.current = { moveNo, side: 'enemy' };
+    queueMicrotask(() => {
+      if (winnerRef.current != null) return;
+      void handleAiMove(moveNo, 'enemy');
+    });
+  }
 
   useEffect(() => {
     return () => {
@@ -609,6 +652,8 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     setHands(synced.hands);
     setSideToMove(synced.sideToMove);
     setMoveNo(synced.moveNo);
+    sideToMoveRef.current = synced.sideToMove;
+    moveNoRef.current = synced.moveNo;
     setSelectedCell(null);
     setSelectedDropPieceCode(null);
     setLegalTargets([]);
@@ -687,6 +732,8 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     battleSessionSettledRef.current = false;
     hasEnteredBattleRef.current = false;
     pendingAiResumeRef.current = null;
+    needsEnemyAiMoveRef.current = false;
+    autoAiAttemptByKeyRef.current.clear();
     illegalRecoverSignatureRef.current = null;
     illegalRecoverAttemptsRef.current = 0;
   }, [gameId, pieceDefsByChar, snapshot, stageParam]);
@@ -992,17 +1039,18 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     });
   }
 
-  async function handleAiMove(nextMoveNo: number, expectedSideToMove: Side = sideToMove) {
+  async function handleAiMove(nextMoveNo: number, expectedSideToMove: Side = 'enemy') {
+    const activeGameId = gameIdRef.current;
     if (
-      !gameId ||
+      !activeGameId ||
       expectedSideToMove !== 'enemy' ||
-      isAiThinking ||
-      isCreatingGame ||
-      aiThinkingRef.current
+      aiThinkingRef.current ||
+      isCreatingGameRef.current ||
+      winnerRef.current != null
     ) {
       return;
     }
-    const requestKey = `${gameId}:${nextMoveNo}:${expectedSideToMove}`;
+    const requestKey = `${activeGameId}:${nextMoveNo}:${expectedSideToMove}`;
     if (inFlightAiKeyRef.current === requestKey) return;
     if (lastSuccessfulAiKeyRef.current === requestKey) return;
     aiThinkingRef.current = true;
@@ -1017,7 +1065,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
 
       for (let attempt = 0; attempt <= maxSameTurnAiRetries; attempt++) {
         const response = await requestAiMoveUseCase.execute({
-          gameId,
+          gameId: activeGameId,
           moveNo: nextMoveNo,
           stateHash: stateHashRef.current,
           engineConfig: {},
@@ -1204,6 +1252,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
 
         if (nextWinner === 'player') {
           lastSuccessfulAiKeyRef.current = requestKey;
+          needsEnemyAiMoveRef.current = false;
           aiSequenceFinished = true;
           void claimStageClearRewardIfNeeded();
           break;
@@ -1216,13 +1265,14 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
 
         if (stopCpuRetry) {
           lastSuccessfulAiKeyRef.current = requestKey;
+          needsEnemyAiMoveRef.current = false;
           aiSequenceFinished = true;
           break;
         }
       }
 
       if (!aiSequenceFinished) {
-        lastSuccessfulAiKeyRef.current = requestKey;
+        needsEnemyAiMoveRef.current = true;
         setAiError('CPU の着手が盾などで繰り返し無効化されました。盤面を確認してください。');
       }
     } catch (error: unknown) {
@@ -1238,6 +1288,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
             return;
           }
           pendingAiResumeRef.current = null;
+          needsEnemyAiMoveRef.current = false;
           setAiError(
             '同じ局面で自動更新を複数回試しましたが復旧できませんでした。画面を開き直してください。',
           );
@@ -1255,17 +1306,34 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
 
   useEffect(
     () => {
-      const pending = pendingAiResumeRef.current;
-      if (!pending) return;
-      if (!gameId || isAiThinking || isCreatingGame || isFinished) return;
+      if (!gameId || isFinished) return;
       if (sideToMove !== 'enemy') return;
-      pendingAiResumeRef.current = null;
-      void handleAiMove(pending.moveNo, pending.side);
+
+      const pending = pendingAiResumeRef.current;
+      if (!pending && !needsEnemyAiMoveRef.current) return;
+      if (aiThinkingRef.current || isCreatingGameRef.current) return;
+
+      const aiMoveNo = pending?.moveNo ?? resolveEnemyAiMoveNo();
+      const requestKey = `${gameId}:${aiMoveNo}:enemy`;
+      if (inFlightAiKeyRef.current === requestKey) return;
+      if (lastSuccessfulAiKeyRef.current === requestKey) {
+        needsEnemyAiMoveRef.current = false;
+        return;
+      }
+
+      const attempts = autoAiAttemptByKeyRef.current.get(requestKey) ?? 0;
+      if (attempts >= 5) return;
+      autoAiAttemptByKeyRef.current.set(requestKey, attempts + 1);
+
+      if (pending) {
+        pendingAiResumeRef.current = null;
+      }
+      void handleAiMove(aiMoveNo, 'enemy');
     },
     // `handleAiMove` は局面状態を広く閉じ込めるため意図的に通常関数のままにしている。
     // 再開判定は `pendingAiResumeRef` と各種 guard で制御している。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [gameId, isAiThinking, isCreatingGame, isFinished, moveNo, sideToMove],
+    [gameId, isFinished, moveNo, sideToMove, boardSyncEpoch],
   );
 
   useEffect(() => {
@@ -1295,6 +1363,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       }
       if (illegalRecoverAttemptsRef.current > 3) {
         pendingAiResumeRef.current = null;
+        needsEnemyAiMoveRef.current = false;
         return false;
       }
       setStateHash(latest.position.stateHash ?? null);
@@ -1328,6 +1397,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
           moveNo: latest.position.moveCount + 1,
           side: latest.position.sideToMove,
         };
+        queueEnemyAiMove(latest.position.moveCount + 1);
       }
       setAiError(null);
       return true;
@@ -1473,7 +1543,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
         return;
       }
       if (result.position.sideToMove === 'enemy') {
-        void handleAiMove(result.position.moveCount + 1, result.position.sideToMove);
+        queueEnemyAiMove(result.position.moveCount + 1);
       }
     } catch (error: unknown) {
       if (isRecoverableMoveSyncError(error)) {
@@ -1483,6 +1553,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
           return;
         }
         pendingAiResumeRef.current = null;
+        needsEnemyAiMoveRef.current = false;
         setAiError(
           '同じ局面で自動更新を複数回試しましたが復旧できませんでした。画面を開き直してください。',
         );

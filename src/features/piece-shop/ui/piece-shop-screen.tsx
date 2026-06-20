@@ -1,5 +1,4 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,6 +17,7 @@ import { usePieceShopScreen } from '@/features/piece-shop/ui/use-piece-shop-scre
 import { useAssetPreload } from '@/hooks/common/use-asset-preload';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
 import { playSe } from '@/lib/audio/audio-manager';
+import { useSafeRouterBack } from '@/lib/navigation/safe-router-back';
 import { ShopItem } from '@/domain/models/shop';
 
 const piecePlacementByKey: Record<
@@ -33,7 +33,7 @@ const piecePlacementByKey: Record<
 };
 
 export function PieceShopScreen() {
-  const router = useRouter();
+  const goBack = useSafeRouterBack('/home');
   const vm = usePieceShopScreen();
   const { isReady: areAssetsReady } = useAssetPreload([...pieceShopPreloadTargets]);
   useScreenBgm('shop');
@@ -71,7 +71,7 @@ export function PieceShopScreen() {
               <PieceShopBackButton
                 onPress={() => {
                   void playSe('tap');
-                  router.back();
+                  goBack();
                 }}
               />
             </View>

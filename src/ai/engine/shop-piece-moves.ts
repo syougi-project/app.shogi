@@ -113,6 +113,11 @@ export const LEAF_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
   { dx: 1, dy: 1, maxStep: 2 },
 ];
 
+export const WATER_MOVE_DESCRIPTION_JA = '斜めに2マスまで移動できる。';
+
+/** 水 — 斜め4方向に最大2マス（BFF カタログ / piece_info 準拠）。 */
+export const WATER_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [...LEAF_MOVE_VECTORS];
+
 export const MIST_MOVE_DESCRIPTION_JA = '斜め1マス＋左右1マスに移動できる。';
 
 /** 霧 — 斜め4方向 + 左右1マス（HTML mistMoves / BFF カタログ準拠）。 */
