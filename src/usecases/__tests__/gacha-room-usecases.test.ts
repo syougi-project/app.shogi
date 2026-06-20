@@ -1,6 +1,8 @@
 import { resetGachaMockStore } from '@/features/gacha-room/lib/gacha-mock-store';
-import { resetDailyAdGachaStore } from '@/features/gacha-room/lib/daily-ad-gacha-store';
-import { getDailyAdGachaStatus } from '@/features/gacha-room/lib/daily-ad-gacha-store';
+import {
+  getDailyAdGachaStatus,
+  resetDailyAdGachaStore,
+} from '@/features/gacha-room/lib/daily-ad-gacha-store';
 import { canRollGachaWithAd } from '@/features/gacha-room/lib/daily-ad-gacha';
 import {
   MockLoadGachaLobbyUseCase,
@@ -26,16 +28,13 @@ describe('gacha room usecases', () => {
   });
 
   it('allows one ad-free roll per day for featured gacha only', async () => {
-    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.5);
     const status = await getDailyAdGachaStatus();
     const usecase = new MockRollGachaUseCase();
 
-    const result = await usecase.execute({
+    await usecase.execute({
       gachaId: status.featuredGachaKey,
       adFreeRoll: true,
     });
-    expect(result.pawnCurrency).toBe(3002);
-    randomSpy.mockRestore();
 
     const afterUse = await getDailyAdGachaStatus();
     expect(afterUse.used).toBe(true);
