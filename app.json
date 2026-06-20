@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "真名仮名",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,7 +9,12 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.manakana.shogi",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,6 +33,12 @@
     "plugins": [
       "expo-router",
       [
+        "react-native-google-mobile-ads",
+        {
+          "iosAppId": "ca-app-pub-4722276667311883~4369476061"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -43,6 +54,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "admobIosInterstitialUnitId": "ca-app-pub-4722276667311883/8991247351",
+      "eas": {
+        "projectId": "865f1aca-5b9d-41a2-b2d8-455b12075ca2"
+      }
     }
   }
 }

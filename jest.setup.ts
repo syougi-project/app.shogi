@@ -10,6 +10,48 @@ jest.mock('expo-audio', () => ({
   setAudioModeAsync: jest.fn(),
 }));
 
+jest.mock('expo-secure-store', () => {
+  const store = new Map<string, string>();
+  return {
+    getItemAsync: jest.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
+    setItemAsync: jest.fn((key: string, value: string) => {
+      store.set(key, value);
+      return Promise.resolve();
+    }),
+    deleteItemAsync: jest.fn((key: string) => {
+      store.delete(key);
+      return Promise.resolve();
+    }),
+  };
+});
+
+jest.mock('react-native-google-mobile-ads', () => {
+  const ad = {
+    loaded: true,
+    load: jest.fn(),
+    show: jest.fn().mockResolvedValue(undefined),
+    addAdEventListener: jest.fn(() => jest.fn()),
+  };
+  return {
+    __esModule: true,
+    default: jest.fn(() => ({
+      initialize: jest.fn().mockResolvedValue({}),
+    })),
+    AdEventType: {
+      LOADED: 'loaded',
+      ERROR: 'error',
+      CLOSED: 'closed',
+      OPENED: 'opened',
+    },
+    InterstitialAd: {
+      createForAdRequest: jest.fn(() => ad),
+    },
+    TestIds: {
+      INTERSTITIAL: 'test-interstitial',
+    },
+  };
+});
+
 afterEach(() => {
   jest.clearAllMocks();
 });

@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 
 import { AppLoadingScreen } from '@/components/organism/app-loading-screen';
 import { AuthSessionProvider, useAuthSession } from '@/hooks/common/auth-session-context';
+import { initializeAdMob } from '@/lib/ads/admob';
 import { releaseAudioPlayers } from '@/lib/audio/audio-manager';
 
 import '../../global.css';
@@ -21,6 +22,7 @@ function RootLayoutInner() {
   const { isReady, needsUsernameSetup, error, statusMessage } = useAuthSession();
 
   useEffect(() => {
+    void initializeAdMob();
     return () => {
       releaseAudioPlayers();
     };

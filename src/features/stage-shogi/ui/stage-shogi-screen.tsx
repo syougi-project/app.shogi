@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { BackHandler, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -27,6 +27,7 @@ import { playSe } from '@/lib/audio/audio-manager';
 import { useSafeRouterBack } from '@/lib/navigation/safe-router-back';
 import { useAuthSession } from '@/hooks/common/use-auth-session';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
+import { showBattleEndInterstitialEveryThirdTime } from '@/lib/ads/admob';
 import { listLocalPieceImageModules } from '@/lib/piece-image';
 
 export function StageShogiScreen() {
@@ -41,6 +42,13 @@ export function StageShogiScreen() {
     ...skillParticleAssetPreloadTargets,
   ]);
   useScreenBgm('battle');
+  const countedBattleEndRef = useRef(false);
+
+  useEffect(() => {
+    if (!vm.winner || countedBattleEndRef.current) return;
+    countedBattleEndRef.current = true;
+    void showBattleEndInterstitialEveryThirdTime('normal-dungeon');
+  }, [vm.winner]);
 
   useFocusEffect(
     useCallback(() => {

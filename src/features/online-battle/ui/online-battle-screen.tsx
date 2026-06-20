@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ImageBackground,
   Modal,
@@ -35,6 +35,7 @@ import { StageShogiHandsRow } from '@/features/stage-shogi/ui/components/stage-s
 import { pinHomeSnapshotRating } from '@/hooks/common/home-snapshot-store';
 import { useAssetPreload } from '@/hooks/common/use-asset-preload';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
+import { showBattleEndInterstitialEveryThirdTime } from '@/lib/ads/admob';
 import { playSe } from '@/lib/audio/audio-manager';
 
 /** HTML `.app` の max-width に合わせる */
@@ -96,6 +97,13 @@ export function OnlineBattleScreen() {
     ...skillParticleAssetPreloadTargets,
   ]);
   useScreenBgm('onlineBattle');
+  const countedBattleEndRef = useRef(false);
+
+  useEffect(() => {
+    if (!session.winnerSide || countedBattleEndRef.current) return;
+    countedBattleEndRef.current = true;
+    void showBattleEndInterstitialEveryThirdTime('online-battle');
+  }, [session.winnerSide]);
 
   const contentWidth = Math.min(windowWidth - 24, HTML_APP_MAX_WIDTH);
   const boardSize = Math.min(contentWidth - 8, HTML_APP_MAX_WIDTH);
