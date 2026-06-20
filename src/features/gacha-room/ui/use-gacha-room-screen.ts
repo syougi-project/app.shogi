@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { enrichGachaBanner } from '@/constants/gacha-lineup-catalog';
+import { mergeIntroBanners } from '@/constants/gacha-intro-banners';
 import { resolveGachaRollCode } from '@/constants/gacha-room-assets';
 import {
   canRollGachaWithAd,
   featuredAdGachaDisplayName,
   isDailyFeaturedAdGachaBanner,
+  isMissingDailyAdGachaTableMessage,
   type DailyAdGachaStatus,
 } from '@/features/gacha-room/lib/daily-ad-gacha';
 import { gachaBallColorIndexForCurrentPeriod } from '@/features/home/lib/gacha-ball-schedule';
@@ -76,7 +78,22 @@ export function useGachaRoomScreen(): GachaRoomVM {
         setDailyAdGacha(snapshot.dailyAdGacha ?? null);
       })
       .catch((e: unknown) => {
-        const msg = e instanceof Error ? e.message : 'ガチャ一覧の取得に失敗しました';
+        const msg =
+          e instanceof ApiClientError
+            ? e.message
+            : e instanceof Error
+              ? e.message
+              : 'ガチャ一覧の取得に失敗しました';
+        if (isMissingDailyAdGachaTableMessage(msg)) {
+          const fallbackBanners = mergeIntroBanners([]).map(enrichGachaBanner);
+          setBanners(fallbackBanners);
+          if (fallbackBanners.length > 0) {
+            setSelectedKey(fallbackBanners[0]!.key);
+          }
+          setDailyAdGacha(null);
+          setLoadError(null);
+          return;
+        }
         setLoadError(msg);
         setBanners([]);
         setDailyAdGacha(null);

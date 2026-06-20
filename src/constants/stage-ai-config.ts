@@ -66,7 +66,7 @@ export const DEFAULT_STAGE_AI_CONFIG: StageAiConfig = {
   returnMovePenalty: 70,
   recentMoveWindow: 4,
   maxCandidatePool: 4,
-  searchDepth: 1,
+  searchDepth: 2,
   opponentReplyPenaltyWeight: 0,
   kingInDangerPenalty: 9000,
   kingAdjacentAttackPenalty: 45,
@@ -79,7 +79,7 @@ export const DEFAULT_STAGE_AI_CONFIG: StageAiConfig = {
 
 export const STAGE_AI_CONFIG_BY_STAGE: Readonly<Record<number, Partial<StageAiConfig>>> = {
   1: {
-    searchDepth: 1,
+    searchDepth: 2,
     candidateScoreTolerance: 90,
     temperature: 45,
     repeatMovePenalty: 120,
@@ -106,40 +106,37 @@ export const STAGE_AI_CONFIG_BY_STAGE: Readonly<Record<number, Partial<StageAiCo
     maxCandidatePool: 5,
   },
   10: {
-    searchDepth: 3,
+    searchDepth: 2,
     candidateScoreTolerance: 35,
     temperature: 20,
     maxCandidatePool: 4,
   },
   20: {
-    searchDepth: 4,
+    searchDepth: 2,
     candidateScoreTolerance: 24,
     temperature: 14,
     repeatMovePenalty: 80,
     samePiecePenalty: 12,
     returnMovePenalty: 60,
     maxCandidatePool: 3,
-    opponentReplyPenaltyWeight: 0.45,
   },
   30: {
-    searchDepth: 5,
+    searchDepth: 2,
     candidateScoreTolerance: 16,
     temperature: 8,
     repeatMovePenalty: 60,
     samePiecePenalty: 8,
     returnMovePenalty: 45,
     maxCandidatePool: 2,
-    opponentReplyPenaltyWeight: 0.65,
   },
   40: {
-    searchDepth: 6,
+    searchDepth: 2,
     candidateScoreTolerance: 10,
     temperature: 4,
     repeatMovePenalty: 45,
     samePiecePenalty: 5,
     returnMovePenalty: 30,
     maxCandidatePool: 2,
-    opponentReplyPenaltyWeight: 0.85,
   },
 };
 
@@ -149,13 +146,16 @@ type StageAiConfigRange = {
   config: Partial<StageAiConfig>;
 };
 
+/** ノーマルダンジョン: 応答速度優先（玉安全の全手シミュレーションを省略） */
+const FAST_STAGE_KING_EVAL: Partial<StageAiConfig> = {
+  kingInDangerPenalty: 0,
+  kingAdjacentAttackPenalty: 0,
+  kingEscapeSquareBonus: 0,
+  opponentReplyPenaltyWeight: 0,
+};
+
 export const STAGE_AI_CONFIG_RANGES: readonly StageAiConfigRange[] = [
-  { from: 1, to: 1, config: { searchDepth: 1 } },
-  { from: 2, to: 5, config: { searchDepth: 2 } },
-  { from: 6, to: 10, config: { searchDepth: 3 } },
-  { from: 11, to: 20, config: { searchDepth: 4 } },
-  { from: 21, to: 30, config: { searchDepth: 5 } },
-  { from: 31, config: { searchDepth: 6 } },
+  { from: 1, config: { searchDepth: 2, ...FAST_STAGE_KING_EVAL } },
 ];
 
 function clampNumber(value: number, min: number, max: number): number {

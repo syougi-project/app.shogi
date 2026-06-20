@@ -3,6 +3,8 @@ import Constants from 'expo-constants';
 import { Platform, StatusBar } from 'react-native';
 import mobileAds, { AdEventType, InterstitialAd, TestIds } from 'react-native-google-mobile-ads';
 
+import { isAdMobEnabled } from '@/lib/ads/is-admob-enabled';
+
 type InterstitialPlacement = 'normal-dungeon' | 'online-battle';
 
 const SHOW_EVERY_BATTLE_COUNT = 3;
@@ -64,7 +66,7 @@ function loadInterstitial(): Promise<boolean> {
 }
 
 export async function initializeAdMob(): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (!isAdMobEnabled() || Platform.OS === 'web') return;
   initializePromise ??= mobileAds()
     .initialize()
     .then(() => loadInterstitial())
@@ -75,7 +77,7 @@ export async function initializeAdMob(): Promise<void> {
 }
 
 async function showInterstitialIfReady(): Promise<void> {
-  if (Platform.OS === 'web' || isShowingInterstitial) return;
+  if (!isAdMobEnabled() || Platform.OS === 'web' || isShowingInterstitial) return;
   await initializeAdMob();
 
   const ad = getInterstitial();
@@ -116,6 +118,7 @@ async function showInterstitialIfReady(): Promise<void> {
 export async function showBattleEndInterstitialEveryThirdTime(
   placement: InterstitialPlacement,
 ): Promise<void> {
+  if (!isAdMobEnabled()) return;
   const key = `admob:${placement}:finished-battle-count`;
   const raw = await SecureStore.getItemAsync(key);
   const current = Number.parseInt(raw ?? '0', 10);

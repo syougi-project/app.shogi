@@ -1,5 +1,5 @@
 import { normalizeBattleGameStatus, normalizeBattlePosition } from '@/ai/model';
-import { computeLocalAiTurn } from '@/ai/local-engine';
+import { computeLocalAiTurnAsync } from '@/ai/local-engine';
 import { getLocalBattleGame, updateLocalBattleGame } from '@/ai/local-battle-registry';
 import { BattleAiTurn } from '@/usecases/stage-battle/game-move-contract';
 import { resolveStageAiConfig, type StageAiConfig } from '@/constants/stage-ai-config';
@@ -29,7 +29,7 @@ export class RequestAiMoveUseCase {
       // 着手番号と sideToMove が正しければ registry 側を正とする。
     }
 
-    const turn = computeLocalAiTurn({
+    const turn = await computeLocalAiTurnAsync({
       position: record.position,
       pieceCatalog: record.pieceCatalog,
       config: resolveStageAiConfig(record.stageNo, input.engineConfig),

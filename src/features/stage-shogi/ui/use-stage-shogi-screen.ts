@@ -119,6 +119,9 @@ export type PendingPromotion = {
 
 export type TimeActionMode = 'skill' | 'normal';
 
+/** CPU 移動先の赤ハイライト表示時間（本番のみ） */
+const CPU_MOVE_PREVIEW_MS = process.env.NODE_ENV === 'test' ? 0 : 500;
+
 const RECOVERED_MOVE_SYNC_MESSAGE = '局面を自動更新しました。対局を続行します。';
 
 /** マスが変わる移動・打ち（同一マスでのスキルのみ着手は除く） */
@@ -424,8 +427,14 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
   function queueEnemyAiMove(moveNo: number) {
     needsEnemyAiMoveRef.current = true;
     pendingAiResumeRef.current = { moveNo, side: 'enemy' };
+    if (!aiThinkingRef.current) {
+      setIsAiThinking(true);
+    }
     queueMicrotask(() => {
-      if (winnerRef.current != null) return;
+      if (winnerRef.current != null) {
+        setIsAiThinking(false);
+        return;
+      }
       void handleAiMove(moveNo, 'enemy');
     });
   }
@@ -609,7 +618,14 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     const message = skillName
       ? `${actorLabel} スキル発動: ${skillName}`
       : `${actorLabel} スキル発動`;
-    setSkillActivationText(message);
+    const applySkillToast = () => {
+      setSkillActivationText(message);
+    };
+    try {
+      flushSync(applySkillToast);
+    } catch {
+      applySkillToast();
+    }
     if (skillToastTimeoutRef.current) {
       clearTimeout(skillToastTimeoutRef.current);
     }
@@ -1013,30 +1029,26 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     });
   }
 
+  async function waitForUiYield() {
+    if (process.env.NODE_ENV === 'test') return;
+    await waitForNextFrame();
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  }
+
   async function sendCommittedPlayerMoveAfterPaint(
     move: BattleMove,
     optimisticBaseline: BoardPiece[],
     preservedMovedPiece: PreservedMovedPiece | undefined,
     rollbackSnapshot?: { pieces: BoardPiece[]; hands: HandsState },
   ) {
-    if (process.env.NODE_ENV !== 'test') {
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 0);
-      });
-    }
     await sendCommittedPlayerMoveToServer(
       move,
       optimisticBaseline,
       preservedMovedPiece,
       rollbackSnapshot,
     );
-  }
-
-  async function waitForAiMoveVisualCommit() {
-    await waitForNextFrame();
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 120);
-    });
   }
 
   async function handleAiMove(nextMoveNo: number, expectedSideToMove: Side = 'enemy') {
@@ -1048,6 +1060,9 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       isCreatingGameRef.current ||
       winnerRef.current != null
     ) {
+      if (!aiThinkingRef.current) {
+        setIsAiThinking(false);
+      }
       return;
     }
     const requestKey = `${activeGameId}:${nextMoveNo}:${expectedSideToMove}`;
@@ -1071,12 +1086,6 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
           engineConfig: {},
         });
 
-        if (attempt === 0 && response.skillTriggered && response.selectedMove) {
-          showSkillActivation('enemy', response.selectedMove, piecesRef.current);
-        }
-        if (attempt === 0) {
-          queueSkillVisualEffects(response.skillVisualEffects);
-        }
         const patchedAiPosition = patchHandsForStarReturnSkill(
           response.position,
           'enemy',
@@ -1151,10 +1160,12 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
             promotedPieceDefsByCode,
           );
           setAiPreviewTarget({ row: selectedMoveForApply.toRow, col: selectedMoveForApply.toCol });
-          await new Promise<void>((resolve) => {
-            setTimeout(resolve, 1000);
-          });
-          setAiPreviewTarget(null);
+          await waitForNextFrame();
+          if (CPU_MOVE_PREVIEW_MS > 0) {
+            await new Promise<void>((resolve) => {
+              setTimeout(resolve, CPU_MOVE_PREVIEW_MS);
+            });
+          }
           applyOptimisticMove('enemy', selectedMoveForApply);
           playBattleMoveOrPromoteSe(
             selectedMoveForApply,
@@ -1164,7 +1175,18 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
             pieceDefsByChar,
             promotedPieceDefsByCode,
           );
-          await waitForAiMoveVisualCommit();
+          setAiPreviewTarget(null);
+          if (attempt === 0) {
+            if (response.skillTriggered) {
+              showSkillActivation('enemy', selectedMoveForApply, piecesRef.current);
+            }
+            queueSkillVisualEffects(response.skillVisualEffects);
+          }
+        } else if (attempt === 0) {
+          if (response.skillTriggered && selectedMoveForApply) {
+            showSkillActivation('enemy', selectedMoveForApply, piecesRef.current);
+          }
+          queueSkillVisualEffects(response.skillVisualEffects);
         }
 
         if (selectedMoveForApply) {

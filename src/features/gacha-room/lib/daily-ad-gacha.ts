@@ -89,3 +89,9 @@ export function featuredAdGachaDisplayName(code: string): string {
       return normalized;
   }
 }
+
+/** BFF/DB 未適用で広告ガチャテーブルが無いときの API エラー判定 */
+export function isMissingDailyAdGachaTableMessage(message: string): boolean {
+  if (!message.includes('player_daily_ad_gacha')) return false;
+  return message.includes('schema cache') || message.includes('does not exist');
+}

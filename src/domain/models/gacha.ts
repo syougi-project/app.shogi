@@ -26,8 +26,8 @@ export type GachaLobbySnapshot = {
   pawnCurrency: number;
   goldCurrency: number;
   history: string[];
-  /** 本日の広告無償ガチャ（うかんむり/ひへん/しんにょうのいずれか1つ） */
-  dailyAdGacha?: DailyAdGachaStatus;
+  /** 本日の広告無償ガチャ（DB未適用・利用不可のとき null） */
+  dailyAdGacha?: DailyAdGachaStatus | null;
 };
 
 export type DailyAdGachaStatus = {

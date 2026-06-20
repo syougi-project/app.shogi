@@ -3,6 +3,7 @@ import type { BattleCanonicalPosition } from '@/usecases/stage-battle/game-move-
 export {
   applyMove as applyLocalMove,
   computeAiMove as computeLocalAiTurn,
+  computeAiMoveAsync as computeLocalAiTurnAsync,
   generateLegalMoves as generateLocalLegalMoves,
 } from '@/ai/engine';
 

@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 const IOS_ADMOB_APP_ID = 'ca-app-pub-4722276667311883~4369476061';
 const IOS_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-4722276667311883/8991247351';
+const enableAdMob = process.env.EXPO_PUBLIC_ENABLE_ADMOB === 'true';
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
@@ -39,12 +40,16 @@ const config = {
     'expo-router',
     'expo-secure-store',
     'expo-web-browser',
-    [
-      'react-native-google-mobile-ads',
-      {
-        iosAppId: IOS_ADMOB_APP_ID,
-      },
-    ],
+    ...(enableAdMob
+      ? [
+          [
+            'react-native-google-mobile-ads',
+            {
+              iosAppId: IOS_ADMOB_APP_ID,
+            },
+          ],
+        ]
+      : []),
     [
       'expo-splash-screen',
       {
@@ -67,9 +72,13 @@ const config = {
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? '',
     admobIosInterstitialUnitId:
       process.env.EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL_UNIT_ID ?? IOS_INTERSTITIAL_AD_UNIT_ID,
-    eas: {
-      projectId: '865f1aca-5b9d-41a2-b2d8-455b12075ca2',
-    },
+    ...(process.env.EAS_BUILD === 'true' || enableAdMob
+      ? {
+          eas: {
+            projectId: '865f1aca-5b9d-41a2-b2d8-455b12075ca2',
+          },
+        }
+      : {}),
   },
 };
 
