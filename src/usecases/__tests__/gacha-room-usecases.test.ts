@@ -26,6 +26,7 @@ describe('gacha room usecases', () => {
   });
 
   it('allows one ad-free roll per day for featured gacha only', async () => {
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.5);
     const status = await getDailyAdGachaStatus();
     const usecase = new MockRollGachaUseCase();
 
@@ -33,7 +34,8 @@ describe('gacha room usecases', () => {
       gachaId: status.featuredGachaKey,
       adFreeRoll: true,
     });
-    expect(result.pawnCurrency).toBe(3000);
+    expect(result.pawnCurrency).toBe(3002);
+    randomSpy.mockRestore();
 
     const afterUse = await getDailyAdGachaStatus();
     expect(afterUse.used).toBe(true);

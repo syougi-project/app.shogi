@@ -25,12 +25,6 @@ describe('daily-ad-gacha', () => {
     });
     expect(canRollGachaWithAd(status.featuredGachaKey, status)).toBe(true);
     expect(canRollGachaWithAd('kanken1', status)).toBe(false);
-    expect(
-      canRollGachaWithAd(status.featuredGachaKey, {
-        ...status,
-        used: true,
-        usedDayKey: status.dayKey,
-      }),
-    ).toBe(false);
+    expect(canRollGachaWithAd(status.featuredGachaKey, { ...status, used: true })).toBe(false);
   });
 });

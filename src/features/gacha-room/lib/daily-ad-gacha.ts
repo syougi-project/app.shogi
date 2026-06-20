@@ -1,18 +1,12 @@
 import { resolveGachaBannerKey } from '@/constants/gacha-room-assets';
+import type { DailyAdGachaStatus } from '@/domain/models/gacha';
 
 /** 広告無償ガチャの対象（漢検1級は含まない） */
 export const DAILY_AD_GACHA_CODES = ['ukanmuri', 'hihen', 'shinnyo'] as const;
 
 export type DailyAdGachaCode = (typeof DAILY_AD_GACHA_CODES)[number];
 
-export type DailyAdGachaStatus = {
-  /** JST 0:00 基準の日付キー（YYYY-MM-DD） */
-  dayKey: string;
-  /** 本日広告で無料のガチャ code */
-  featuredGachaKey: DailyAdGachaCode;
-  /** 本日すでに広告無償で引いたか */
-  used: boolean;
-};
+export type { DailyAdGachaStatus };
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -81,8 +75,10 @@ export function isDailyFeaturedAdGachaBanner(
   return code != null && code === status.featuredGachaKey;
 }
 
-export function featuredAdGachaDisplayName(code: DailyAdGachaCode): string {
-  switch (code) {
+export function featuredAdGachaDisplayName(code: string): string {
+  const normalized = normalizeAdGachaCode(code);
+  if (normalized == null) return code;
+  switch (normalized) {
     case 'ukanmuri':
       return 'うかんむりガチャ';
     case 'hihen':
@@ -90,6 +86,6 @@ export function featuredAdGachaDisplayName(code: DailyAdGachaCode): string {
     case 'shinnyo':
       return 'しんにょうガチャ';
     default:
-      return code;
+      return normalized;
   }
 }
