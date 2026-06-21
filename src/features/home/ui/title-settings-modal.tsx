@@ -1,5 +1,15 @@
-import { ActivityIndicator, Modal, Pressable, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
+import { legalDocuments, type LegalDocument } from '@/features/home/ui/legal-documents';
 import { useTitleChangeUsername } from '@/features/home/ui/use-title-change-username';
 
 type TitleSettingsModalProps = {
@@ -18,6 +28,12 @@ export function TitleSettingsModal({
   onRequestDelete,
 }: TitleSettingsModalProps) {
   const changeUsername = useTitleChangeUsername(accessToken);
+  const [selectedLegalDocument, setSelectedLegalDocument] = useState<LegalDocument | null>(null);
+
+  function handleClose() {
+    setSelectedLegalDocument(null);
+    onClose();
+  }
 
   async function handleOpenChangeUsername() {
     onRequestChangeUsername();
@@ -26,40 +42,66 @@ export function TitleSettingsModal({
 
   return (
     <>
-      <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+      <Modal animationType="fade" transparent visible={visible} onRequestClose={handleClose}>
         <View className="flex-1 justify-center bg-black/70 px-5">
-          <View className="rounded-lg border border-white/25 bg-[#16110d] p-5">
+          <View
+            className="rounded-lg border border-white/25 bg-[#16110d] p-5"
+            style={{ maxHeight: '86%' }}
+          >
             <View className="mb-4 flex-row items-center justify-between">
-              <Text className="text-xl font-bold text-white">設定</Text>
+              <Text className="flex-1 text-xl font-bold text-white">
+                {selectedLegalDocument ? selectedLegalDocument.title : '設定'}
+              </Text>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="設定を閉じる"
-                onPress={onClose}
+                accessibilityLabel={selectedLegalDocument ? '設定に戻る' : '設定を閉じる'}
+                onPress={selectedLegalDocument ? () => setSelectedLegalDocument(null) : handleClose}
                 className="rounded-md border border-white/40 px-4 py-2 active:scale-95"
               >
-                <Text className="font-bold text-white">閉じる</Text>
-              </Pressable>
-            </View>
-            <View className="gap-3">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="ユーザー名を変更"
-                onPress={() => void handleOpenChangeUsername()}
-                className="rounded-md border border-white/40 bg-white/10 px-4 py-3 active:scale-95"
-              >
-                <Text className="text-center text-base font-bold text-white">ユーザー名を変更</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="アカウントを削除"
-                onPress={onRequestDelete}
-                className="rounded-md border border-red-400/70 bg-red-950/60 px-4 py-3 active:scale-95"
-              >
-                <Text className="text-center text-base font-bold text-red-100">
-                  アカウントを削除
+                <Text className="font-bold text-white">
+                  {selectedLegalDocument ? '戻る' : '閉じる'}
                 </Text>
               </Pressable>
             </View>
+            {selectedLegalDocument ? (
+              <LegalDocumentView document={selectedLegalDocument} />
+            ) : (
+              <View className="gap-3">
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="ユーザー名を変更"
+                  onPress={() => void handleOpenChangeUsername()}
+                  className="rounded-md border border-white/40 bg-white/10 px-4 py-3 active:scale-95"
+                >
+                  <Text className="text-center text-base font-bold text-white">
+                    ユーザー名を変更
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="アカウントを削除"
+                  onPress={onRequestDelete}
+                  className="rounded-md border border-red-400/70 bg-red-950/60 px-4 py-3 active:scale-95"
+                >
+                  <Text className="text-center text-base font-bold text-red-100">
+                    アカウントを削除
+                  </Text>
+                </Pressable>
+                {legalDocuments.map((document) => (
+                  <Pressable
+                    key={document.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${document.title}を開く`}
+                    onPress={() => setSelectedLegalDocument(document)}
+                    className="rounded-md border border-white/40 bg-white/10 px-4 py-3 active:scale-95"
+                  >
+                    <Text className="text-center text-base font-bold text-white">
+                      {document.title}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -75,6 +117,28 @@ export function TitleSettingsModal({
         onSubmit={() => void changeUsername.submit()}
       />
     </>
+  );
+}
+
+function LegalDocumentView({ document }: { document: LegalDocument }) {
+  return (
+    <ScrollView className="shrink" showsVerticalScrollIndicator>
+      <Text className="mb-2 text-sm leading-6 text-white/85">{document.description}</Text>
+      <Text className="mb-4 text-xs font-bold text-yellow-100/90">{document.updated}</Text>
+      {document.sections.map((section) => (
+        <View key={section.title} className="mt-4 border-t border-white/15 pt-4">
+          <Text className="mb-2 text-base font-black text-yellow-200">{section.title}</Text>
+          {section.body.map((paragraph, index) => (
+            <Text
+              key={`${section.title}-${index}`}
+              className="mb-2 text-sm leading-6 text-white/85"
+            >
+              {paragraph}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </ScrollView>
   );
 }
 

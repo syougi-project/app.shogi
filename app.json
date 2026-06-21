@@ -50,7 +50,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "admobIosInterstitialUnitId": "ca-app-pub-4722276667311883/8991247351"
+      "admobIosInterstitialUnitId": "ca-app-pub-4722276667311883/8991247351",
+      "admobIosRewardedUnitId": "ca-app-pub-4722276667311883/9275875313"
     }
   }
 }

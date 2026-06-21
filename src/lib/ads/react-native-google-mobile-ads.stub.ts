@@ -2,6 +2,7 @@
 
 export const TestIds = {
   INTERSTITIAL: 'test-interstitial',
+  REWARDED: 'test-rewarded',
 };
 
 export const AdEventType = {
@@ -11,7 +12,11 @@ export const AdEventType = {
   OPENED: 'opened',
 } as const;
 
-class StubInterstitialAd {
+export const RewardedAdEventType = {
+  EARNED_REWARD: 'earned_reward',
+} as const;
+
+class StubAd {
   loaded = false;
 
   load() {
@@ -29,7 +34,13 @@ class StubInterstitialAd {
 
 export class InterstitialAd {
   static createForAdRequest(_unitId: string, _options?: unknown) {
-    return new StubInterstitialAd();
+    return new StubAd();
+  }
+}
+
+export class RewardedAd {
+  static createForAdRequest(_unitId: string, _options?: unknown) {
+    return new StubAd();
   }
 }
 

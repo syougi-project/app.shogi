@@ -76,6 +76,41 @@ bun run test
 bun run ci
 ```
 
+## マッチング負荷テスト
+
+AWS 環境の BFF / matching server に対して、Supabase のテストユーザー作成、battle setup 作成、matchmaking ticket 発行、WebSocket 接続までまとめて実行します。終了時は通常終了、エラー、`Ctrl+C` / `SIGTERM` のいずれでも、待機中は `cancel_queue`、マッチ済みは `resign` を送ってから、作成した Supabase Auth ユーザーを削除します。
+
+`.env` または環境変数に以下が必要です。
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `EXPO_PUBLIC_API_BASE_URL` または `LOAD_MATCHING_API_BASE_URL`
+- `EXPO_PUBLIC_MATCHING_SERVER_WS_URL` または `LOAD_MATCHING_WS_URL`
+
+```bash
+bun run load:matchmaking -- --users 100
+bun run load:spike -- --users 1000
+bun run load:gameplay -- --users 100
+bun run load:gameplay -- --users 100 --moves-per-match 10
+bun run load:reconnect -- --users 100
+bun run load:soak -- --users 100 --duration-seconds 1800
+```
+
+主なオプション:
+
+- `--users`: テストユーザー数。マッチング前提のため偶数を指定
+- `--api-base-url`: BFF URL
+- `--ws-url`: matching server WebSocket URL
+- `--prepare-concurrency`: テストユーザー準備の並列数
+- `--start-concurrency`: WebSocket 接続開始 / queue 投入の並列数
+- `--stagger-ms`: 接続開始 / queue 投入のずらし幅
+- `--timeout-ms`: WebSocket 応答待ちタイムアウト
+- `--duration-seconds`: `load:soak` の継続秒数
+- `--moves-per-match`: `load:gameplay` で1マッチあたりに送る着手数
+
+結果には段階別の `p50` / `p95` / `p99` / `max` が出ます。`load:matchmaking` は `connect`、`queue_entered`、`queue_to_game_started`、`load:gameplay` はそれに加えて `battle_ready_ack`、着手者 ACK、相手 broadcast、`load:reconnect` は再接続 open と再同期を確認します。
+
 ## アーキテクチャ（概要）
 依存方向:
 `UI -> UseCase -> Repository(interface) -> DataSource(API/Supabase)`
