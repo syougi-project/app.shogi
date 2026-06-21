@@ -26,6 +26,7 @@ export function useMatchingScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [startedMatchId, setStartedMatchId] = useState<string | null>(null);
   const startedMatchIdRef = useRef<string | null>(null);
+  const matchingSessionRef = useRef(0);
   const startMatchingUseCase = useMemo(
     () => createStartMatchingUseCase(accessToken ?? undefined),
     [accessToken],
@@ -44,6 +45,8 @@ export function useMatchingScreen() {
         active = false;
       };
     }
+
+    const sessionId = ++matchingSessionRef.current;
 
     const start = async () => {
       const battleSetupId = await loadCurrentBattleSetupId();
@@ -162,11 +165,18 @@ export function useMatchingScreen() {
           selfName,
           selfRating,
         });
-      } catch {
+      } catch (error: unknown) {
         if (!active) return;
+        const fallback = startMatchingUseCase.getLastError() ?? '接続先が未設定です';
+        const message =
+          error instanceof Error && error.message.includes('EXPO_PUBLIC_MATCHING_SERVER_WS_URL')
+            ? 'マッチングサーバー URL が未設定です'
+            : fallback.includes('WebSocket')
+              ? 'マッチングサーバーに接続できません。matching_server が起動しているか確認してください'
+              : fallback;
         setSnapshot({
           title: 'オンライン対戦',
-          status: startMatchingUseCase.getLastError() ?? '接続先が未設定です',
+          status: message,
           progress: 0,
           self: { displayName: selfName, rating: selfRating },
         });
@@ -186,6 +196,7 @@ export function useMatchingScreen() {
     return () => {
       active = false;
       cleanupMessage?.();
+      if (matchingSessionRef.current !== sessionId) return;
       if (userId && !startedMatchIdRef.current) {
         void cancelMatchingUseCase.execute({ userId });
       }

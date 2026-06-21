@@ -96,7 +96,44 @@ async function parseEnvelope<T>(response: Response, url: string): Promise<T> {
 
 type RequestOptions = {
   token?: string;
+  timeoutMs?: number;
 };
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+
+function createRequestSignal(timeoutMs: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(timeoutMs);
+  }
+
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), timeoutMs);
+  return controller.signal;
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: createRequestSignal(timeoutMs),
+    });
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiClientError(
+        {
+          code: 'NETWORK_TIMEOUT',
+          message: `Request timed out after ${timeoutMs}ms: ${url}`,
+        },
+        408,
+      );
+    }
+    throw error;
+  }
+}
 
 function authHeaders(token?: string): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -105,10 +142,14 @@ function authHeaders(token?: string): Record<string, string> {
 export async function getJson<T>(path: string, opts?: RequestOptions): Promise<T> {
   const url = `${baseUrl()}${path}`;
   console.log('[api-client] GET', url);
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { Accept: 'application/json', ...authHeaders(opts?.token) },
-  });
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json', ...authHeaders(opts?.token) },
+    },
+    opts?.timeoutMs,
+  );
 
   return parseEnvelope<T>(response, url);
 }
@@ -116,15 +157,19 @@ export async function getJson<T>(path: string, opts?: RequestOptions): Promise<T
 export async function postJson<T>(path: string, body?: unknown, opts?: RequestOptions): Promise<T> {
   const url = `${baseUrl()}${path}`;
   console.log('[api-client] POST', url);
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      ...authHeaders(opts?.token),
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...authHeaders(opts?.token),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+    opts?.timeoutMs,
+  );
 
   return parseEnvelope<T>(response, url);
 }
@@ -132,15 +177,19 @@ export async function postJson<T>(path: string, body?: unknown, opts?: RequestOp
 export async function putJson<T>(path: string, body?: unknown, opts?: RequestOptions): Promise<T> {
   const url = `${baseUrl()}${path}`;
   console.log('[api-client] PUT', url);
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      ...authHeaders(opts?.token),
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: 'PUT',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...authHeaders(opts?.token),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+    opts?.timeoutMs,
+  );
 
   return parseEnvelope<T>(response, url);
 }
@@ -148,10 +197,14 @@ export async function putJson<T>(path: string, body?: unknown, opts?: RequestOpt
 export async function deleteJson<T>(path: string, opts?: RequestOptions): Promise<T> {
   const url = `${baseUrl()}${path}`;
   console.log('[api-client] DELETE', url);
-  const response = await fetch(url, {
-    method: 'DELETE',
-    headers: { Accept: 'application/json', ...authHeaders(opts?.token) },
-  });
+  const response = await fetchWithTimeout(
+    url,
+    {
+      method: 'DELETE',
+      headers: { Accept: 'application/json', ...authHeaders(opts?.token) },
+    },
+    opts?.timeoutMs,
+  );
 
   return parseEnvelope<T>(response, url);
 }

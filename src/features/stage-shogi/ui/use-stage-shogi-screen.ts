@@ -1359,6 +1359,11 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
   );
 
   useEffect(() => {
+    if (winner !== 'player') return;
+    void claimStageClearRewardIfNeeded();
+  }, [winner, stageParam]);
+
+  useEffect(() => {
     if (winner !== 'enemy') return;
     if (battleSessionSettledRef.current) return;
     battleSessionSettledRef.current = true;

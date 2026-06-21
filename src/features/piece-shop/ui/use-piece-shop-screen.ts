@@ -84,6 +84,7 @@ export function usePieceShopScreen(): PieceShopVM {
         setGoldCurrency(result.goldCurrency);
         setOwned(result.owned);
         await loadHomeSnapshot(true).catch(() => undefined);
+        confirm.close();
       } else {
         Alert.alert('購入できません', '通貨が足りないか、すでに購入済みです。');
       }
@@ -109,7 +110,6 @@ export function usePieceShopScreen(): PieceShopVM {
     } finally {
       setIsLoading(false);
     }
-    confirm.close();
   }
 
   return {

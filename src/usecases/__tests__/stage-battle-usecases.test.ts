@@ -88,7 +88,7 @@ describe('MockClaimStageClearRewardUseCase', () => {
 
     expect(result?.stageNo).toBe(3);
     expect(result?.firstClear).toBe(true);
-    expect(result?.granted).toEqual({ pawn: 20, gold: 1, pieces: [] });
+    expect(result?.granted).toEqual({ pawn: 5, gold: 0, pieces: [] });
   });
 
   it('2回目以降は歩のみ floor(stageNo/5)+2', async () => {
