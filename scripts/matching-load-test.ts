@@ -38,11 +38,46 @@ type TestUser = {
   ticket: TicketResponse;
 };
 
+type PlayerSide = 'black' | 'white';
+
+type MatchingGameState = {
+  version: number;
+  turn: PlayerSide;
+  board: Record<string, string>;
+  hands: Record<PlayerSide, Record<string, number>>;
+};
+
 type ServerMessage = {
   type: string;
   matchId?: string;
+  role?: PlayerSide;
+  initialState?: MatchingGameState;
+  version?: number;
+  turn?: PlayerSide;
+  board?: Record<string, string>;
+  hands?: Record<PlayerSide, Record<string, number>>;
   code?: string;
   message?: string;
+};
+
+type Scenario = 'matchmaking' | 'spike' | 'gameplay' | 'reconnect' | 'soak';
+
+type LoadClient = {
+  user: TestUser;
+  ws: WebSocket;
+  messages: ServerMessage[];
+  messageCursor: number;
+  matchId: string | null;
+  role: PlayerSide | null;
+  gameState: MatchingGameState | null;
+  queueSentAt: number | null;
+  closed: boolean;
+};
+
+type LoadMetrics = {
+  observe(name: string, elapsedMs: number): void;
+  count(name: string, amount?: number): void;
+  print(): void;
 };
 
 const __filename = fileURLToPath(import.meta.url);
@@ -52,6 +87,7 @@ const bffRoot = path.resolve(appRoot, '../bff.shogi');
 
 const createdUserIds: string[] = [];
 const sockets = new Set<WebSocket>();
+const activeClients = new Set<LoadClient>();
 let cleanupStarted = false;
 
 function loadEnvFile(filePath: string): void {
@@ -109,6 +145,50 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function nowMs(): number {
+  return performance.now();
+}
+
+function createMetrics(): LoadMetrics {
+  const timings = new Map<string, number[]>();
+  const counters = new Map<string, number>();
+
+  const percentile = (values: number[], p: number): number => {
+    if (values.length === 0) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const index = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
+    return sorted[index] ?? 0;
+  };
+
+  const formatMs = (value: number) => `${Math.round(value)}ms`;
+
+  return {
+    observe(name, elapsedMs) {
+      const values = timings.get(name) ?? [];
+      values.push(elapsedMs);
+      timings.set(name, values);
+    },
+    count(name, amount = 1) {
+      counters.set(name, (counters.get(name) ?? 0) + amount);
+    },
+    print() {
+      for (const [name, value] of [...counters.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+        console.log(`[metric] ${name} count=${value}`);
+      }
+      for (const [name, values] of [...timings.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+        const max = values.reduce((acc, value) => Math.max(acc, value), 0);
+        console.log(
+          `[metric] ${name} samples=${values.length} p50=${formatMs(
+            percentile(values, 50),
+          )} p95=${formatMs(percentile(values, 95))} p99=${formatMs(
+            percentile(values, 99),
+          )} max=${formatMs(max)}`,
+        );
+      }
+    },
+  };
+}
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (error && typeof error === 'object' && 'message' in error) {
@@ -153,7 +233,7 @@ async function mapLimit<T, R>(
 ): Promise<R[]> {
   const results = new Array<R>(items.length);
   let next = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+  const runners = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
     while (next < items.length) {
       const index = next;
       next += 1;
@@ -164,8 +244,156 @@ async function mapLimit<T, R>(
   return results;
 }
 
+function parseCliArgs(): Map<string, string> {
+  const args = new Map<string, string>();
+  for (let index = 2; index < process.argv.length; index += 1) {
+    const arg = process.argv[index];
+    if (!arg.startsWith('--')) continue;
+    const separator = arg.indexOf('=');
+    if (separator > 0) {
+      args.set(arg.slice(2, separator), arg.slice(separator + 1));
+      continue;
+    }
+    args.set(arg.slice(2), process.argv[index + 1] ?? 'true');
+    index += 1;
+  }
+  return args;
+}
+
+function cliEnv(
+  args: Map<string, string>,
+  cliName: string,
+  envName: string,
+  fallback?: string,
+): string {
+  const cliValue = args.get(cliName)?.trim();
+  if (cliValue) return cliValue;
+  return env(envName, fallback);
+}
+
+function cliInt(
+  args: Map<string, string>,
+  cliName: string,
+  envName: string,
+  fallback: number,
+): number {
+  const raw = args.get(cliName)?.trim() ?? process.env[envName]?.trim();
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`--${cliName} / ${envName} must be a non-negative number`);
+  }
+  return Math.floor(parsed);
+}
+
+function cliBool(
+  args: Map<string, string>,
+  cliName: string,
+  envName: string,
+  fallback: boolean,
+): boolean {
+  const raw = args.get(cliName)?.trim().toLowerCase() ?? process.env[envName]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(raw);
+}
+
+function parseScenario(raw: string): Scenario {
+  if (
+    raw === 'matchmaking' ||
+    raw === 'spike' ||
+    raw === 'gameplay' ||
+    raw === 'reconnect' ||
+    raw === 'soak'
+  ) {
+    return raw;
+  }
+  throw new Error(`Unknown scenario: ${raw}`);
+}
+
 function createRequestId(): string {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+const RANKS = 'abcdefghi';
+
+function parseMatchingSquare(square: string): { row: number; col: number } {
+  const normalized = square.trim().toLowerCase();
+  if (!/^[1-9][a-i]$/.test(normalized)) {
+    throw new Error(`invalid square: ${square}`);
+  }
+  const file = Number.parseInt(normalized[0] ?? '', 10);
+  const rank = normalized[1] ?? '';
+  return { row: RANKS.indexOf(rank), col: 9 - file };
+}
+
+function formatMatchingSquare(row: number, col: number): string {
+  return `${9 - col}${RANKS[row]}`;
+}
+
+function decodeBoardPiece(encoded: string): {
+  side: PlayerSide;
+  code: string;
+  promoted: boolean;
+} {
+  const [sideRaw, restRaw] = encoded.split(':');
+  const rest = (restRaw ?? '').trim();
+  const promoted = rest.endsWith('+');
+  return {
+    side: sideRaw === 'white' ? 'white' : 'black',
+    code: (promoted ? rest.slice(0, -1) : rest).toUpperCase(),
+    promoted,
+  };
+}
+
+function lookupBoardPiece(board: Record<string, string>, square: string): string | undefined {
+  const normalized = square.trim().toLowerCase();
+  if (board[normalized]) return board[normalized];
+  for (const [key, value] of Object.entries(board)) {
+    if (key.trim().toLowerCase() === normalized) return value;
+  }
+  return undefined;
+}
+
+function pickForwardMove(state: MatchingGameState): {
+  from: string;
+  to: string;
+  piece: string;
+  promote: boolean;
+  drop: boolean;
+} | null {
+  const role = state.turn;
+  const forwardDelta = role === 'black' ? -1 : 1;
+  const candidates: Array<{ from: string; to: string; piece: string; col: number }> = [];
+
+  for (const [square, encoded] of Object.entries(state.board)) {
+    const decoded = decodeBoardPiece(encoded);
+    if (decoded.side !== role || decoded.promoted || decoded.code === 'OU') continue;
+    const { row, col } = parseMatchingSquare(square);
+    const toRow = row + forwardDelta;
+    if (toRow < 0 || toRow > 8) continue;
+    const to = formatMatchingSquare(toRow, col).toLowerCase();
+    if (lookupBoardPiece(state.board, to)) continue;
+    candidates.push({
+      from: formatMatchingSquare(row, col).toLowerCase(),
+      to,
+      piece: decoded.code,
+      col,
+    });
+  }
+
+  const chosen =
+    candidates.find((candidate) => candidate.piece === 'FU' && candidate.col === 2) ??
+    candidates.find((candidate) => candidate.piece === 'FU') ??
+    candidates[0] ??
+    null;
+  if (!chosen) return null;
+  return {
+    from: chosen.from,
+    to: chosen.to,
+    piece: chosen.piece,
+    promote: false,
+    drop: false,
+  };
 }
 
 async function postJson<T>(
@@ -360,125 +588,466 @@ async function createPreparedUser(input: {
   };
 }
 
-async function enterQueue(input: {
-  user: TestUser;
-  wsUrl: string;
-  delayMs: number;
-  timeoutMs: number;
-  wsRetryAttempts: number;
-  wsRetryBaseDelayMs: number;
-  wsRetryMaxDelayMs: number;
-}): Promise<{ userId: string; matchId: string | null; messages: ServerMessage[] }> {
-  await sleep(input.delayMs);
-
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= input.wsRetryAttempts; attempt += 1) {
-    try {
-      return await enterQueueOnce(input);
-    } catch (error) {
-      lastError = error;
-      if (attempt >= input.wsRetryAttempts) break;
-      const delayMs = Math.min(
-        input.wsRetryMaxDelayMs,
-        input.wsRetryBaseDelayMs * 2 ** (attempt - 1),
-      );
-      const jitterMs = Math.floor(Math.random() * Math.min(1000, delayMs));
-      console.warn(
-        `[load] ${input.user.email} websocket failed; retrying in ${delayMs + jitterMs}ms (${attempt}/${input.wsRetryAttempts})`,
-      );
-      await sleep(delayMs + jitterMs);
-    }
-  }
-
-  throw lastError;
-}
-
-async function enterQueueOnce(input: {
+async function connectClient(input: {
   user: TestUser;
   wsUrl: string;
   timeoutMs: number;
-}): Promise<{ userId: string; matchId: string | null; messages: ServerMessage[] }> {
+  matchId?: string;
+  metrics: LoadMetrics;
+}): Promise<LoadClient> {
   const url = new URL(input.wsUrl);
   url.searchParams.set('ticket', input.user.ticket.ticket);
+  if (input.matchId) url.searchParams.set('matchId', input.matchId);
 
   return new Promise((resolve, reject) => {
     let settled = false;
-    let matchId: string | null = null;
-    const messages: ServerMessage[] = [];
+    const startedAt = nowMs();
     const ws = new WebSocket(url.toString());
+    const client: LoadClient = {
+      user: input.user,
+      ws,
+      messages: [],
+      messageCursor: 0,
+      matchId: input.matchId ?? null,
+      role: null,
+      gameState: null,
+      queueSentAt: null,
+      closed: false,
+    };
     sockets.add(ws);
+    activeClients.add(client);
 
     const timeout = setTimeout(() => {
-      finish(() => reject(new Error(`${input.user.email} timed out waiting for game_started`)));
+      finish(() => reject(new Error(`${input.user.email} timed out connecting websocket`)), true);
     }, input.timeoutMs);
 
-    const finish = (callback: () => void) => {
+    const finish = (callback: () => void, closeSocket: boolean) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      sockets.delete(ws);
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      if (
+        closeSocket &&
+        (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
+      ) {
         ws.close();
       }
       callback();
     };
 
     ws.addEventListener('open', () => {
-      ws.send(
-        JSON.stringify({
-          action: 'enter_queue',
-          requestId: createRequestId(),
-          userId: input.user.userId,
-          rating: input.user.ticket.user.rating,
-          displayName: input.user.ticket.user.displayName,
-          battleSetupId: input.user.battleSetupId,
-        }),
+      input.metrics.observe(
+        input.matchId ? 'reconnect_open_ms' : 'connect_open_ms',
+        nowMs() - startedAt,
       );
+      finish(() => resolve(client), false);
     });
 
     ws.addEventListener('message', (event) => {
       const parsed = JSON.parse(String(event.data)) as ServerMessage;
-      messages.push(parsed);
+      client.messages.push(parsed);
       if (parsed.type === 'match_found') {
-        matchId = parsed.matchId ?? matchId;
+        client.matchId = parsed.matchId ?? client.matchId;
+        client.role = parsed.role ?? client.role;
       }
       if (parsed.type === 'game_started') {
-        matchId = parsed.matchId ?? matchId;
-        finish(() => resolve({ userId: input.user.userId, matchId, messages }));
+        client.matchId = parsed.matchId ?? client.matchId;
+        client.gameState = parsed.initialState ?? client.gameState;
+      }
+      if (
+        parsed.type === 'game_state_updated' &&
+        parsed.version !== undefined &&
+        parsed.turn &&
+        parsed.board &&
+        parsed.hands
+      ) {
+        client.gameState = {
+          version: parsed.version,
+          turn: parsed.turn,
+          board: parsed.board,
+          hands: parsed.hands,
+        };
       }
       if (parsed.type === 'error') {
-        finish(() =>
-          reject(
-            new Error(
-              `${input.user.email} server error: ${parsed.code ?? ''} ${parsed.message ?? ''}`,
-            ),
-          ),
+        console.error(
+          `${input.user.email} server error: ${parsed.code ?? ''} ${parsed.message ?? ''}`,
         );
       }
     });
 
     ws.addEventListener('error', () => {
-      finish(() => reject(new Error(`${input.user.email} websocket error`)));
+      finish(() => reject(new Error(`${input.user.email} websocket error`)), true);
     });
 
     ws.addEventListener('close', () => {
       sockets.delete(ws);
-      if (!settled) {
-        finish(() => reject(new Error(`${input.user.email} websocket closed before game_started`)));
-      }
+      activeClients.delete(client);
+      client.closed = true;
+      if (!settled)
+        finish(() => reject(new Error(`${input.user.email} websocket closed before open`)), false);
     });
   });
+}
+
+function sendJson(client: LoadClient, payload: unknown): boolean {
+  if (client.ws.readyState !== WebSocket.OPEN) return false;
+  client.ws.send(JSON.stringify(payload));
+  return true;
+}
+
+function enterQueue(client: LoadClient): boolean {
+  return sendJson(client, {
+    action: 'enter_queue',
+    requestId: createRequestId(),
+    userId: client.user.userId,
+    rating: client.user.ticket.user.rating,
+    displayName: client.user.ticket.user.displayName,
+    battleSetupId: client.user.battleSetupId,
+  });
+}
+
+function cancelQueue(client: LoadClient): boolean {
+  return sendJson(client, {
+    action: 'cancel_queue',
+    requestId: createRequestId(),
+    userId: client.user.userId,
+  });
+}
+
+function resign(client: LoadClient): boolean {
+  if (!client.matchId) return false;
+  return sendJson(client, {
+    action: 'resign',
+    requestId: createRequestId(),
+    userId: client.user.userId,
+    matchId: client.matchId,
+  });
+}
+
+function signalBattleReady(client: LoadClient): boolean {
+  if (!client.matchId) return false;
+  return sendJson(client, {
+    action: 'signal_battle_ready',
+    requestId: createRequestId(),
+    userId: client.user.userId,
+    matchId: client.matchId,
+  });
+}
+
+async function waitForMessage(
+  client: LoadClient,
+  type: string,
+  timeoutMs: number,
+  options?: { minVersion?: number; metrics?: LoadMetrics; metricName?: string; startedAt?: number },
+): Promise<ServerMessage> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    while (client.messageCursor < client.messages.length) {
+      const message = client.messages[client.messageCursor];
+      client.messageCursor += 1;
+      if (
+        message.type === type &&
+        (options?.minVersion === undefined ||
+          (typeof message.version === 'number' && message.version >= options.minVersion))
+      ) {
+        if (options?.metrics && options.metricName && options.startedAt !== undefined) {
+          options.metrics.observe(options.metricName, nowMs() - options.startedAt);
+        }
+        return message;
+      }
+      if (message.type === 'error') {
+        throw new Error(
+          `${client.user.email} server error: ${message.code ?? ''} ${message.message ?? ''}`,
+        );
+      }
+    }
+    await sleep(25);
+  }
+  throw new Error(`${client.user.email} timed out waiting for ${type}`);
+}
+
+async function connectWave(input: {
+  users: TestUser[];
+  wsUrl: string;
+  startConcurrency: number;
+  staggerMs: number;
+  jitterMs: number;
+  timeoutMs: number;
+  wsRetryAttempts: number;
+  wsRetryBaseDelayMs: number;
+  wsRetryMaxDelayMs: number;
+  metrics: LoadMetrics;
+}): Promise<LoadClient[]> {
+  return mapLimit(input.users, input.startConcurrency, async (user, userIndex) => {
+    const delayMs = userIndex * input.staggerMs + Math.floor(Math.random() * (input.jitterMs + 1));
+    await sleep(delayMs);
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= input.wsRetryAttempts; attempt += 1) {
+      try {
+        return await connectClient({
+          user,
+          wsUrl: input.wsUrl,
+          timeoutMs: input.timeoutMs,
+          metrics: input.metrics,
+        });
+      } catch (error) {
+        lastError = error;
+        if (attempt >= input.wsRetryAttempts) break;
+        const retryDelayMs = Math.min(
+          input.wsRetryMaxDelayMs,
+          input.wsRetryBaseDelayMs * 2 ** (attempt - 1),
+        );
+        const retryJitterMs = Math.floor(Math.random() * Math.min(1000, retryDelayMs));
+        console.warn(
+          `[load] ${user.email} websocket failed; retrying in ${retryDelayMs + retryJitterMs}ms (${attempt}/${input.wsRetryAttempts})`,
+        );
+        await sleep(retryDelayMs + retryJitterMs);
+      }
+    }
+    throw lastError;
+  });
+}
+
+async function enterQueueWave(input: {
+  clients: LoadClient[];
+  startConcurrency: number;
+  staggerMs: number;
+  jitterMs: number;
+  timeoutMs: number;
+  metrics: LoadMetrics;
+}): Promise<void> {
+  await mapLimit(input.clients, input.startConcurrency, async (client, clientIndex) => {
+    const delayMs =
+      clientIndex * input.staggerMs + Math.floor(Math.random() * (input.jitterMs + 1));
+    await sleep(delayMs);
+    const sentAt = nowMs();
+    if (!enterQueue(client)) {
+      throw new Error(`${client.user.email} websocket is not open for enter_queue`);
+    }
+    client.queueSentAt = sentAt;
+    await waitForMessage(client, 'queue_entered', input.timeoutMs, {
+      metrics: input.metrics,
+      metricName: 'queue_entered_ms',
+      startedAt: sentAt,
+    });
+  });
+}
+
+async function enterAndWaitStarted(input: {
+  clients: LoadClient[];
+  startConcurrency: number;
+  staggerMs: number;
+  jitterMs: number;
+  timeoutMs: number;
+  metrics: LoadMetrics;
+}): Promise<void> {
+  const startedAt = Date.now();
+  await enterQueueWave(input);
+  await Promise.all(
+    input.clients.map((client) =>
+      waitForMessage(client, 'game_started', input.timeoutMs, {
+        metrics: input.metrics,
+        metricName: 'queue_to_game_started_ms',
+        startedAt: client.queueSentAt ?? nowMs(),
+      }),
+    ),
+  );
+  const uniqueMatches = new Set(input.clients.map((client) => client.matchId).filter(Boolean));
+  console.log(
+    `[result] game_started users=${input.clients.length}/${input.clients.length} matches=${uniqueMatches.size} elapsedMs=${Date.now() - startedAt}`,
+  );
+}
+
+async function runMatchmakingScenario(input: {
+  clients: LoadClient[];
+  startConcurrency: number;
+  staggerMs: number;
+  jitterMs: number;
+  timeoutMs: number;
+  metrics: LoadMetrics;
+}): Promise<void> {
+  await enterAndWaitStarted(input);
+}
+
+function clientsByMatch(clients: LoadClient[]): Array<{ black: LoadClient; white: LoadClient }> {
+  const byMatch = new Map<string, LoadClient[]>();
+  for (const client of clients) {
+    if (!client.matchId) continue;
+    const pair = byMatch.get(client.matchId) ?? [];
+    pair.push(client);
+    byMatch.set(client.matchId, pair);
+  }
+
+  return [...byMatch.values()].map((pair) => {
+    const black = pair.find((client) => client.role === 'black');
+    const white = pair.find((client) => client.role === 'white');
+    if (!black || !white) {
+      throw new Error(
+        `match pair is incomplete: ${pair.map((client) => client.user.email).join(',')}`,
+      );
+    }
+    return { black, white };
+  });
+}
+
+async function playMatchMoves(input: {
+  black: LoadClient;
+  white: LoadClient;
+  movesPerMatch: number;
+  timeoutMs: number;
+  metrics: LoadMetrics;
+}): Promise<number> {
+  let moves = 0;
+  for (let index = 0; index < input.movesPerMatch; index += 1) {
+    const state = input.black.gameState ?? input.white.gameState;
+    if (!state) throw new Error(`missing game state for match ${input.black.matchId}`);
+
+    const actor = state.turn === 'black' ? input.black : input.white;
+    const opponent = state.turn === 'black' ? input.white : input.black;
+    const move = pickForwardMove(state);
+    if (!move) {
+      input.metrics.count('gameplay_no_move');
+      break;
+    }
+
+    const sentAt = nowMs();
+    const expectedVersion = state.version + 1;
+    const ok = sendJson(actor, {
+      action: 'make_move',
+      requestId: createRequestId(),
+      userId: actor.user.userId,
+      matchId: actor.matchId,
+      expectedVersion: state.version,
+      move,
+    });
+    if (!ok) throw new Error(`${actor.user.email} websocket is not open for make_move`);
+
+    await Promise.all([
+      waitForMessage(actor, 'game_state_updated', input.timeoutMs, {
+        minVersion: expectedVersion,
+        metrics: input.metrics,
+        metricName: 'move_actor_ack_ms',
+        startedAt: sentAt,
+      }),
+      waitForMessage(opponent, 'game_state_updated', input.timeoutMs, {
+        minVersion: expectedVersion,
+        metrics: input.metrics,
+        metricName: 'move_opponent_broadcast_ms',
+        startedAt: sentAt,
+      }),
+    ]);
+    moves += 1;
+  }
+  return moves;
+}
+
+async function runGameplayScenario(input: {
+  clients: LoadClient[];
+  startConcurrency: number;
+  staggerMs: number;
+  jitterMs: number;
+  timeoutMs: number;
+  movesPerMatch: number;
+  metrics: LoadMetrics;
+}): Promise<void> {
+  await enterAndWaitStarted(input);
+  const readyStartedAt = nowMs();
+  for (const client of input.clients) signalBattleReady(client);
+  await Promise.all(
+    input.clients.map((client) =>
+      waitForMessage(client, 'battle_ready_ack', input.timeoutMs, {
+        metrics: input.metrics,
+        metricName: 'battle_ready_ack_ms',
+        startedAt: readyStartedAt,
+      }),
+    ),
+  );
+
+  const pairs = clientsByMatch(input.clients);
+  const startedAt = Date.now();
+  const played = await Promise.all(
+    pairs.map((pair) =>
+      playMatchMoves({
+        ...pair,
+        movesPerMatch: input.movesPerMatch,
+        timeoutMs: input.timeoutMs,
+        metrics: input.metrics,
+      }),
+    ),
+  );
+  const totalMoves = played.reduce((sum, count) => sum + count, 0);
+  input.metrics.count('moves_applied', totalMoves);
+  console.log(`[result] move_acked moves=${totalMoves} elapsedMs=${Date.now() - startedAt}`);
+}
+
+async function runReconnectScenario(input: {
+  clients: LoadClient[];
+  wsUrl: string;
+  startConcurrency: number;
+  staggerMs: number;
+  jitterMs: number;
+  timeoutMs: number;
+  metrics: LoadMetrics;
+}): Promise<void> {
+  await enterAndWaitStarted(input);
+  const whiteClients = input.clients.filter((client) => client.role === 'white');
+  const startedAt = Date.now();
+  const reconnectStartedAt = nowMs();
+  for (const client of whiteClients) {
+    if (client.ws.readyState === WebSocket.OPEN) client.ws.close();
+  }
+  await sleep(500);
+  const reconnected = await Promise.all(
+    whiteClients.map((client) =>
+      connectClient({
+        user: client.user,
+        wsUrl: input.wsUrl,
+        timeoutMs: input.timeoutMs,
+        matchId: client.matchId ?? undefined,
+        metrics: input.metrics,
+      }),
+    ),
+  );
+  await Promise.all(
+    reconnected.map((client) =>
+      waitForMessage(client, 'game_state_updated', input.timeoutMs, {
+        metrics: input.metrics,
+        metricName: 'reconnect_resync_ms',
+        startedAt: reconnectStartedAt,
+      }),
+    ),
+  );
+  console.log(
+    `[result] reconnected users=${reconnected.length} elapsedMs=${Date.now() - startedAt}`,
+  );
+}
+
+function closeClient(client: LoadClient): void {
+  if (client.ws.readyState === WebSocket.OPEN || client.ws.readyState === WebSocket.CONNECTING) {
+    client.ws.close();
+  }
 }
 
 async function cleanup(admin: SupabaseScriptClient, keepUsers: boolean): Promise<void> {
   if (cleanupStarted) return;
   cleanupStarted = true;
 
-  for (const ws of sockets) {
-    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-      ws.close();
+  const resignedMatchIds = new Set<string>();
+  for (const client of activeClients) {
+    if (client.ws.readyState !== WebSocket.OPEN) continue;
+    if (client.matchId) {
+      if (resignedMatchIds.has(client.matchId)) continue;
+      resignedMatchIds.add(client.matchId);
+      resign(client);
+    } else {
+      cancelQueue(client);
     }
   }
+  await sleep(500);
+  for (const client of activeClients) closeClient(client);
+  for (const ws of sockets) {
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close();
+  }
+  activeClients.clear();
   sockets.clear();
 
   if (keepUsers) {
@@ -492,24 +1061,67 @@ async function cleanup(admin: SupabaseScriptClient, keepUsers: boolean): Promise
     const { error } = await admin.auth.admin.deleteUser(userId);
     if (error) console.error(`[cleanup] failed to delete ${userId}: ${error.message}`);
   });
+  createdUserIds.splice(0, createdUserIds.length);
 }
 
 async function main(): Promise<void> {
   loadLocalEnv();
 
-  const userCount = intEnv('LOAD_MATCHING_USER_COUNT', 100);
-  const prepareConcurrency = intEnv('LOAD_MATCHING_PREPARE_CONCURRENCY', 1);
-  const startConcurrency = intEnv('LOAD_MATCHING_START_CONCURRENCY', userCount);
-  const staggerMs = intEnv('LOAD_MATCHING_STAGGER_MS', 20);
-  const jitterMs = intEnv('LOAD_MATCHING_JITTER_MS', 250);
-  const timeoutMs = intEnv('LOAD_MATCHING_TIMEOUT_MS', 60_000);
-  const authRetryAttempts = intEnv('LOAD_MATCHING_AUTH_RETRY_ATTEMPTS', 8);
-  const authRetryBaseDelayMs = intEnv('LOAD_MATCHING_AUTH_RETRY_BASE_DELAY_MS', 2_000);
-  const authRetryMaxDelayMs = intEnv('LOAD_MATCHING_AUTH_RETRY_MAX_DELAY_MS', 30_000);
-  const wsRetryAttempts = intEnv('LOAD_MATCHING_WS_RETRY_ATTEMPTS', 3);
-  const wsRetryBaseDelayMs = intEnv('LOAD_MATCHING_WS_RETRY_BASE_DELAY_MS', 1_000);
-  const wsRetryMaxDelayMs = intEnv('LOAD_MATCHING_WS_RETRY_MAX_DELAY_MS', 5_000);
-  const keepUsers = boolEnv('LOAD_MATCHING_KEEP_USERS', false);
+  const args = parseCliArgs();
+  const scenario = parseScenario(cliEnv(args, 'scenario', 'LOAD_MATCHING_SCENARIO', 'matchmaking'));
+  const userCount = cliInt(args, 'users', 'LOAD_MATCHING_USER_COUNT', 100);
+  const prepareConcurrency = cliInt(
+    args,
+    'prepare-concurrency',
+    'LOAD_MATCHING_PREPARE_CONCURRENCY',
+    1,
+  );
+  const startConcurrencyDefault = scenario === 'spike' ? userCount : userCount;
+  const startConcurrency = cliInt(
+    args,
+    'start-concurrency',
+    'LOAD_MATCHING_START_CONCURRENCY',
+    startConcurrencyDefault,
+  );
+  const staggerMsDefault = scenario === 'spike' ? 0 : 20;
+  const staggerMs = cliInt(args, 'stagger-ms', 'LOAD_MATCHING_STAGGER_MS', staggerMsDefault);
+  const jitterMsDefault = scenario === 'spike' ? 0 : 250;
+  const jitterMs = cliInt(args, 'jitter-ms', 'LOAD_MATCHING_JITTER_MS', jitterMsDefault);
+  const timeoutMs = cliInt(args, 'timeout-ms', 'LOAD_MATCHING_TIMEOUT_MS', 60_000);
+  const durationSeconds = cliInt(args, 'duration-seconds', 'LOAD_MATCHING_DURATION_SECONDS', 300);
+  const movesPerMatch = cliInt(args, 'moves-per-match', 'LOAD_MATCHING_MOVES_PER_MATCH', 4);
+  const authRetryAttempts = cliInt(
+    args,
+    'auth-retry-attempts',
+    'LOAD_MATCHING_AUTH_RETRY_ATTEMPTS',
+    8,
+  );
+  const authRetryBaseDelayMs = cliInt(
+    args,
+    'auth-retry-base-delay-ms',
+    'LOAD_MATCHING_AUTH_RETRY_BASE_DELAY_MS',
+    2_000,
+  );
+  const authRetryMaxDelayMs = cliInt(
+    args,
+    'auth-retry-max-delay-ms',
+    'LOAD_MATCHING_AUTH_RETRY_MAX_DELAY_MS',
+    30_000,
+  );
+  const wsRetryAttempts = cliInt(args, 'ws-retry-attempts', 'LOAD_MATCHING_WS_RETRY_ATTEMPTS', 3);
+  const wsRetryBaseDelayMs = cliInt(
+    args,
+    'ws-retry-base-delay-ms',
+    'LOAD_MATCHING_WS_RETRY_BASE_DELAY_MS',
+    1_000,
+  );
+  const wsRetryMaxDelayMs = cliInt(
+    args,
+    'ws-retry-max-delay-ms',
+    'LOAD_MATCHING_WS_RETRY_MAX_DELAY_MS',
+    5_000,
+  );
+  const keepUsers = cliBool(args, 'keep-users', 'LOAD_MATCHING_KEEP_USERS', false);
   const runId = env(
     'LOAD_MATCHING_RUN_ID',
     new Date()
@@ -520,14 +1132,26 @@ async function main(): Promise<void> {
   const supabaseUrl = env('SUPABASE_URL');
   const anonKey = env('SUPABASE_ANON_KEY');
   const serviceRoleKey = env('SUPABASE_SERVICE_ROLE_KEY');
-  const apiBaseUrl = env(
+  const apiBaseUrl = cliEnv(
+    args,
+    'api-base-url',
     'LOAD_MATCHING_API_BASE_URL',
     env('EXPO_PUBLIC_API_BASE_URL', 'http://localhost:3000'),
   );
-  const wsUrl = env(
+  const wsUrl = cliEnv(
+    args,
+    'ws-url',
     'LOAD_MATCHING_WS_URL',
     env('EXPO_PUBLIC_MATCHING_SERVER_WS_URL', 'ws://localhost:3010/ws'),
   );
+  if (userCount % 2 !== 0) {
+    throw new Error('--users / LOAD_MATCHING_USER_COUNT must be even for matching load scenarios');
+  }
+  if (scenario === 'gameplay' && movesPerMatch < 1) {
+    throw new Error('--moves-per-match / LOAD_MATCHING_MOVES_PER_MATCH must be at least 1');
+  }
+
+  const metrics = createMetrics();
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -546,52 +1170,101 @@ async function main(): Promise<void> {
 
   try {
     console.log(
-      `[prepare] users=${userCount} api=${apiBaseUrl} ws=${wsUrl} stagger=${staggerMs}ms jitter=${jitterMs}ms runId=${runId}`,
+      `[prepare] scenario=${scenario} users=${userCount} api=${apiBaseUrl} ws=${wsUrl} stagger=${staggerMs}ms jitter=${jitterMs}ms movesPerMatch=${movesPerMatch} runId=${runId}`,
     );
     const boardLayout = await loadStandardBoardLayout(admin);
-    const users = await mapLimit(
-      Array.from({ length: userCount }, (_, index) => index + 1),
-      prepareConcurrency,
-      async (index) => {
-        const user = await createPreparedUser({
-          index,
-          runId,
-          admin,
-          userClient,
-          apiBaseUrl,
-          boardLayout,
-          authRetryAttempts,
-          authRetryBaseDelayMs,
-          authRetryMaxDelayMs,
-        });
-        if (index % 10 === 0 || index === userCount) {
-          console.log(`[prepare] ${index}/${userCount}`);
-        }
-        return user;
-      },
-    );
+    const prepareUsers = async (cycleRunId: string) =>
+      mapLimit(
+        Array.from({ length: userCount }, (_, index) => index + 1),
+        prepareConcurrency,
+        async (index) => {
+          const user = await createPreparedUser({
+            index,
+            runId: cycleRunId,
+            admin,
+            userClient,
+            apiBaseUrl,
+            boardLayout,
+            authRetryAttempts,
+            authRetryBaseDelayMs,
+            authRetryMaxDelayMs,
+          });
+          if (index % 10 === 0 || index === userCount)
+            console.log(`[prepare] ${index}/${userCount}`);
+          return user;
+        },
+      );
 
-    console.log('[load] entering queue');
-    const startedAt = Date.now();
-    const results = await mapLimit(users, startConcurrency, async (user, userIndex) => {
-      const delayMs = userIndex * staggerMs + Math.floor(Math.random() * (jitterMs + 1));
-      return enterQueue({
-        user,
+    const connectPreparedUsers = (users: TestUser[]) =>
+      connectWave({
+        users,
         wsUrl,
-        delayMs,
+        startConcurrency,
+        staggerMs,
+        jitterMs,
         timeoutMs,
         wsRetryAttempts,
         wsRetryBaseDelayMs,
         wsRetryMaxDelayMs,
+        metrics,
       });
-    });
 
-    const elapsedMs = Date.now() - startedAt;
-    const matchedUsers = results.filter((result) => result.matchId).length;
-    const uniqueMatches = new Set(results.map((result) => result.matchId).filter(Boolean));
-    console.log(
-      `[result] game_started users=${matchedUsers}/${userCount} matches=${uniqueMatches.size} elapsedMs=${elapsedMs}`,
-    );
+    if (scenario === 'soak') {
+      const stopAt = Date.now() + durationSeconds * 1000;
+      let cycle = 0;
+      while (Date.now() < stopAt) {
+        cycle += 1;
+        console.log(`[soak] cycle=${cycle}`);
+        const users = await prepareUsers(`${runId}-${cycle}`);
+        const clients = await connectPreparedUsers(users);
+        await runMatchmakingScenario({
+          clients,
+          startConcurrency,
+          staggerMs,
+          jitterMs,
+          timeoutMs,
+          metrics,
+        });
+        await cleanup(admin, keepUsers);
+        cleanupStarted = false;
+      }
+      metrics.print();
+      return;
+    }
+
+    const users = await prepareUsers(runId);
+    const clients = await connectPreparedUsers(users);
+    if (scenario === 'matchmaking' || scenario === 'spike') {
+      await runMatchmakingScenario({
+        clients,
+        startConcurrency,
+        staggerMs,
+        jitterMs,
+        timeoutMs,
+        metrics,
+      });
+    } else if (scenario === 'gameplay') {
+      await runGameplayScenario({
+        clients,
+        startConcurrency,
+        staggerMs,
+        jitterMs,
+        timeoutMs,
+        movesPerMatch,
+        metrics,
+      });
+    } else {
+      await runReconnectScenario({
+        clients,
+        wsUrl,
+        startConcurrency,
+        staggerMs,
+        jitterMs,
+        timeoutMs,
+        metrics,
+      });
+    }
+    metrics.print();
   } finally {
     await cleanup(admin, keepUsers);
   }

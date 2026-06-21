@@ -27,6 +27,7 @@ export type MatchingServerConnectionState =
 type Listener = (message: WebSocketServerMessage) => void;
 
 let singleton: MatchingServerClient | null = null;
+const CONNECT_TIMEOUT_MS = 15000;
 
 export function getMatchingServerClient(): MatchingServerClient {
   if (!singleton) {
@@ -120,23 +121,55 @@ export class MatchingServerClient {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(url.toString());
       this.ws = ws;
+      let settled = false;
 
-      const onOpen = () => {
-        this.connectionState = 'connected';
+      const cleanup = () => {
+        ws.removeEventListener('open', onOpen);
         ws.removeEventListener('error', onError);
+        ws.removeEventListener('close', onClose);
+        clearTimeout(timeout);
+      };
+
+      const finishResolve = () => {
+        if (settled || this.ws !== ws) return;
+        settled = true;
+        cleanup();
+        this.connectionState = 'connected';
         resolve();
       };
 
-      const onError = () => {
-        this.connectionState = 'error';
-        this.lastError = 'WebSocket 接続に失敗しました';
-        reject(new Error(this.lastError));
+      const finishReject = (message: string) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (this.ws === ws) {
+          this.connectionState = 'error';
+          this.lastError = message;
+        }
+        reject(new Error(message));
       };
+
+      const onOpen = () => finishResolve();
+      const onError = () => finishReject('WebSocket 接続に失敗しました');
+      const onClose = () => finishReject('WebSocket 接続が閉じられました');
+      const timeout = setTimeout(() => {
+        finishReject('WebSocket 接続がタイムアウトしました');
+        if (this.ws === ws) {
+          this.ws = null;
+        }
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+      }, CONNECT_TIMEOUT_MS);
 
       ws.addEventListener('open', onOpen, { once: true });
       ws.addEventListener('error', onError, { once: true });
+      ws.addEventListener('close', onClose, { once: true });
 
       ws.addEventListener('message', (event) => {
+        if (this.ws !== ws) return;
         let payload: WebSocketServerMessage;
         try {
           payload = JSON.parse(String(event.data)) as WebSocketServerMessage;
@@ -157,6 +190,7 @@ export class MatchingServerClient {
       });
 
       ws.addEventListener('close', () => {
+        if (this.ws !== ws) return;
         if (this.connectionState !== 'error') {
           this.connectionState = 'closed';
         }

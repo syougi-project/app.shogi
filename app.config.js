@@ -2,6 +2,7 @@ import 'dotenv/config';
 
 const IOS_ADMOB_APP_ID = 'ca-app-pub-4722276667311883~4369476061';
 const IOS_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-4722276667311883/8991247351';
+const IOS_REWARDED_AD_UNIT_ID = 'ca-app-pub-4722276667311883/9275875313';
 const enableAdMob = process.env.EXPO_PUBLIC_ENABLE_ADMOB === 'true';
 
 /** @type {import('expo/config').ExpoConfig} */
@@ -72,6 +73,8 @@ const config = {
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? '',
     admobIosInterstitialUnitId:
       process.env.EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL_UNIT_ID ?? IOS_INTERSTITIAL_AD_UNIT_ID,
+    admobIosRewardedUnitId:
+      process.env.EXPO_PUBLIC_ADMOB_IOS_REWARDED_UNIT_ID ?? IOS_REWARDED_AD_UNIT_ID,
     ...(process.env.EAS_BUILD === 'true' || enableAdMob
       ? {
           eas: {

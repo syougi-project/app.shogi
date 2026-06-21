@@ -46,8 +46,15 @@ jest.mock('react-native-google-mobile-ads', () => {
     InterstitialAd: {
       createForAdRequest: jest.fn(() => ad),
     },
+    RewardedAd: {
+      createForAdRequest: jest.fn(() => ad),
+    },
+    RewardedAdEventType: {
+      EARNED_REWARD: 'earned_reward',
+    },
     TestIds: {
       INTERSTITIAL: 'test-interstitial',
+      REWARDED: 'test-rewarded',
     },
   };
 });
