@@ -1470,6 +1470,51 @@ describe('ai engine legal moves', () => {
     expect(runMoves.some((m) => m.toRow === 4 && m.toCol === 4)).toBe(false);
   });
 
+  it('run piece can capture enemy king when soul is not on board', () => {
+    const runCatalog: AiPieceDefinition = {
+      pieceCode: 'piece_shop_so',
+      canonicalCode: 'SO',
+      sfenCode: '+',
+      char: '走',
+      name: '走',
+      unlock: 'shop',
+      desc: 'なし',
+      skill: '',
+      move: '',
+      moveVectors: [],
+      isRepeatable: false,
+    };
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '9/9/9/9/4k4/9/9/9/9/4K4 b - 1',
+      stateHash: 'run-capture-king',
+      boardState: {
+        pieces: [
+          {
+            side: 'player',
+            row: 6,
+            col: 4,
+            pieceCode: 'piece_shop_so',
+            char: '走',
+            promoted: false,
+          },
+          { side: 'enemy', row: 5, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({
+      position,
+      pieceCatalog: [...pieceCatalog, runCatalog],
+      options: { enforceKingSafety: false },
+    });
+    const runMoves = legal.legalMoves.filter((m) => m.fromRow === 6 && m.fromCol === 4);
+    expect(runMoves.some((m) => m.toRow === 5 && m.toCol === 4)).toBe(true);
+  });
+
   it('kirin piece generates moves even when catalog vectors are empty', () => {
     const kirinCatalog: AiPieceDefinition = {
       pieceCode: 'piece_shop_kirin',

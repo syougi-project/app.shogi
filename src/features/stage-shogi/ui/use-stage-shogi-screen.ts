@@ -122,6 +122,10 @@ export type TimeActionMode = 'skill' | 'normal';
 /** CPU 移動先の赤ハイライト表示時間（本番のみ） */
 const CPU_MOVE_PREVIEW_MS = process.env.NODE_ENV === 'test' ? 0 : 500;
 
+const SKILL_ACTIVATION_TOAST_DURATION_MS = 1400;
+const LONG_PRESS_HINT_MESSAGE = '駒を長押しすると情報を見ることができます';
+const LONG_PRESS_HINT_DURATION_MS = 3000;
+
 const RECOVERED_MOVE_SYNC_MESSAGE = '局面を自動更新しました。対局を続行します。';
 
 /** マスが変わる移動・打ち（同一マスでのスキルのみ着手は除く） */
@@ -378,6 +382,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
   const aiPositionRef = useRef<BattleCanonicalPosition | null>(null);
   const handleCellPressRef = useRef<(row: number, col: number) => void>(() => undefined);
   const hasEnteredBattleRef = useRef(false);
+  const longPressHintShownRef = useRef(false);
   const prevStageRef = useRef<string | undefined>(undefined);
   const aiThinkingRef = useRef(false);
   const inFlightAiKeyRef = useRef<string | null>(null);
@@ -610,6 +615,24 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     setSkillVisualEffects((current) => current.filter((effect) => effect.id !== finished.id));
   }, []);
 
+  function showCenterToast(message: string, durationMs: number) {
+    const applyToast = () => {
+      setSkillActivationText(message);
+    };
+    try {
+      flushSync(applyToast);
+    } catch {
+      applyToast();
+    }
+    if (skillToastTimeoutRef.current) {
+      clearTimeout(skillToastTimeoutRef.current);
+    }
+    skillToastTimeoutRef.current = setTimeout(() => {
+      setSkillActivationText(null);
+      skillToastTimeoutRef.current = null;
+    }, durationMs);
+  }
+
   function showSkillActivation(actor: Side, move: BattleMove, board: BoardPiece[]) {
     if (move.dropPieceCode) return;
     const keys = buildSkillActivationEffectSoundKeys(move, actor, board);
@@ -619,21 +642,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     const message = skillName
       ? `${actorLabel} スキル発動: ${skillName}`
       : `${actorLabel} スキル発動`;
-    const applySkillToast = () => {
-      setSkillActivationText(message);
-    };
-    try {
-      flushSync(applySkillToast);
-    } catch {
-      applySkillToast();
-    }
-    if (skillToastTimeoutRef.current) {
-      clearTimeout(skillToastTimeoutRef.current);
-    }
-    skillToastTimeoutRef.current = setTimeout(() => {
-      setSkillActivationText(null);
-      skillToastTimeoutRef.current = null;
-    }, 1400);
+    showCenterToast(message, SKILL_ACTIVATION_TOAST_DURATION_MS);
   }
 
   function syncFromCanonicalPosition(
@@ -748,6 +757,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     clearRewardClaimedRef.current = false;
     battleSessionSettledRef.current = false;
     hasEnteredBattleRef.current = false;
+    longPressHintShownRef.current = false;
     pendingAiResumeRef.current = null;
     needsEnemyAiMoveRef.current = false;
     autoAiAttemptByKeyRef.current.clear();
@@ -775,6 +785,36 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       active = false;
     };
   }, [loadPieceCatalogUseCase]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
+    if (
+      isLoading ||
+      loadError ||
+      !gameId ||
+      isCreatingGame ||
+      isLoadingPlayerLegalMoves ||
+      playerLegalMoves.length === 0 ||
+      sideToMove !== 'player' ||
+      winner !== null ||
+      longPressHintShownRef.current
+    ) {
+      return;
+    }
+    longPressHintShownRef.current = true;
+    showCenterToast(LONG_PRESS_HINT_MESSAGE, LONG_PRESS_HINT_DURATION_MS);
+  }, [
+    isLoading,
+    loadError,
+    gameId,
+    isCreatingGame,
+    isLoadingPlayerLegalMoves,
+    playerLegalMoves.length,
+    sideToMove,
+    winner,
+  ]);
 
   /** 1手目: syncFromCanonical 前にステージ固定の×・矢印マスを表示 */
   useEffect(() => {

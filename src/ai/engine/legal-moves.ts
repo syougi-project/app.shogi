@@ -861,6 +861,7 @@ function isGunFullyBlockingAllyOnMid(p: AiBoardPiece, gun: AiBoardPiece): boolea
 function generateGunForwardTargets(
   occupancy: OccupancyMap,
   piece: AiBoardPiece,
+  pieces: AiBoardPiece[],
 ): { row: number; col: number }[] {
   const out: { row: number; col: number }[] = [];
   const seen = new Set<string>();
@@ -924,16 +925,12 @@ function generateGunForwardTargets(
     logBlock('2マス目が味方');
     return out;
   }
-  if (p1 && (p1.char === '王' || p1.char === '玉' || toBasePieceCode(p1.pieceCode) === 'OU')) {
-    logBlock('1マス目が王/玉');
+  if (p1 && isKingPiece(p1) && hasSoulOnBoardForSide(pieces, p1.side)) {
+    logBlock('1マス目が心所持の王/玉');
     return out;
   }
-  if (
-    r2Valid &&
-    p2 &&
-    (p2.char === '王' || p2.char === '玉' || toBasePieceCode(p2.pieceCode) === 'OU')
-  ) {
-    logBlock('2マス目が王/玉');
+  if (r2Valid && p2 && isKingPiece(p2) && hasSoulOnBoardForSide(pieces, p2.side)) {
+    logBlock('2マス目が心所持の王/玉');
     return out;
   }
   if (p1 && isArmorPiece(p1)) {
@@ -1003,6 +1000,7 @@ function generateGunForwardTargets(
 function generateRunForwardTargets(
   occupancy: OccupancyMap,
   piece: AiBoardPiece,
+  pieces: AiBoardPiece[],
 ): { row: number; col: number }[] {
   const out: { row: number; col: number }[] = [];
   const seen = new Set<string>();
@@ -1025,7 +1023,7 @@ function generateRunForwardTargets(
     if (!target) return true;
     if (target.side === piece.side) return false;
     if (isRockObstacleVirtualPiece(target)) return false;
-    if (isKingPiece(target)) return false;
+    if (isKingPiece(target) && hasSoulOnBoardForSide(pieces, target.side)) return false;
     if (isArmorPiece(target)) return false;
     if (isGiantPieceForEngine(target)) return false;
     if (isKirinCaptureBlocked(piece, target)) return false;
@@ -1051,6 +1049,7 @@ function generateRunForwardTargets(
 function generateGunBackDiagonalTargets(
   occupancy: OccupancyMap,
   piece: AiBoardPiece,
+  pieces: AiBoardPiece[],
 ): { row: number; col: number }[] {
   const out: { row: number; col: number }[] = [];
   const seen = new Set<string>();
@@ -1089,8 +1088,8 @@ function generateGunBackDiagonalTargets(
 
     if (p1 && isGunFullyBlockingAllyOnMid(p1, piece)) continue;
     if (r2Valid && p2 && p2.side === piece.side) continue;
-    if (p1 && isKingPiece(p1)) continue;
-    if (r2Valid && p2 && isKingPiece(p2)) continue;
+    if (p1 && isKingPiece(p1) && hasSoulOnBoardForSide(pieces, p1.side)) continue;
+    if (r2Valid && p2 && isKingPiece(p2) && hasSoulOnBoardForSide(pieces, p2.side)) continue;
     if (p1 && isArmorPiece(p1)) continue;
     if (r2Valid && p2 && isArmorPiece(p2)) continue;
     if (p1 && isKbossPieceForGun(p1) && kbossEffectiveLivesForGunFilter(p1) > 1) continue;
@@ -2488,8 +2487,8 @@ function generateBoardPieceMoves(input: {
   const gunLineTargets =
     isGunPiece(mover) && !isMirrorPiece(mover)
       ? [
-          ...generateGunForwardTargets(pathOccupancy, input.piece),
-          ...generateGunBackDiagonalTargets(pathOccupancy, input.piece),
+          ...generateGunForwardTargets(pathOccupancy, input.piece, input.pieces),
+          ...generateGunBackDiagonalTargets(pathOccupancy, input.piece, input.pieces),
         ]
       : [];
   const gunLineKeySet =
@@ -2509,7 +2508,7 @@ function generateBoardPieceMoves(input: {
       : null;
   const runForwardTargets =
     isRunPiece(mover) && !isMirrorPiece(mover)
-      ? generateRunForwardTargets(pathOccupancy, input.piece)
+      ? generateRunForwardTargets(pathOccupancy, input.piece, input.pieces)
       : [];
   const runForwardKeySet =
     runForwardTargets.length > 0
