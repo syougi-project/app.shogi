@@ -1,6 +1,8 @@
 import {
   PIG_MOVE_DESCRIPTION_JA,
   PIG_MOVE_VECTORS,
+  SHADOW_MOVE_DESCRIPTION_JA,
+  SHADOW_MOVE_VECTORS,
   YAMA_MOVE_DESCRIPTION_JA,
   YAMA_MOVE_VECTORS,
 } from '@/ai/engine/shop-piece-moves';
@@ -96,6 +98,20 @@ function applyClientEnginePieceCatalogOverrides(item: PieceCatalogItem): PieceCa
       moveVectors: PIG_MOVE_VECTORS.map((vector) => ({ ...vector })),
       move: PIG_MOVE_DESCRIPTION_JA,
       skill: '敵駒を取ると、その駒の移動範囲を自分のものとして使える。',
+    };
+  }
+
+  if (
+    ch === '影' ||
+    baseCode === 'KAG' ||
+    baseCode === 'SHADOW' ||
+    moveCode === 'shadow' ||
+    (item.pieceCode ?? '').toUpperCase().includes('KAG')
+  ) {
+    return {
+      ...item,
+      moveVectors: SHADOW_MOVE_VECTORS.map((vector) => ({ ...vector })),
+      move: SHADOW_MOVE_DESCRIPTION_JA,
     };
   }
 

@@ -553,6 +553,16 @@ export function isPhantomPiece(piece: PieceLike): boolean {
   return raw.includes('PHANTOM');
 }
 
+/** 影: 斜め2マス + 左右1マス（前方直進なし）。 */
+export function isShadowPiece(piece: PieceLike): boolean {
+  const char = normKanjiForEngineRules(piece.char);
+  if (char === '影') return true;
+  const base = toBasePieceCode(piece.pieceCode);
+  if (base === 'KAG' || base === 'SHADOW') return true;
+  const raw = pieceRawUpper(piece);
+  return raw.includes('KAG') || raw.includes('SHADOW');
+}
+
 /** 山: 斜め4方向に各1マス（嶺スキル召喚駒）。 */
 export function isYamaPiece(piece: PieceLike): boolean {
   const char = normKanjiForEngineRules(piece.char);

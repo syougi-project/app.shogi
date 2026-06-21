@@ -713,6 +713,8 @@ describe('ai engine apply move', () => {
 
     expect(committed.position.hands.player.FU).toBeUndefined();
     expect(committed.position.sideToMove).toBe('enemy');
+    expect(committed.skillTriggered).toBe(false);
+    expect(committed.skillVisualEffects).toEqual([]);
   });
 
   it('rejects an illegal move', () => {

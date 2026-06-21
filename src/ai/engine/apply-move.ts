@@ -2178,8 +2178,8 @@ export function applyMove(input: {
     if (!input.options?.suppressRandomSkillProcs) {
       tickSkillStateDurations(nextPosition);
     }
-    if (applyLandingDerivedEffects) {
-      // 着手によるスキル効果（移動制限・毒マスなど）を反映（実際にマスへ入ったときのみ）。
+    if (applyLandingDerivedEffects && !move.dropPieceCode) {
+      // 着手によるスキル効果（移動制限・毒マスなど）を反映（実際にマスへ入ったときのみ）。打ちは対象外。
       const { moveSkillEffectTriggered, skillVisualEffects } = applyMoveSkillEffects({
         position: nextPosition,
         move,
@@ -2547,7 +2547,8 @@ export function applyMove(input: {
       move.notation === 'time_skill' ||
       move.notation === 'time_skill_only' ||
       move.notation === 'house_skill_only' ||
-      Boolean(move.notation && move.notation !== 'time_normal' && !/^\d/.test(move.notation)),
+      (!move.dropPieceCode &&
+        Boolean(move.notation && move.notation !== 'time_normal' && !/^\d/.test(move.notation))),
     turnConsumed: turnAdvanced,
     position: nextPosition,
     game,

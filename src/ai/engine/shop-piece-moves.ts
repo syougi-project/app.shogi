@@ -103,6 +103,18 @@ export const COPPER_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
   { dx: 0, dy: -1, maxStep: 8 },
 ];
 
+export const SHADOW_MOVE_DESCRIPTION_JA = '斜めに2マス＋左右1マス移動できる。';
+
+/** 影 — 斜め4方向に最大2マス + 左右1マス（piece_info / HTML shadowMoves 準拠）。前方直進は不可。 */
+export const SHADOW_MOVE_VECTORS: AiPieceDefinition['moveVectors'] = [
+  { dx: -1, dy: -1, maxStep: 2 },
+  { dx: 1, dy: -1, maxStep: 2 },
+  { dx: -1, dy: 0, maxStep: 1 },
+  { dx: 1, dy: 0, maxStep: 1 },
+  { dx: -1, dy: 1, maxStep: 2 },
+  { dx: 1, dy: 1, maxStep: 2 },
+];
+
 export const LEAF_MOVE_DESCRIPTION_JA = '斜めに2マスまで移動できる。';
 
 /** 葉 — 斜め4方向に最大2マス（piece_info / BFF カタログ準拠）。 */

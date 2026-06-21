@@ -58,6 +58,7 @@ import {
   TANE_SILVER_MOVE_VECTORS,
   COPPER_MOVE_VECTORS,
   PIG_MOVE_VECTORS,
+  SHADOW_MOVE_VECTORS,
   WAVE_MOVE_VECTORS,
 } from '@/ai/engine/shop-piece-moves';
 import {
@@ -99,6 +100,7 @@ import {
   isRunPiece,
   isAnPiece,
   isPhantomPiece,
+  isShadowPiece,
   isYamaPiece,
   isCopperPiece,
   isWavePiece,
@@ -1833,6 +1835,9 @@ function resolveEffectiveVectorsForPiece(
   }
   if (isYamaPiece(piece)) {
     return YAMA_MOVE_VECTORS;
+  }
+  if (isShadowPiece(piece)) {
+    return SHADOW_MOVE_VECTORS;
   }
   if (isCopperPiece(piece)) {
     return COPPER_MOVE_VECTORS;

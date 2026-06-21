@@ -611,6 +611,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
   }, []);
 
   function showSkillActivation(actor: Side, move: BattleMove, board: BoardPiece[]) {
+    if (move.dropPieceCode) return;
     const keys = buildSkillActivationEffectSoundKeys(move, actor, board);
     void playBattlePieceEffectSoundFirstMatch(keys, 'battleSkill', 0.92);
     const actorLabel = actor === 'player' ? 'あなた' : 'CPU';

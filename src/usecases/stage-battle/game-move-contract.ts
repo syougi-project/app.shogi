@@ -249,9 +249,10 @@ export function parseBattleAiTurn(raw: unknown): BattleAiTurn {
 }
 
 function parseSkillTriggered(rawSkillTriggered: unknown, rawMove: unknown): boolean {
+  const move = parseMove(rawMove);
+  if (move.dropPieceCode) return false;
   const skillTriggered = asBoolean(rawSkillTriggered);
   if (skillTriggered !== null) return skillTriggered;
-  const move = parseMove(rawMove);
   if (!move.notation) return false;
   if (move.notation === 'time_normal') return false;
   if (move.notation.startsWith('satori_stun:')) return true;
