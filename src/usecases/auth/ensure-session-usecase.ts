@@ -40,7 +40,11 @@ export class AuthRetryLimitError extends Error {
 }
 
 function isUnauthorized(error: unknown): boolean {
-  return error instanceof ApiClientError && (error.code === 'UNAUTHORIZED' || error.status === 401);
+  return (
+    typeof ApiClientError === 'function' &&
+    error instanceof ApiClientError &&
+    (error.code === 'UNAUTHORIZED' || error.status === 401)
+  );
 }
 
 function sleep(ms: number): Promise<void> {

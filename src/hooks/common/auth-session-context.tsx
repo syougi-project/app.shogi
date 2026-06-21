@@ -38,7 +38,7 @@ const initialState: AuthSessionState = {
 const AuthSessionContext = createContext<AuthSessionState>(initialState);
 
 function normalizeUnknownError(error: unknown): Error {
-  if (error instanceof ApiClientError) {
+  if (typeof ApiClientError === 'function' && error instanceof ApiClientError) {
     if (error.code === 'NETWORK_TIMEOUT') {
       return Object.assign(new Error(error.message), { userMessage: AUTH_CONNECTION_MESSAGE });
     }
