@@ -52,6 +52,8 @@ function normalizeEnginePieceCatalog(items: PieceCatalogItem[]): AiPieceDefiniti
   return normalizePieceCatalog(preparePieceCatalogForBattleAndDisplay(items));
 }
 
+const ONLINE_BATTLE_LEGAL_MOVE_OPTIONS = { enforceKingSafety: false } as const;
+
 export function setOnlineBattlePieceCatalog(
   engineCatalog: PieceCatalogItem[],
   displayCatalog?: PieceCatalogItem[],
@@ -118,7 +120,10 @@ export function applyOnlineBattleMove(input: {
     position: record.position,
     pieceCatalog: record.pieceCatalog,
     move: input.move,
-    options: { suppressRandomSkillProcs: true },
+    options: {
+      suppressRandomSkillProcs: true,
+      legalMoveOptions: ONLINE_BATTLE_LEGAL_MOVE_OPTIONS,
+    },
   });
   const next: OnlineBattleGameRecord = {
     ...record,
@@ -146,6 +151,7 @@ export function getMyLegalMoves(matchId: string): BattleMove[] {
   const legal = generateLegalMoves({
     position: record.position,
     pieceCatalog: record.pieceCatalog,
+    options: ONLINE_BATTLE_LEGAL_MOVE_OPTIONS,
   });
   return legal.legalMoves;
 }
@@ -161,6 +167,7 @@ export function getOpponentLegalMovesForInspect(matchId: string): BattleMove[] {
       sideToMove: opponentSide,
     },
     pieceCatalog: record.pieceCatalog,
+    options: ONLINE_BATTLE_LEGAL_MOVE_OPTIONS,
   });
   return legal.legalMoves;
 }

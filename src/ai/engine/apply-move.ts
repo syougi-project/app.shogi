@@ -34,7 +34,11 @@ import {
 } from '@/ai/engine/giant-piece';
 import { arrowDirectionAt, arrowSlideDestination } from '@/ai/engine/arrow-tile';
 import { createPosition, findPieceAt, notationForMove, pieceChar } from '@/ai/engine/shared';
-import { ensureShinTurnMimicForBattle, generateLegalMoves } from '@/ai/engine/legal-moves';
+import {
+  ensureShinTurnMimicForBattle,
+  generateLegalMoves,
+  type GenerateLegalMovesOptions,
+} from '@/ai/engine/legal-moves';
 import {
   createSkillRuntimeView,
   applyBoardHazardsOnLanding,
@@ -1321,10 +1325,15 @@ export function applyMove(input: {
   position: BattleCanonicalPosition;
   pieceCatalog: AiPieceDefinition[];
   move: AiBattleMove;
-  options?: { suppressRandomSkillProcs?: boolean; trustedLegalMove?: boolean };
+  options?: {
+    suppressRandomSkillProcs?: boolean;
+    trustedLegalMove?: boolean;
+    legalMoveOptions?: GenerateLegalMovesOptions;
+  };
 }): BattleCommittedMove {
   const current = normalizeBattlePosition(input.position);
   const move = normalizeBattleMove(input.move);
+  const legalMoveOptions = input.options?.legalMoveOptions;
   const pieces = piecesFromBoardState(current);
   const boardBeforeMove = pieces.map((piece) => ({ ...piece }));
   let hands = normalizeHandsStateKeys({
@@ -1351,6 +1360,7 @@ export function applyMove(input: {
       pieceCatalog: input.pieceCatalog,
       move,
       actor: actorSide,
+      legalMoveOptions,
     });
   }
 
@@ -2074,8 +2084,11 @@ export function applyMove(input: {
     previewBoard.skill_state = previewSkillState;
     followupPreview.boardState = previewBoard;
     grantsOtsuFollowup =
-      generateLegalMoves({ position: followupPreview, pieceCatalog: input.pieceCatalog }).legalMoves
-        .length > 0;
+      generateLegalMoves({
+        position: followupPreview,
+        pieceCatalog: input.pieceCatalog,
+        options: legalMoveOptions,
+      }).legalMoves.length > 0;
   }
 
   let grantsConvexFollowup = false;
@@ -2122,8 +2135,11 @@ export function applyMove(input: {
     convexBoard.skill_state = convexSkillState;
     convexPreview.boardState = convexBoard;
     grantsConvexFollowup =
-      generateLegalMoves({ position: convexPreview, pieceCatalog: input.pieceCatalog }).legalMoves
-        .length > 0;
+      generateLegalMoves({
+        position: convexPreview,
+        pieceCatalog: input.pieceCatalog,
+        options: legalMoveOptions,
+      }).legalMoves.length > 0;
   }
 
   // 盾で取りが無効化されても着手は1手として消化し、攻撃側の手番を終える。
@@ -2527,6 +2543,7 @@ export function applyMove(input: {
     const nextLegal = generateLegalMoves({
       position: nextPosition,
       pieceCatalog: input.pieceCatalog,
+      options: legalMoveOptions,
     });
     if (nextLegal.legalMoves.length === 0) {
       winnerSide = actorSide;

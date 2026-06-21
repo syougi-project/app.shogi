@@ -284,6 +284,33 @@ describe('ai engine legal moves', () => {
     expect(legal.legalMoves.every((move) => move.fromRow === 4 && move.fromCol === 4)).toBe(true);
   });
 
+  it('allows non-escaping moves under check when enforceKingSafety is disabled', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'enemy',
+      turnNumber: 2,
+      moveCount: 1,
+      sfen: '9/9/9/9/4k4/3+S5/9/p8/4K4 w - 2',
+      stateHash: 'seed-promoted-silver-check-online',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 4, col: 4, pieceCode: 'OU', char: '玉', promoted: false },
+          { side: 'enemy', row: 7, col: 0, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'player', row: 5, col: 3, pieceCode: 'GI', char: '成銀', promoted: true },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+
+    const legal = generateLegalMoves({
+      position,
+      pieceCatalog,
+      options: { enforceKingSafety: false },
+    });
+
+    expect(legal.legalMoves.some((move) => move.fromRow === 7 && move.fromCol === 0)).toBe(true);
+  });
+
   it('returns no legal moves when enemy cannot escape a promoted silver check', () => {
     const position: AiBattlePosition = {
       sideToMove: 'enemy',

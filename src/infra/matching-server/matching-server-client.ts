@@ -79,10 +79,10 @@ export class MatchingServerClient {
 
     const nextMatchId = options?.matchId ?? null;
     if (
-      this.ws &&
+      this.ws?.readyState === WebSocket.OPEN &&
       this.userId === userId &&
-      this.matchId === nextMatchId &&
-      this.connectionState === 'connected'
+      this.connectionState === 'connected' &&
+      (this.matchId ?? null) === nextMatchId
     ) {
       return Promise.resolve();
     }
@@ -94,7 +94,7 @@ export class MatchingServerClient {
     const preservedProfile = getActiveMatchProfile();
     const preservedRole = this.role ?? preservedSession?.role ?? null;
 
-    this.disconnect();
+    this.closeSocketOnly();
     this.userId = userId;
     this.matchId = nextMatchId;
     this.connectionState = 'connecting';
@@ -200,8 +200,7 @@ export class MatchingServerClient {
   }
 
   disconnect(): void {
-    this.ws?.close();
-    this.ws = null;
+    this.closeSocketOnly();
     this.connectionState = 'idle';
     this.userId = null;
     this.matchId = null;
@@ -209,6 +208,15 @@ export class MatchingServerClient {
     this.lastError = null;
     clearActiveMatchSession();
     clearActiveMatchProfile();
+  }
+
+  private closeSocketOnly(): void {
+    try {
+      this.ws?.close();
+    } catch {
+      // ignore close failures during reconnect
+    }
+    this.ws = null;
   }
 
   enterQueue(input: {

@@ -101,6 +101,12 @@ export function pinHomeSnapshotRating(rating: number): void {
   patchHomeSnapshotRating(pinnedPvpRating);
 }
 
+/** 対人終了後にサーバー snapshot から最新レートを取得する前に呼ぶ */
+export function clearPinnedPvpRatingForSync(): void {
+  pinnedPvpRating = null;
+  pinnedPvpRatingAt = 0;
+}
+
 /** 対人レート反映後にホーム HUD の表示を即時更新する（サーバー再取得はピン解除まで行わない） */
 export function syncHomeRatingAfterPvpMatch(rating: number): void {
   pinHomeSnapshotRating(rating);

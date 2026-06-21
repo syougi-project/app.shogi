@@ -1,5 +1,5 @@
 import { findPieceCoveringCell } from '@/ai/engine/giant-piece';
-import { generateLegalMoves } from '@/ai/engine/legal-moves';
+import { generateLegalMoves, type GenerateLegalMovesOptions } from '@/ai/engine/legal-moves';
 import { isHenPiece, isItsuPiece, isShinPiece } from '@/ai/engine/piece-identifiers';
 import { moveEquals } from '@/ai/engine/shared';
 import type { AiBattleMove, AiBattlePosition, AiPieceDefinition } from '@/ai/model';
@@ -10,6 +10,7 @@ export function assertMoveAllowedBySessionCatalog(input: {
   pieceCatalog: AiPieceDefinition[];
   move: AiBattleMove;
   actor: 'player' | 'enemy';
+  legalMoveOptions?: GenerateLegalMovesOptions;
 }) {
   const move = normalizeBattleMove(input.move);
   const moveForMatch =
@@ -22,6 +23,7 @@ export function assertMoveAllowedBySessionCatalog(input: {
   const legal = generateLegalMoves({
     position: input.position,
     pieceCatalog: input.pieceCatalog,
+    options: input.legalMoveOptions,
   });
 
   if (legal.sideToMove !== input.actor) {

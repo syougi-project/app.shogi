@@ -127,10 +127,11 @@ import { formatPvpRatingDelta } from '@/lib/online-match/elo-rating';
 import { isRatedOnlineMatchEndReason } from '@/lib/online-match/online-match-rating-policy';
 import { buildPvpRatingPreview } from '@/lib/online-match/resolve-pvp-rating-preview';
 import {
+  getHomeSnapshotState,
   pinHomeSnapshotRating,
   syncHomeRatingAfterPvpMatch,
 } from '@/hooks/common/home-snapshot-store';
-import { applyPvpRatingAfterMatch } from '@/lib/online-match/player-pvp-rating';
+import { syncPvpRatingAfterMatch } from '@/lib/online-match/player-pvp-rating';
 import { clearPvpRatingLeaderboardCache } from '@/lib/online-match/pvp-rating-leaderboard-cache';
 
 export type PendingOnlinePromotion = {
@@ -797,7 +798,6 @@ export function useOnlineBattleGame(matchId?: string) {
           authoritativeWinnerSideRef.current = won ? 'player' : 'enemy';
           const activeMatchId = payload.matchId;
           const profile = getActiveMatchProfile();
-          const activeRole = roleRef.current ?? getActiveMatchSession()?.role ?? null;
           const ratesMatch =
             payload.status === 'finished' && isRatedOnlineMatchEndReason(payload.reason);
           setSelectedCell(null);
@@ -841,6 +841,10 @@ export function useOnlineBattleGame(matchId?: string) {
             return;
           }
           void (async () => {
+            const ratingBefore =
+              matchRatingsRef.current?.selfRating ??
+              profile?.self.rating ??
+              getHomeSnapshotState().snapshot.rating;
             const ratingPreview = buildPvpRatingPreview({
               won,
               cached: matchRatingsRef.current,
@@ -850,25 +854,11 @@ export function useOnlineBattleGame(matchId?: string) {
             }
             const opponentRating =
               matchRatingsRef.current?.opponentRating ?? profile?.opponent.rating;
-            const recordMatch =
-              profile && activeRole
-                ? {
-                    playerBlackUserId:
-                      activeRole === 'black' ? profile.self.userId : profile.opponent.userId,
-                    playerWhiteUserId:
-                      activeRole === 'white' ? profile.self.userId : profile.opponent.userId,
-                    winnerUserId: won ? profile.self.userId : profile.opponent.userId,
-                    reason: payload.reason,
-                    startedAt: matchStartedAtRef.current ?? undefined,
-                    finishedAt: new Date().toISOString(),
-                  }
-                : undefined;
             try {
-              const applied = await applyPvpRatingAfterMatch({
-                matchId: activeMatchId,
+              const applied = await syncPvpRatingAfterMatch({
+                ratingBefore,
                 won,
                 opponentRating,
-                recordMatch,
               });
               clearPvpRatingLeaderboardCache();
               syncHomeRatingAfterPvpMatch(applied.rating);

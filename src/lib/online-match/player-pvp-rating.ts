@@ -1,6 +1,9 @@
 import { isApiDataSource } from '@/lib/config/data-source';
-import { PvpRatingApiDataSource } from '@/infra/datasources/pvp-rating-api-datasource';
-import { supabase } from '@/lib/supabase/supabase-client';
+import {
+  clearPinnedPvpRatingForSync,
+  loadHomeSnapshot,
+  pinHomeSnapshotRating,
+} from '@/hooks/common/home-snapshot-store';
 import {
   calculateEloRatingDelta,
   normalizePvpRating,
@@ -13,13 +16,67 @@ export {
   formatPvpRatingDelta,
 } from '@/lib/online-match/pvp-rating-constants';
 
-const api = new PvpRatingApiDataSource();
+const DEFAULT_MAX_ATTEMPTS = 10;
+const DEFAULT_RETRY_DELAY_MS = 500;
 
-/** 対人対戦終了後に BFF へレートを反映（冪等: 同一 matchId は二重加算しない） */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 対人対戦終了後、BFF の snapshot からサーバー反映済みレートを取得する */
+export async function syncPvpRatingAfterMatch(input: {
+  ratingBefore: number;
+  won: boolean;
+  opponentRating?: number;
+  maxAttempts?: number;
+  retryDelayMs?: number;
+}): Promise<{ rating: number; delta: number }> {
+  const ratingBefore = normalizePvpRating(input.ratingBefore);
+
+  if (!isApiDataSource()) {
+    if (input.opponentRating == null) {
+      return { rating: ratingBefore, delta: 0 };
+    }
+    const delta = calculateEloRatingDelta(
+      ratingBefore,
+      normalizePvpRating(input.opponentRating),
+      input.won,
+    );
+    const rating = normalizePvpRating(ratingBefore + delta);
+    pinHomeSnapshotRating(rating);
+    return { rating, delta };
+  }
+
+  clearPinnedPvpRatingForSync();
+
+  const maxAttempts = input.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+  const retryDelayMs = input.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (attempt > 0) {
+      await sleep(retryDelayMs);
+    }
+    const snapshot = await loadHomeSnapshot(true);
+    const rating = normalizePvpRating(snapshot.rating);
+    if (rating !== ratingBefore) {
+      const delta = rating - ratingBefore;
+      pinHomeSnapshotRating(rating);
+      return { rating, delta };
+    }
+  }
+
+  const rating = normalizePvpRating((await loadHomeSnapshot(true)).rating);
+  const delta = rating - ratingBefore;
+  pinHomeSnapshotRating(rating);
+  return { rating, delta };
+}
+
+/** @deprecated matching_server 側でレート反映するため syncPvpRatingAfterMatch を使用 */
 export async function applyPvpRatingAfterMatch(input: {
   matchId: string;
   won: boolean;
   opponentRating?: number;
+  ratingBefore?: number;
   recordMatch?: {
     playerBlackUserId: string;
     playerWhiteUserId: string;
@@ -29,37 +86,9 @@ export async function applyPvpRatingAfterMatch(input: {
     finishedAt?: string;
   };
 }): Promise<{ rating: number; delta: number }> {
-  if (!isApiDataSource()) {
-    if (input.opponentRating == null) {
-      return { rating: 0, delta: 0 };
-    }
-    const delta = calculateEloRatingDelta(
-      normalizePvpRating(0),
-      normalizePvpRating(input.opponentRating),
-      input.won,
-    );
-    return { rating: Math.max(0, delta), delta };
-  }
-
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
-
-  if (sessionError) throw sessionError;
-  if (!session?.access_token) {
-    throw new Error('No active session');
-  }
-
-  const result = await api.applyAfterMatch(session.access_token, {
-    matchId: input.matchId,
+  return syncPvpRatingAfterMatch({
+    ratingBefore: input.ratingBefore ?? 0,
     won: input.won,
     opponentRating: input.opponentRating,
-    recordMatch: input.recordMatch,
   });
-
-  return {
-    rating: normalizePvpRating(result.rating),
-    delta: Number(result.delta ?? 0),
-  };
 }

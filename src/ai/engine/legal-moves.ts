@@ -2890,9 +2890,15 @@ function filterMovesLeavingOwnKingSafe(input: {
   });
 }
 
+export type GenerateLegalMovesOptions = {
+  /** false のとき王手放置・玉の自取りも含めて合法手とする（オンライン対戦向け） */
+  enforceKingSafety?: boolean;
+};
+
 export function generateLegalMoves(input: {
   position: AiBattlePosition;
   pieceCatalog: AiPieceDefinition[];
+  options?: GenerateLegalMovesOptions;
 }) {
   const position = normalizeBattlePosition(input.position);
   position.hands = {
@@ -2988,18 +2994,21 @@ export function generateLegalMoves(input: {
     pieces,
     position.sideToMove,
   );
-  const kingSafeLegalMoves = filterMovesLeavingOwnKingSafe({
-    moves: legalMoves,
-    pieces,
-    position,
-    lookups,
-    skillView,
-  });
+  const enforceKingSafety = input.options?.enforceKingSafety !== false;
+  const resolvedLegalMoves = enforceKingSafety
+    ? filterMovesLeavingOwnKingSafe({
+        moves: legalMoves,
+        pieces,
+        position,
+        lookups,
+        skillView,
+      })
+    : legalMoves;
 
   return {
     sideToMove: position.sideToMove,
     moveNo: position.moveCount + 1,
     stateHash: position.stateHash,
-    legalMoves: kingSafeLegalMoves,
+    legalMoves: resolvedLegalMoves,
   };
 }
