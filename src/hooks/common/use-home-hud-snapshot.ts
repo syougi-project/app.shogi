@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import {
   getHomeSnapshotState,
-  loadHomeSnapshot,
+  loadHomeSnapshotOnScreenFocus,
   subscribeHomeSnapshot,
 } from '@/hooks/common/home-snapshot-store';
 import { refreshDisplayedStaminaRecovery } from '@/lib/stamina/refresh-displayed-stamina';
@@ -13,7 +13,7 @@ export function useHomeHudSnapshot() {
 
   useFocusEffect(
     useCallback(() => {
-      void loadHomeSnapshot();
+      void loadHomeSnapshotOnScreenFocus();
     }, []),
   );
 

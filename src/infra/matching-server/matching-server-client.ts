@@ -271,6 +271,32 @@ export class MatchingServerClient {
     });
   }
 
+  /** 投了を送り、サーバーから game_finished を受け取るまで待ってから切断する（相手へ勝利通知を確実に届ける）。 */
+  async forfeitAndDisconnect(userId: string, matchId: string): Promise<void> {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      throw new Error('WebSocket が接続されていません');
+    }
+    await new Promise<void>((resolve) => {
+      const timeoutMs = 2500;
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        unsubscribe();
+        resolve();
+      };
+      const unsubscribe = this.subscribe((message) => {
+        if (message.type === 'game_finished' && message.matchId === matchId) {
+          finish();
+        }
+      });
+      const timer = setTimeout(finish, timeoutMs);
+      this.resign(userId, matchId);
+    });
+    this.disconnect();
+  }
+
   signalBattleReady(userId: string, matchId: string): void {
     this.send({
       action: 'signal_battle_ready',

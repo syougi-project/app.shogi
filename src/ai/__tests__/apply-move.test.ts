@@ -1664,6 +1664,15 @@ describe('ai engine apply move', () => {
     );
     expect(linked?.row).toBe(4);
     expect(linked?.col).toBe(3);
+    const leader = boardPieces(committed.position).find(
+      (piece) => piece.side === 'player' && piece.pieceCode === 'SAND' && piece.col === 4,
+    );
+    expect(leader?.row).toBe(4);
+    expect(
+      boardPieces(committed.position).filter(
+        (piece) => piece.side === 'player' && piece.pieceCode === 'SAND',
+      ),
+    ).toHaveLength(2);
   });
 
   it('wind skill pushes orthogonal adjacent enemies to edge', () => {

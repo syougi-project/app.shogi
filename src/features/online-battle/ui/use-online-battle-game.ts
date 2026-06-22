@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 import { ONLINE_PVP_TURN_SECONDS } from '@/constants/online-battle';
+const ONLINE_SKILL_ACTIVATION_TOAST_MS = 3000;
 
 import { applyMove } from '@/ai/engine';
 import type { SkillVisualEffect } from '@/domain/battle/skill-visual-effect';
@@ -116,6 +118,7 @@ import {
   playBattleMoveOrPromoteSe,
   playBattleSkillActivationSe,
   playHolySwordEvadeSkillSe,
+  resolveSkillActivationToastMessage,
   type BattleAudioCatalog,
 } from '@/lib/battle/battle-move-audio';
 import { formatOnlineBattleMoveLogLine } from '@/lib/battle/battle-log';
@@ -224,6 +227,7 @@ export function useOnlineBattleGame(matchId?: string) {
   const [turnSecondsLeft, setTurnSecondsLeft] = useState(ONLINE_PVP_TURN_SECONDS);
   const [isTurnClockActive, setIsTurnClockActive] = useState(false);
   const [skillVisualEffects, setSkillVisualEffects] = useState<SkillVisualEffect[]>([]);
+  const [skillActivationText, setSkillActivationText] = useState<string | null>(null);
   const [poisonHazardCells, setPoisonHazardCells] = useState<BoardCell[]>([]);
   const [rockObstacleCells, setRockObstacleCells] = useState<BoardCell[]>([]);
   const [batsuHazardCells, setBatsuHazardCells] = useState<BoardCell[]>([]);
@@ -307,6 +311,7 @@ export function useOnlineBattleGame(matchId?: string) {
     () => ({ pieceDefsByCode, pieceDefsByChar, promotedPieceDefsByCode }),
     [pieceDefsByChar, pieceDefsByCode, promotedPieceDefsByCode],
   );
+  const skillToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const battleAudioCatalogRef = useRef(battleAudioCatalog);
   battleAudioCatalogRef.current = battleAudioCatalog;
   const locallyAuditedVersionsRef = useRef<Set<number>>(new Set());
@@ -325,8 +330,49 @@ export function useOnlineBattleGame(matchId?: string) {
   const isTurnClockActiveRef = useRef(false);
   const authoritativeServerGameRef = useRef<MatchingGameState | null>(null);
   const authoritativeWinnerSideRef = useRef<'player' | 'enemy' | null>(null);
+  const pendingRemoteGameUpdateRef = useRef<{
+    matchId: string;
+    role: PlayerSide;
+    game: MatchingGameState;
+    moveText: string;
+  } | null>(null);
+  const opponentForfeitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const matchRatingsRef = useRef<{ selfRating: number; opponentRating: number } | null>(null);
   const matchStartedAtRef = useRef<string | null>(null);
+  const pvpRatingAfterRef = useRef<number | null>(null);
+  const pvpRatingSyncPromiseRef = useRef<Promise<void> | null>(null);
+
+  const showSkillActivationToast = useCallback(
+    (move: BattleMove, actorSide: Side, board: BoardPiece[]) => {
+      const message = resolveSkillActivationToastMessage(
+        move,
+        actorSide,
+        board,
+        battleAudioCatalogRef.current,
+      );
+      if (!message) return;
+      const applyToast = () => {
+        setSkillActivationText(message);
+      };
+      try {
+        flushSync(applyToast);
+      } catch {
+        applyToast();
+      }
+      if (skillToastTimeoutRef.current) {
+        clearTimeout(skillToastTimeoutRef.current);
+      }
+      skillToastTimeoutRef.current = setTimeout(() => {
+        setSkillActivationText(null);
+        skillToastTimeoutRef.current = null;
+      }, ONLINE_SKILL_ACTIVATION_TOAST_MS);
+    },
+    [],
+  );
+
+  const showSkillActivationToastRef = useRef(showSkillActivationToast);
+  showSkillActivationToastRef.current = showSkillActivationToast;
+
   const playMoveAudio = useCallback(
     (move: BattleMove, actorSide: Side, board: BoardPiece[]) => {
       playBattleMoveOrPromoteSe(move, actorSide, board, battleAudioCatalog);
@@ -358,6 +404,7 @@ export function useOnlineBattleGame(matchId?: string) {
         playHolySwordEvadeSkillSe();
       } else if (options.skillTriggered) {
         playSkillAudio(move, actorSide, board);
+        showSkillActivationToastRef.current(move, actorSide, board);
       }
     },
     [playMoveAudio, playSkillAudio],
@@ -397,16 +444,23 @@ export function useOnlineBattleGame(matchId?: string) {
     setBatsuHazardCells(batsuHazardCellsForDisplay(record.position));
     setThornHazardCells(thornHazardCellsForDisplay(record.position));
     setSafeRoomHazardCells(safeRoomHazardCellsForDisplay(record.position));
-    setSession((current) =>
-      buildSession(
+    setSession((current) => {
+      const winnerFromRegistry = canonicalWinnerSideToLocal(record.game.winnerSide, record.myRole);
+      const winnerFromWire = resolveWinnerSideFromWire(displayWire, record.myRole);
+      const winnerSide =
+        authoritativeWinnerSideRef.current ??
+        winnerFromWire ??
+        winnerFromRegistry ??
+        current.winnerSide;
+      return buildSession(
         matchIdValue,
         record.myRole,
         displayWire,
-        current.connectionStatus,
+        winnerSide ? '接続状態: 終了' : current.connectionStatus,
         current.logLines,
-        canonicalWinnerSideToLocal(record.game.winnerSide, record.myRole),
-      ),
-    );
+        winnerSide,
+      );
+    });
   }, []);
 
   const buildAlignedOpponentLegalMoves = useCallback(
@@ -610,6 +664,8 @@ export function useOnlineBattleGame(matchId?: string) {
   useEffect(() => {
     let active = true;
     authoritativeWinnerSideRef.current = null;
+    pvpRatingAfterRef.current = null;
+    pvpRatingSyncPromiseRef.current = null;
     matchRatingsRef.current = null;
     matchStartedAtRef.current = null;
     if (!isReady || !userId || !accessToken || !matchId) {
@@ -750,18 +806,24 @@ export function useOnlineBattleGame(matchId?: string) {
                   payload.lastMove,
                 )
               : false;
+          const matchEndedOnWire = resolveWinnerSideFromWire(nextGame, nextRole) !== null;
+          pendingRemoteGameUpdateRef.current = {
+            matchId: payload.matchId,
+            role: nextRole,
+            game: nextGame,
+            moveText,
+          };
           const commitRemoteUpdate = () => {
+            pendingRemoteGameUpdateRef.current = null;
             if (remoteSkillFxToQueue.length > 0) {
               queueSkillVisualEffectsRef.current(remoteSkillFxToQueue);
             }
             if (skipRemoteFx && payload.lastSkillTriggered && payload.lastMove && nextRole) {
               if (!holySwordEvaded) {
                 const board = getDisplayBoardPieces(payload.matchId);
-                playSkillAudioRef.current(
-                  movePayloadToBattleMove(payload.lastMove),
-                  'player',
-                  board,
-                );
+                const move = movePayloadToBattleMove(payload.lastMove);
+                playSkillAudioRef.current(move, 'player', board);
+                showSkillActivationToastRef.current(move, 'player', board);
               }
             }
             applyServerGameRef.current(payload.matchId, nextRole, nextGame, moveText);
@@ -774,7 +836,10 @@ export function useOnlineBattleGame(matchId?: string) {
             }
           };
           const shouldPreviewOpponentMove =
-            !skipRemoteFx && payload.lastMove != null && payload.turn === nextRole;
+            !matchEndedOnWire &&
+            !skipRemoteFx &&
+            payload.lastMove != null &&
+            payload.turn === nextRole;
           const opponentLastMove = shouldPreviewOpponentMove ? payload.lastMove : null;
           if (opponentLastMove) {
             let destination: BoardCell | null = null;
@@ -808,14 +873,59 @@ export function useOnlineBattleGame(matchId?: string) {
           commitRemoteUpdate();
           return;
         }
-        case 'opponent_disconnected':
-          setSession((current) => ({
-            ...current,
-            connectionStatus: '接続状態: 相手切断（再接続待ち）',
-            logLines: trimOnlineBattleLogLines([...current.logLines, '相手が切断しました']),
-          }));
+        case 'opponent_disconnected': {
+          if (payload.matchId !== matchId) return;
+          if (authoritativeWinnerSideRef.current) return;
+          {
+            const activeRole =
+              roleRef.current ?? client.getRole() ?? getActiveMatchSession()?.role ?? stored?.role;
+            const authGame = authoritativeServerGameRef.current ?? getAuthoritativeMatchGame();
+            if (
+              activeRole &&
+              authGame &&
+              resolveWinnerSideFromWire(authGame, activeRole) !== null
+            ) {
+              return;
+            }
+          }
+          setSession((current) => {
+            if (current.winnerSide) return current;
+            return {
+              ...current,
+              connectionStatus: '接続状態: 相手切断（再接続待ち）',
+              logLines: trimOnlineBattleLogLines([...current.logLines, '相手が切断しました']),
+            };
+          });
+          if (opponentForfeitTimerRef.current) {
+            clearTimeout(opponentForfeitTimerRef.current);
+            opponentForfeitTimerRef.current = null;
+          }
+          const deadlineMs = Math.max(0, Date.parse(payload.reconnectDeadlineAt) - Date.now());
+          opponentForfeitTimerRef.current = setTimeout(() => {
+            opponentForfeitTimerRef.current = null;
+            if (authoritativeWinnerSideRef.current) return;
+            authoritativeWinnerSideRef.current = 'player';
+            setSession((current) => {
+              if (current.winnerSide || current.matchId !== payload.matchId) return current;
+              return {
+                ...current,
+                winnerSide: 'player',
+                connectionStatus: '接続状態: 終了（disconnect）',
+                turnLabel: '対局終了',
+                logLines: trimOnlineBattleLogLines([
+                  ...current.logLines,
+                  '対局終了: 相手が再接続しませんでした',
+                ]),
+              };
+            });
+          }, deadlineMs);
           return;
+        }
         case 'opponent_reconnected':
+          if (opponentForfeitTimerRef.current) {
+            clearTimeout(opponentForfeitTimerRef.current);
+            opponentForfeitTimerRef.current = null;
+          }
           setSession((current) => ({
             ...current,
             connectionStatus: '接続状態: 対局中',
@@ -842,6 +952,33 @@ export function useOnlineBattleGame(matchId?: string) {
           activateTurnClock();
           return;
         case 'game_finished': {
+          if (payload.matchId !== matchId) return;
+          if (opponentForfeitTimerRef.current) {
+            clearTimeout(opponentForfeitTimerRef.current);
+            opponentForfeitTimerRef.current = null;
+          }
+          remoteMovePreviewTokenRef.current += 1;
+          if (remoteMovePreviewTimerRef.current) {
+            clearTimeout(remoteMovePreviewTimerRef.current);
+            remoteMovePreviewTimerRef.current = null;
+          }
+          setEnemyPreviewTargetsRef.current([]);
+          const pendingRemote = pendingRemoteGameUpdateRef.current;
+          pendingRemoteGameUpdateRef.current = null;
+          const activeRoleForSync =
+            roleRef.current ?? client.getRole() ?? getActiveMatchSession()?.role ?? stored?.role;
+          const boardGameForSync =
+            (pendingRemote?.matchId === payload.matchId ? pendingRemote.game : null) ??
+            getAuthoritativeMatchGame() ??
+            authoritativeServerGameRef.current;
+          if (activeRoleForSync && boardGameForSync) {
+            applyServerGameRef.current(
+              payload.matchId,
+              activeRoleForSync,
+              boardGameForSync,
+              pendingRemote?.moveText,
+            );
+          }
           const won = payload.winnerUserId === userIdRef.current;
           authoritativeWinnerSideRef.current = won ? 'player' : 'enemy';
           const activeMatchId = payload.matchId;
@@ -863,6 +1000,9 @@ export function useOnlineBattleGame(matchId?: string) {
               : null;
             const previewDelta = ratingPreview?.delta ?? null;
             const previewAfter = ratingPreview?.ratingAfter ?? null;
+            if (previewAfter != null) {
+              pvpRatingAfterRef.current = previewAfter;
+            }
             return {
               ...current,
               connectionStatus: `接続状態: 終了（${payload.reason}）`,
@@ -876,7 +1016,19 @@ export function useOnlineBattleGame(matchId?: string) {
                   : current.playerLabel,
               logLines: trimOnlineBattleLogLines([
                 ...current.logLines,
-                `対局終了: ${payload.reason}`,
+                payload.reason === 'king_capture'
+                  ? won
+                    ? '対局終了: 王を取りました'
+                    : '対局終了: 王を取られました'
+                  : payload.reason === 'resign'
+                    ? won
+                      ? '対局終了: 相手が対局を終了しました'
+                      : '対局終了: 投了'
+                    : payload.reason === 'disconnect'
+                      ? won
+                        ? '対局終了: 相手が切断しました'
+                        : '対局終了: 切断'
+                      : `対局終了: ${payload.reason}`,
                 ...(previewDelta != null
                   ? [`レート ${formatPvpRatingDelta(previewDelta)}`]
                   : ratesMatch
@@ -888,7 +1040,7 @@ export function useOnlineBattleGame(matchId?: string) {
           if (!ratesMatch) {
             return;
           }
-          void (async () => {
+          const syncTask = (async () => {
             const ratingBefore =
               matchRatingsRef.current?.selfRating ??
               profile?.self.rating ??
@@ -898,6 +1050,7 @@ export function useOnlineBattleGame(matchId?: string) {
               cached: matchRatingsRef.current,
             });
             if (ratingPreview?.ratingAfter != null) {
+              pvpRatingAfterRef.current = ratingPreview.ratingAfter;
               pinHomeSnapshotRating(ratingPreview.ratingAfter);
             }
             const opponentRating =
@@ -910,6 +1063,7 @@ export function useOnlineBattleGame(matchId?: string) {
               });
               clearPvpRatingLeaderboardCache();
               syncHomeRatingAfterPvpMatch(applied.rating);
+              pvpRatingAfterRef.current = applied.rating;
               patchActiveMatchProfileSelfRating(applied.rating);
               setSession((current) => {
                 if (current.matchId !== activeMatchId) return current;
@@ -936,6 +1090,12 @@ export function useOnlineBattleGame(matchId?: string) {
               );
             }
           })();
+          pvpRatingSyncPromiseRef.current = syncTask;
+          void syncTask.finally(() => {
+            if (pvpRatingSyncPromiseRef.current === syncTask) {
+              pvpRatingSyncPromiseRef.current = null;
+            }
+          });
           return;
         }
         case 'state_resync_required':
@@ -1013,6 +1173,10 @@ export function useOnlineBattleGame(matchId?: string) {
 
     return () => {
       active = false;
+      if (skillToastTimeoutRef.current) {
+        clearTimeout(skillToastTimeoutRef.current);
+        skillToastTimeoutRef.current = null;
+      }
       if (battleReadyRetryIntervalRef.current) {
         clearInterval(battleReadyRetryIntervalRef.current);
         battleReadyRetryIntervalRef.current = null;
@@ -1022,6 +1186,11 @@ export function useOnlineBattleGame(matchId?: string) {
         clearTimeout(remoteMovePreviewTimerRef.current);
         remoteMovePreviewTimerRef.current = null;
       }
+      if (opponentForfeitTimerRef.current) {
+        clearTimeout(opponentForfeitTimerRef.current);
+        opponentForfeitTimerRef.current = null;
+      }
+      pendingRemoteGameUpdateRef.current = null;
       setEnemyPreviewTargetsRef.current([]);
       unsubscribe();
     };
@@ -1071,6 +1240,12 @@ export function useOnlineBattleGame(matchId?: string) {
           move,
           serverWire,
         });
+        if (committed.game.status === 'finished' && committed.game.winnerSide) {
+          const localWinner = canonicalWinnerSideToLocal(committed.game.winnerSide, role);
+          if (localWinner) {
+            authoritativeWinnerSideRef.current = localWinner;
+          }
+        }
         refreshLocalFromRegistry(matchId);
         const boardAfter = getDisplayBoardPieces(matchId);
         playMoveAudio(move, 'player', boardAfter);
@@ -1083,6 +1258,7 @@ export function useOnlineBattleGame(matchId?: string) {
           playHolySwordEvadeSkillSe();
         } else if (committed.skillTriggered) {
           playSkillAudio(move, 'player', boardAfter);
+          showSkillActivationToast(move, 'player', boardAfter);
         }
         preMoveSkillFxRef.current = committed.skillVisualEffects ?? [];
         queueSkillVisualEffects(committed.skillVisualEffects);
@@ -1116,6 +1292,7 @@ export function useOnlineBattleGame(matchId?: string) {
       matchId,
       playMoveAudio,
       playSkillAudio,
+      showSkillActivationToast,
       pieceCatalog,
       queueSkillVisualEffects,
       refreshLocalFromRegistry,
@@ -1652,21 +1829,50 @@ export function useOnlineBattleGame(matchId?: string) {
   }, [appendLog, client, matchId, userId]);
 
   const disconnect = useCallback(() => {
-    if (userId && matchId && !session.winnerSide) {
+    client.disconnect();
+  }, [client]);
+
+  const forfeitAndLeave = useCallback(async () => {
+    if (!userId || !matchId || session.winnerSide) {
+      client.disconnect();
+      return;
+    }
+    try {
+      await client.forfeitAndDisconnect(userId, matchId);
+    } catch {
       try {
         client.resign(userId, matchId);
+        await new Promise((resolve) => setTimeout(resolve, 400));
       } catch {
-        // Fall back to the websocket close path; the server treats active disconnect as a loss.
+        // ignore resign failures; ws close may still notify the server
       }
+      client.disconnect();
     }
-    client.disconnect();
   }, [client, matchId, session.winnerSide, userId]);
+
+  const waitForPvpRatingSync = useCallback(async () => {
+    const pending = pvpRatingSyncPromiseRef.current;
+    if (!pending) return;
+    await Promise.race([pending, new Promise<void>((resolve) => setTimeout(resolve, 3000))]);
+  }, []);
+
+  const resolveLatestPvpRatingAfter = useCallback((): number | null => {
+    return (
+      pvpRatingAfterRef.current ??
+      session.pvpRatingAfter ??
+      getHomeSnapshotState().snapshot.rating ??
+      null
+    );
+  }, [session.pvpRatingAfter]);
 
   return {
     session,
     isLoading: isLoading || pieceCatalog.length === 0,
     resign,
     disconnect,
+    forfeitAndLeave,
+    waitForPvpRatingSync,
+    resolveLatestPvpRatingAfter,
     pieces,
     hands,
     poisonHazardCells,
@@ -1705,6 +1911,7 @@ export function useOnlineBattleGame(matchId?: string) {
     confirmHouseSkill,
     cancelHouseSkill,
     skillVisualEffects,
+    skillActivationText,
     handleSkillVisualEffectFinished,
   };
 }

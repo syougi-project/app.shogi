@@ -27,12 +27,13 @@ import { OnlineBattleBoard } from '@/features/online-battle/ui/components/online
 import {
   StageShogiHouseSkillModal,
   StageShogiInspectModal,
+  StageShogiSkillToast,
   StageShogiTimeActionModal,
 } from '@/features/stage-shogi/ui/components/stage-shogi-modals';
 import { parseOnlineBattleDisplay } from '@/features/online-battle/lib/parse-session-labels';
 import { useOnlineBattleScreen } from '@/features/online-battle/ui/use-online-battle-screen';
 import { StageShogiHandsRow } from '@/features/stage-shogi/ui/components/stage-shogi-hands-row';
-import { pinHomeSnapshotRating } from '@/hooks/common/home-snapshot-store';
+import { prepareHomeSnapshotAfterOnlineBattle } from '@/hooks/common/home-snapshot-store';
 import { useAssetPreload } from '@/hooks/common/use-asset-preload';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
 import { showBattleEndInterstitialEveryThirdTime } from '@/lib/ads/admob';
@@ -50,6 +51,9 @@ export function OnlineBattleScreen() {
     session,
     isLoading,
     disconnect,
+    forfeitAndLeave,
+    waitForPvpRatingSync,
+    resolveLatestPvpRatingAfter,
     pieces,
     hands,
     poisonHazardCells,
@@ -88,6 +92,7 @@ export function OnlineBattleScreen() {
     confirmHouseSkill,
     cancelHouseSkill,
     skillVisualEffects,
+    skillActivationText,
     handleSkillVisualEffectFinished,
   } = vm;
   const [isExitConfirmVisible, setIsExitConfirmVisible] = useState(false);
@@ -110,22 +115,21 @@ export function OnlineBattleScreen() {
 
   const display = parseOnlineBattleDisplay(session);
 
-  const returnHomeAfterBattle = useCallback(() => {
+  const returnHomeAfterOnlineBattle = useCallback(async () => {
+    await waitForPvpRatingSync();
+    prepareHomeSnapshotAfterOnlineBattle(resolveLatestPvpRatingAfter());
     disconnect();
-    if (session.pvpRatingAfter != null) {
-      pinHomeSnapshotRating(session.pvpRatingAfter);
-    }
     router.replace('/home');
-  }, [disconnect, router, session.pvpRatingAfter]);
+  }, [disconnect, resolveLatestPvpRatingAfter, router, waitForPvpRatingSync]);
 
   const openExitConfirm = useCallback(() => {
     void playSe('cancel');
     if (session.winnerSide) {
-      returnHomeAfterBattle();
+      void returnHomeAfterOnlineBattle();
       return;
     }
     setIsExitConfirmVisible(true);
-  }, [returnHomeAfterBattle, session.winnerSide]);
+  }, [returnHomeAfterOnlineBattle, session.winnerSide]);
 
   const cancelExit = useCallback(() => {
     void playSe('tap');
@@ -135,9 +139,13 @@ export function OnlineBattleScreen() {
   const confirmExit = useCallback(() => {
     void playSe('cancel');
     setIsExitConfirmVisible(false);
-    disconnect();
-    router.replace('/home');
-  }, [disconnect, router]);
+    void (async () => {
+      await forfeitAndLeave();
+      await waitForPvpRatingSync();
+      prepareHomeSnapshotAfterOnlineBattle(resolveLatestPvpRatingAfter());
+      router.replace('/home');
+    })();
+  }, [forfeitAndLeave, resolveLatestPvpRatingAfter, router, waitForPvpRatingSync]);
 
   if (isLoading || !areAssetsReady) {
     return <AppLoadingScreen imageSource={homeAssets.loadingImage} />;
@@ -252,6 +260,7 @@ export function OnlineBattleScreen() {
                     「心」のスキル：味方が移動したあと、2ターン捕獲されないように守る味方駒のマスをタップしてください（王・玉は選べません）
                   </Text>
                 ) : null}
+                <StageShogiSkillToast text={skillActivationText} />
                 <View style={styles.statusBar}>
                   {isTurnTimerVisible ? (
                     <View
@@ -277,10 +286,6 @@ export function OnlineBattleScreen() {
                   <View style={styles.infoItem}>
                     <Text style={styles.infoItemLabel}>ターン</Text>
                     <Text style={styles.infoItemValue}>{session.turnLabel}</Text>
-                  </View>
-                  <View style={styles.infoItem}>
-                    <Text style={styles.infoItemLabel}>ルーム</Text>
-                    <Text style={styles.infoItemValue}>#{session.roomId}</Text>
                   </View>
                 </View>
 
@@ -345,21 +350,6 @@ export function OnlineBattleScreen() {
                 ) : (
                   <Text style={styles.handSummaryText}>{session.opponentHandSummary}</Text>
                 )}
-
-                <Text style={[styles.sideHeading, { marginTop: 12 }]}>対戦ログ</Text>
-                <View style={styles.logPanel}>
-                  {session.logLines.length === 0 ? (
-                    <Text style={styles.logLine}>
-                      <Text style={styles.logStrong}>システム</Text> ログ待機中
-                    </Text>
-                  ) : (
-                    session.logLines.map((line, index) => (
-                      <Text key={`${index}-${line}`} style={styles.logLine}>
-                        <Text style={styles.logStrong}>・</Text> {line}
-                      </Text>
-                    ))
-                  )}
-                </View>
               </View>
             </View>
 
@@ -695,24 +685,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-  },
-  logPanel: {
-    backgroundColor: '#0f172a',
-    borderRadius: 12,
-    padding: 12,
-    minHeight: 120,
-    maxHeight: 240,
-  },
-  logLine: {
-    fontSize: 13,
-    color: '#f8fafc',
-    opacity: 0.95,
-    lineHeight: 20,
-  },
-  logStrong: {
-    color: '#fff',
-    fontWeight: '800',
-    marginRight: 6,
   },
   skillHintSatori: {
     marginTop: 8,

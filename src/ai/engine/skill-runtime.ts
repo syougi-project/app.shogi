@@ -2033,10 +2033,17 @@ export function applyMoveSkillEffects(input: {
   if (isSandMover && input.move.fromRow != null && input.move.fromCol != null && input.movedPiece) {
     const deltaRow = input.move.toRow - input.move.fromRow;
     const deltaCol = input.move.toCol - input.move.fromCol;
+    const sandCenter =
+      input.pieces.find(
+        (piece) =>
+          piece.side === input.actorSide &&
+          piece.row === input.move.toRow &&
+          piece.col === input.move.toCol,
+      ) ?? input.movedPiece;
     if (
       moveAdjacentAllySandWithLeader({
         pieces: input.pieces,
-        center: input.movedPiece,
+        center: sandCenter,
         actorSide: input.actorSide,
         deltaRow,
         deltaCol,

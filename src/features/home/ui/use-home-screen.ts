@@ -4,7 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { HomeSnapshot } from '@/domain/models/home';
 import {
   getHomeSnapshotState,
-  loadHomeSnapshot,
+  loadHomeSnapshotOnScreenFocus,
   subscribeHomeSnapshot,
 } from '@/hooks/common/home-snapshot-store';
 
@@ -18,7 +18,7 @@ export function useHomeScreen(): HomeScreenVM {
 
   useFocusEffect(
     useCallback(() => {
-      void loadHomeSnapshot();
+      void loadHomeSnapshotOnScreenFocus();
     }, []),
   );
 

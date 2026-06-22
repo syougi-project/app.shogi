@@ -151,9 +151,9 @@ export function StageShogiTimeActionModal({
 export function StageShogiSkillToast({ text }: { text: string | null }) {
   if (!text) return null;
   return (
-    <View pointerEvents="none" className="absolute inset-0 items-center justify-center">
-      <View className="rounded-lg bg-black/75 px-4 py-2">
-        <Text className="text-sm font-black text-white">{text}</Text>
+    <View pointerEvents="none" className="absolute inset-0 items-center justify-center px-6">
+      <View className="max-w-sm rounded-lg bg-black/75 px-4 py-3">
+        <Text className="text-center text-sm font-black leading-5 text-white">{text}</Text>
       </View>
     </View>
   );

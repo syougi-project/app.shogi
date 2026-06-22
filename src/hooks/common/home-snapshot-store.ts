@@ -46,6 +46,8 @@ let error: Error | null = null;
 let pinnedPvpRating: number | null = null;
 let pinnedPvpRatingAt = 0;
 const PINNED_PVP_RATING_TTL_MS = 5 * 60 * 1000;
+/** オンライン対戦からホームへ戻った直後はキャッシュを無視して再取得する */
+let forceRefreshAfterOnlineBattle = false;
 let state: HomeSnapshotStoreState = {
   snapshot,
   isLoading: false,
@@ -112,6 +114,25 @@ export function syncHomeRatingAfterPvpMatch(rating: number): void {
   pinHomeSnapshotRating(rating);
 }
 
+function consumeForceRefreshAfterOnlineBattle(): boolean {
+  if (!forceRefreshAfterOnlineBattle) return false;
+  forceRefreshAfterOnlineBattle = false;
+  return true;
+}
+
+/** オンライン対戦終了後にホームへ戻る直前に呼ぶ */
+export function prepareHomeSnapshotAfterOnlineBattle(nextRating?: number | null): void {
+  if (nextRating != null && Number.isFinite(nextRating)) {
+    pinHomeSnapshotRating(nextRating);
+  }
+  forceRefreshAfterOnlineBattle = true;
+}
+
+/** ホーム画面フォーカス時の snapshot 読込（対戦直後は force 再取得） */
+export function loadHomeSnapshotOnScreenFocus(): Promise<HomeSnapshot> {
+  return loadHomeSnapshot(consumeForceRefreshAfterOnlineBattle());
+}
+
 export function patchHomeSnapshotStamina(next: {
   stamina: number;
   nextRecoveryAt: string | null;
@@ -151,6 +172,7 @@ export function resetHomeSnapshotForAccountChange(): void {
   error = null;
   pinnedPvpRating = null;
   pinnedPvpRatingAt = 0;
+  forceRefreshAfterOnlineBattle = false;
   resetClientStaminaStateForAccountChange();
   syncState();
   notify();

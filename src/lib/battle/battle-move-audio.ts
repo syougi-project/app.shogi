@@ -15,7 +15,10 @@ import {
   CODE_TO_CHAR,
   PROMOTED_CODE_TO_CHAR,
 } from '@/features/stage-shogi/domain/piece-conversion';
-import { normalizeSkillName } from '@/features/stage-shogi/ui/stage-shogi-screen.presenters';
+import {
+  normalizeSkillName,
+  resolveInspectSkillDescription,
+} from '@/features/stage-shogi/ui/stage-shogi-screen.presenters';
 import {
   playBattlePieceEffectSound,
   playBattlePieceEffectSoundFirstMatch,
@@ -296,4 +299,24 @@ export function resolveSkillActivationLabel(
   if (!skillName) return null;
   const actorLabel = actorSide === 'player' ? 'あなた' : '相手';
   return `${actorLabel} スキル発動: ${skillName}`;
+}
+
+/** 中央トースト用: 駒名とスキル説明文（2行） */
+export function resolveSkillActivationToastMessage(
+  move: BattleMove,
+  actorSide: Side,
+  board: BoardPiece[],
+  catalog: BattleAudioCatalog,
+): string | null {
+  if (move.dropPieceCode) return null;
+  const kanji = resolveKanjiForBattleMoveSound(move, actorSide, board);
+  const def = pieceDefForBattleAudio(move, kanji, catalog);
+  const pieceCode = move.pieceCode ?? move.dropPieceCode ?? def?.pieceCode ?? null;
+  const char = kanji ?? def?.char;
+  if (!char) return resolveSkillActivationLabel(move, actorSide, catalog);
+  const skillDescription = resolveInspectSkillDescription(char, def?.desc, pieceCode);
+  if (!skillDescription || skillDescription === '準備中') {
+    return resolveSkillActivationLabel(move, actorSide, catalog);
+  }
+  return `「${char}」\n${skillDescription}`;
 }

@@ -1,6 +1,7 @@
 import {
   getHomeSnapshotState,
   pinHomeSnapshotRating,
+  prepareHomeSnapshotAfterOnlineBattle,
   resetHomeSnapshotForAccountChange,
 } from '@/hooks/common/home-snapshot-store';
 
@@ -18,5 +19,10 @@ describe('home-snapshot pvp rating pin', () => {
     pinHomeSnapshotRating(1516);
     resetHomeSnapshotForAccountChange();
     expect(getHomeSnapshotState().snapshot.rating).toBe(0);
+  });
+
+  it('prepareHomeSnapshotAfterOnlineBattle pins latest rating for home HUD', () => {
+    prepareHomeSnapshotAfterOnlineBattle(1520);
+    expect(getHomeSnapshotState().snapshot.rating).toBe(1520);
   });
 });
