@@ -90,6 +90,8 @@ AWS 環境の BFF / matching server に対して、Supabase のテストユー�
 
 ```bash
 bun run load:matchmaking -- --users 100
+bun run load:matchmaking -- --users 100 --prepare-concurrency 8 --auth-stagger-ms 250
+bun run load:matchmaking -- --users 50 --prepare-concurrency 10 --auth-batch-size 10 --auth-batch-interval-ms 60000 --auth-stagger-ms 0 --auth-jitter-ms 1000 --start-concurrency 50 --stagger-ms 0 --jitter-ms 0
 bun run load:spike -- --users 1000
 bun run load:gameplay -- --users 100
 bun run load:gameplay -- --users 100 --moves-per-match 10
@@ -103,6 +105,10 @@ bun run load:soak -- --users 100 --duration-seconds 1800
 - `--api-base-url`: BFF URL
 - `--ws-url`: matching server WebSocket URL
 - `--prepare-concurrency`: テストユーザー準備の並列数
+- `--auth-stagger-ms`: sign in 開始予定時刻のずらし幅。認証基盤を一気に叩かないため既定で `100`
+- `--auth-jitter-ms`: sign in 開始予定時刻に足すランダム幅。既定で `250`
+- `--auth-batch-size`: sign in をバッチ化する人数。`10` にすると10人単位で予定時刻を区切る
+- `--auth-batch-interval-ms`: sign in バッチ同士の間隔。既定で `60000`
 - `--start-concurrency`: WebSocket 接続開始 / queue 投入の並列数
 - `--stagger-ms`: 接続開始 / queue 投入のずらし幅
 - `--timeout-ms`: WebSocket 応答待ちタイムアウト

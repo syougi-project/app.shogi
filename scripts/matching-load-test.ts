@@ -478,12 +478,18 @@ async function createPreparedUser(input: {
   index: number;
   runId: string;
   admin: SupabaseScriptClient;
-  userClient: SupabaseScriptClient;
+  supabaseUrl: string;
+  anonKey: string;
   apiBaseUrl: string;
   boardLayout: BattleSetupPlacement[];
   authRetryAttempts: number;
   authRetryBaseDelayMs: number;
   authRetryMaxDelayMs: number;
+  authStaggerMs: number;
+  authJitterMs: number;
+  authBatchSize: number;
+  authBatchIntervalMs: number;
+  authScheduleStartedAtMs: number;
 }): Promise<TestUser> {
   const email = `matching-load-${input.runId}-${input.index}@example.com`;
   const password = `LoadTest-${input.runId}-${input.index}-Aa1!`;
@@ -523,13 +529,29 @@ async function createPreparedUser(input: {
   });
   if (profileError) throw new Error(`Failed to upsert player ${userId}: ${profileError.message}`);
 
-  const { data: session, error: signInError } = await retryRateLimited(
+  const authOffsetMs =
+    input.authBatchSize > 0
+      ? Math.floor((input.index - 1) / input.authBatchSize) * input.authBatchIntervalMs +
+        ((input.index - 1) % input.authBatchSize) * input.authStaggerMs
+      : input.authStaggerMs * (input.index - 1);
+  const signInTargetAtMs =
+    input.authScheduleStartedAtMs +
+    authOffsetMs +
+    (input.authJitterMs > 0 ? Math.floor(Math.random() * input.authJitterMs) : 0);
+  const signInDelayMs = Math.max(0, signInTargetAtMs - Date.now());
+  if (signInDelayMs > 0) await sleep(signInDelayMs);
+
+  const userClient = createClient(input.supabaseUrl, input.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: session } = await retryRateLimited(
     `signIn ${email}`,
     input.authRetryAttempts,
     input.authRetryBaseDelayMs,
     input.authRetryMaxDelayMs,
     async () => {
-      const result = await input.userClient.auth.signInWithPassword({
+      const result = await userClient.auth.signInWithPassword({
         email,
         password,
       });
@@ -538,10 +560,8 @@ async function createPreparedUser(input: {
     },
   );
   const accessToken = session.session?.access_token;
-  if (signInError || !accessToken) {
-    throw new Error(
-      `Failed to sign in ${email}: ${signInError?.message ?? 'missing access token'}`,
-    );
+  if (!accessToken) {
+    throw new Error(`Failed to sign in ${email}: missing access token`);
   }
 
   const createdSetup = await postJson<{ battleSetupId: string; status: string }>(
@@ -674,16 +694,34 @@ async function connectClient(input: {
       }
     });
 
-    ws.addEventListener('error', () => {
-      finish(() => reject(new Error(`${input.user.email} websocket error`)), true);
+    ws.addEventListener('error', (event) => {
+      const message =
+        event && typeof event === 'object' && 'message' in event
+          ? String((event as { message?: unknown }).message ?? '')
+          : '';
+      finish(
+        () =>
+          reject(new Error(`${input.user.email} websocket error${message ? `: ${message}` : ''}`)),
+        true,
+      );
     });
 
-    ws.addEventListener('close', () => {
+    ws.addEventListener('close', (event) => {
       sockets.delete(ws);
       activeClients.delete(client);
       client.closed = true;
-      if (!settled)
-        finish(() => reject(new Error(`${input.user.email} websocket closed before open`)), false);
+      if (!settled) {
+        const details =
+          event && typeof event === 'object'
+            ? ` code=${(event as CloseEvent).code ?? 'unknown'} reason=${
+                (event as CloseEvent).reason ?? ''
+              }`
+            : '';
+        finish(
+          () => reject(new Error(`${input.user.email} websocket closed before open${details}`)),
+          false,
+        );
+      }
     });
   });
 }
@@ -765,6 +803,35 @@ async function waitForMessage(
   throw new Error(`${client.user.email} timed out waiting for ${type}`);
 }
 
+async function waitForAnyMessage(
+  client: LoadClient,
+  types: string[],
+  timeoutMs: number,
+  options?: { metrics?: LoadMetrics; metricName?: string; startedAt?: number },
+): Promise<ServerMessage> {
+  const accepted = new Set(types);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    while (client.messageCursor < client.messages.length) {
+      const message = client.messages[client.messageCursor];
+      client.messageCursor += 1;
+      if (accepted.has(message.type)) {
+        if (options?.metrics && options.metricName && options.startedAt !== undefined) {
+          options.metrics.observe(options.metricName, nowMs() - options.startedAt);
+        }
+        return message;
+      }
+      if (message.type === 'error') {
+        throw new Error(
+          `${client.user.email} server error: ${message.code ?? ''} ${message.message ?? ''}`,
+        );
+      }
+    }
+    await sleep(25);
+  }
+  throw new Error(`${client.user.email} timed out waiting for ${types.join(' or ')}`);
+}
+
 async function connectWave(input: {
   users: TestUser[];
   wsUrl: string;
@@ -824,11 +891,17 @@ async function enterQueueWave(input: {
       throw new Error(`${client.user.email} websocket is not open for enter_queue`);
     }
     client.queueSentAt = sentAt;
-    await waitForMessage(client, 'queue_entered', input.timeoutMs, {
-      metrics: input.metrics,
-      metricName: 'queue_entered_ms',
-      startedAt: sentAt,
-    });
+    const message = await waitForAnyMessage(
+      client,
+      ['queue_entered', 'game_started'],
+      input.timeoutMs,
+      {
+        metrics: input.metrics,
+        metricName: 'queue_entered_ms',
+        startedAt: sentAt,
+      },
+    );
+    if (message.type === 'game_started') input.metrics.count('game_started_before_queue_entered');
   });
 }
 
@@ -843,13 +916,14 @@ async function enterAndWaitStarted(input: {
   const startedAt = Date.now();
   await enterQueueWave(input);
   await Promise.all(
-    input.clients.map((client) =>
-      waitForMessage(client, 'game_started', input.timeoutMs, {
+    input.clients.map((client) => {
+      if (client.matchId && client.gameState) return Promise.resolve();
+      return waitForMessage(client, 'game_started', input.timeoutMs, {
         metrics: input.metrics,
         metricName: 'queue_to_game_started_ms',
         startedAt: client.queueSentAt ?? nowMs(),
-      }),
-    ),
+      });
+    }),
   );
   const uniqueMatches = new Set(input.clients.map((client) => client.matchId).filter(Boolean));
   console.log(
@@ -1108,6 +1182,15 @@ async function main(): Promise<void> {
     'LOAD_MATCHING_AUTH_RETRY_MAX_DELAY_MS',
     30_000,
   );
+  const authStaggerMs = cliInt(args, 'auth-stagger-ms', 'LOAD_MATCHING_AUTH_STAGGER_MS', 100);
+  const authJitterMs = cliInt(args, 'auth-jitter-ms', 'LOAD_MATCHING_AUTH_JITTER_MS', 250);
+  const authBatchSize = cliInt(args, 'auth-batch-size', 'LOAD_MATCHING_AUTH_BATCH_SIZE', 0);
+  const authBatchIntervalMs = cliInt(
+    args,
+    'auth-batch-interval-ms',
+    'LOAD_MATCHING_AUTH_BATCH_INTERVAL_MS',
+    60_000,
+  );
   const wsRetryAttempts = cliInt(args, 'ws-retry-attempts', 'LOAD_MATCHING_WS_RETRY_ATTEMPTS', 3);
   const wsRetryBaseDelayMs = cliInt(
     args,
@@ -1150,13 +1233,15 @@ async function main(): Promise<void> {
   if (scenario === 'gameplay' && movesPerMatch < 1) {
     throw new Error('--moves-per-match / LOAD_MATCHING_MOVES_PER_MATCH must be at least 1');
   }
+  if (authBatchSize > 0 && authBatchIntervalMs <= 0) {
+    throw new Error(
+      '--auth-batch-interval-ms / LOAD_MATCHING_AUTH_BATCH_INTERVAL_MS must be positive when auth batching is enabled',
+    );
+  }
 
   const metrics = createMetrics();
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const userClient = createClient(supabaseUrl, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
@@ -1170,11 +1255,12 @@ async function main(): Promise<void> {
 
   try {
     console.log(
-      `[prepare] scenario=${scenario} users=${userCount} api=${apiBaseUrl} ws=${wsUrl} stagger=${staggerMs}ms jitter=${jitterMs}ms movesPerMatch=${movesPerMatch} runId=${runId}`,
+      `[prepare] scenario=${scenario} users=${userCount} api=${apiBaseUrl} ws=${wsUrl} authBatchSize=${authBatchSize} authBatchInterval=${authBatchIntervalMs}ms authStagger=${authStaggerMs}ms authJitter=${authJitterMs}ms stagger=${staggerMs}ms jitter=${jitterMs}ms movesPerMatch=${movesPerMatch} runId=${runId}`,
     );
     const boardLayout = await loadStandardBoardLayout(admin);
-    const prepareUsers = async (cycleRunId: string) =>
-      mapLimit(
+    const prepareUsers = async (cycleRunId: string) => {
+      const authScheduleStartedAtMs = Date.now();
+      return mapLimit(
         Array.from({ length: userCount }, (_, index) => index + 1),
         prepareConcurrency,
         async (index) => {
@@ -1182,18 +1268,25 @@ async function main(): Promise<void> {
             index,
             runId: cycleRunId,
             admin,
-            userClient,
+            supabaseUrl,
+            anonKey,
             apiBaseUrl,
             boardLayout,
             authRetryAttempts,
             authRetryBaseDelayMs,
             authRetryMaxDelayMs,
+            authStaggerMs,
+            authJitterMs,
+            authBatchSize,
+            authBatchIntervalMs,
+            authScheduleStartedAtMs,
           });
           if (index % 10 === 0 || index === userCount)
             console.log(`[prepare] ${index}/${userCount}`);
           return user;
         },
       );
+    };
 
     const connectPreparedUsers = (users: TestUser[]) =>
       connectWave({

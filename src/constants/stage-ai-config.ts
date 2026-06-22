@@ -67,11 +67,11 @@ export const DEFAULT_STAGE_AI_CONFIG: StageAiConfig = {
   recentMoveWindow: 4,
   maxCandidatePool: 4,
   searchDepth: 2,
-  opponentReplyPenaltyWeight: 0,
+  opponentReplyPenaltyWeight: 0.25,
   kingInDangerPenalty: 9000,
   kingAdjacentAttackPenalty: 45,
   kingEscapeSquareBonus: 8,
-  hangingPiecePenaltyWeight: 0,
+  hangingPiecePenaltyWeight: 0.25,
   centerControlBonusWeight: 0,
   enemyCampControlBonusWeight: 0,
   enemyKingPressureBonusWeight: 0,
@@ -146,16 +146,8 @@ type StageAiConfigRange = {
   config: Partial<StageAiConfig>;
 };
 
-/** ノーマルダンジョン: 応答速度優先（玉安全の全手シミュレーションを省略） */
-const FAST_STAGE_KING_EVAL: Partial<StageAiConfig> = {
-  kingInDangerPenalty: 0,
-  kingAdjacentAttackPenalty: 0,
-  kingEscapeSquareBonus: 0,
-  opponentReplyPenaltyWeight: 0,
-};
-
 export const STAGE_AI_CONFIG_RANGES: readonly StageAiConfigRange[] = [
-  { from: 1, config: { searchDepth: 2, ...FAST_STAGE_KING_EVAL } },
+  { from: 1, config: { searchDepth: 2 } },
 ];
 
 function clampNumber(value: number, min: number, max: number): number {

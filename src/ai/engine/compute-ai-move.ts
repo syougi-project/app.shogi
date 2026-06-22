@@ -11,6 +11,10 @@ import { normalizeBattlePosition, piecesFromBoardState, toBasePieceCode } from '
 import { PIECE_VALUES } from '@/ai/engine/shared';
 import { applyMove } from '@/ai/engine/apply-move';
 import { ensureShinTurnMimicForBattle, generateLegalMoves } from '@/ai/engine/legal-moves';
+import {
+  deckBuilderCostForBoardPiece,
+  deckBuilderCostForHandPieceCode,
+} from '@/ai/engine/piece-deck-cost';
 import { normalizeStageAiConfig } from '@/constants/stage-ai-config';
 import { yieldToMainThread } from '@/lib/async/yield-to-main-thread';
 
@@ -22,20 +26,110 @@ export type ComputeAiMoveInput = {
   random?: () => number;
 };
 
-function movingPieceActivityScore(pieceCode: string, config: StageAiConfig): number {
-  if (pieceCode === 'OU') return -config.kingMovePenalty;
+const PROMOTED_BOARD_PIECE_VALUES: Readonly<Record<string, number>> = {
+  FU: 420,
+  KY: 630,
+  KE: 640,
+  GI: 670,
+  KA: 1150,
+  HI: 1300,
+};
+
+const HAND_PIECE_VALUES: Readonly<Record<string, number>> = {
+  FU: 115,
+  KY: 480,
+  KE: 510,
+  GI: 720,
+  KI: 780,
+  KA: 1110,
+  HI: 1270,
+};
+
+function basePieceValue(
+  pieceCode: string | null | undefined,
+  fallbackChar?: string | null,
+): number {
+  const base = toBasePieceCode(pieceCode);
+  if (base && PIECE_VALUES[base] != null) return PIECE_VALUES[base]!;
+  const deckCost =
+    fallbackChar != null
+      ? deckBuilderCostForBoardPiece({ char: fallbackChar, pieceCode: base ?? pieceCode ?? null })
+      : base
+        ? deckBuilderCostForHandPieceCode(base)
+        : 0;
+  if (deckCost > 0) return deckCost * 100;
+  return 150;
+}
+
+function boardPieceValue(piece: AiBoardPiece | null | undefined): number {
+  if (!piece) return 0;
+  const base = toBasePieceCode(piece.pieceCode);
+  if (piece.promoted && base && PROMOTED_BOARD_PIECE_VALUES[base] != null) {
+    return PROMOTED_BOARD_PIECE_VALUES[base]!;
+  }
+  return basePieceValue(piece.pieceCode, piece.char);
+}
+
+function handPieceValue(
+  pieceCode: string | null | undefined,
+  fallbackChar?: string | null,
+): number {
+  const base = toBasePieceCode(pieceCode);
+  if (base && HAND_PIECE_VALUES[base] != null) return HAND_PIECE_VALUES[base]!;
+  return basePieceValue(base ?? pieceCode, fallbackChar);
+}
+
+function captureGainValue(
+  capturedPiece: AiBoardPiece | null,
+  capturedPieceCode: string | null,
+): number {
+  if (!capturedPiece && !capturedPieceCode) return 0;
+  const boardValue = capturedPiece
+    ? boardPieceValue(capturedPiece)
+    : basePieceValue(capturedPieceCode);
+  const handValue = handPieceValue(
+    capturedPiece?.pieceCode ?? capturedPieceCode,
+    capturedPiece?.char ?? null,
+  );
+  const baseValue = basePieceValue(
+    capturedPiece?.pieceCode ?? capturedPieceCode,
+    capturedPiece?.char,
+  );
+  return boardValue + Math.max(0, handValue - baseValue);
+}
+
+function movingPieceActivityScore(
+  pieceValue: number,
+  isKing: boolean,
+  config: StageAiConfig,
+): number {
+  if (isKing) return -config.kingMovePenalty;
   return (
-    Math.min(PIECE_VALUES[pieceCode] ?? 100, config.activityPieceValueCap) /
-    config.activityScoreDivisor
+    Math.min(Math.max(pieceValue, 0), config.activityPieceValueCap) / config.activityScoreDivisor
   );
 }
 
-function moveScore(move: AiBattleMove, side: Side, config: StageAiConfig): number {
-  const captured = toBasePieceCode(move.capturedPieceCode);
-  const pieceCode = toBasePieceCode(move.pieceCode) ?? 'FU';
+function moveScore(
+  move: AiBattleMove,
+  side: Side,
+  config: StageAiConfig,
+  pieces?: AiBoardPiece[],
+): number {
+  const movingPiece =
+    move.fromRow == null || move.fromCol == null
+      ? null
+      : (pieces?.find((piece) => piece.row === move.fromRow && piece.col === move.fromCol) ?? null);
+  const capturedPiece =
+    move.capturedPieceCode == null
+      ? null
+      : (pieces?.find((piece) => piece.row === move.toRow && piece.col === move.toCol) ?? null);
+  const pieceCode = toBasePieceCode(move.dropPieceCode ?? move.pieceCode) ?? 'FU';
   const forward = side === 'enemy' ? move.toRow : 8 - move.toRow;
-  const captureValue = captured ? (PIECE_VALUES[captured] ?? 150) : 0;
-  const activityScore = movingPieceActivityScore(pieceCode, config);
+  const captureValue = captureGainValue(capturedPiece, move.capturedPieceCode);
+  const movingValue = movingPiece
+    ? boardPieceValue(movingPiece)
+    : handPieceValue(move.dropPieceCode ?? pieceCode);
+  const activityScore = movingPieceActivityScore(movingValue, pieceCode === 'OU', config);
   const promotionBonus = move.promote ? config.promotionBonus : 0;
   return (
     captureValue * config.captureValueWeight +
@@ -155,19 +249,43 @@ function tacticalReplyPenalty(input: {
     pieceCatalog: input.pieceCatalog,
   });
   if (replies.length === 0) return 0;
+  const pieces = piecesFromBoardState(input.position);
   let bestReplyScore = 0;
   if (replies.length <= TACTICAL_REPLY_EVAL_LIMIT) {
     for (const reply of replies) {
-      bestReplyScore = Math.max(bestReplyScore, moveScore(reply, 'player', input.config));
+      bestReplyScore = Math.max(bestReplyScore, moveScore(reply, 'player', input.config, pieces));
     }
   } else {
     const topReplies = replies
-      .map((reply) => ({ reply, score: moveScore(reply, 'player', input.config) }))
+      .map((reply) => ({ reply, score: moveScore(reply, 'player', input.config, pieces) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, TACTICAL_REPLY_EVAL_LIMIT);
     bestReplyScore = topReplies[0]?.score ?? 0;
   }
   return Math.max(0, bestReplyScore) * input.config.opponentReplyPenaltyWeight;
+}
+
+function hangingPiecePenalty(input: {
+  position: AiBattlePosition;
+  pieceCatalog: AiPieceDefinition[];
+  side: Side;
+  config: StageAiConfig;
+}): number {
+  if (input.config.hangingPiecePenaltyWeight <= 0) return 0;
+  const pieces = piecesFromBoardState(input.position);
+  const attackerMoves = legalMovesForSide({
+    position: input.position,
+    side: opponentOf(input.side),
+    pieceCatalog: input.pieceCatalog,
+  });
+  let worstLoss = 0;
+  for (const move of attackerMoves) {
+    const target = pieceAt(pieces, move.toRow, move.toCol);
+    if (!target || target.side !== input.side) continue;
+    if (toBasePieceCode(target.pieceCode) === 'OU') continue;
+    worstLoss = Math.max(worstLoss, boardPieceValue(target));
+  }
+  return worstLoss * input.config.hangingPiecePenaltyWeight;
 }
 
 function evaluateCandidateMove(input: {
@@ -177,7 +295,8 @@ function evaluateCandidateMove(input: {
   config: StageAiConfig;
   beforeEnemySafety: { kingInDanger: boolean };
 }): number {
-  let score = moveScore(input.move, 'enemy', input.config);
+  const beforePieces = piecesFromBoardState(input.position);
+  let score = moveScore(input.move, 'enemy', input.config, beforePieces);
   if (input.beforeEnemySafety.kingInDanger && toBasePieceCode(input.move.pieceCode) === 'OU') {
     score += input.config.kingMovePenalty * 0.6;
   }
@@ -202,6 +321,12 @@ function evaluateCandidateMove(input: {
     score -= tacticalReplyPenalty({
       position: afterPosition,
       pieceCatalog: input.pieceCatalog,
+      config: input.config,
+    });
+    score -= hangingPiecePenalty({
+      position: afterPosition,
+      pieceCatalog: input.pieceCatalog,
+      side: 'enemy',
       config: input.config,
     });
   } catch {
@@ -277,7 +402,7 @@ function repetitionPenalty(
 }
 
 /** 重い applyMove + 利き評価を行う候補の上限（速度優先） */
-const FULL_EVAL_CANDIDATE_LIMIT = 2;
+const FULL_EVAL_CANDIDATE_LIMIT = 6;
 /** 2手読み応手評価で見るプレイヤー手の上限（合法手全列挙後に粗評価で絞る） */
 const TACTICAL_REPLY_EVAL_LIMIT = 20;
 
@@ -286,7 +411,8 @@ function needsKingSafetyEval(config: StageAiConfig): boolean {
     config.kingInDangerPenalty > 0 ||
     config.kingAdjacentAttackPenalty > 0 ||
     config.kingEscapeSquareBonus > 0 ||
-    config.opponentReplyPenaltyWeight > 0
+    config.opponentReplyPenaltyWeight > 0 ||
+    config.hangingPiecePenaltyWeight > 0
   );
 }
 
@@ -504,11 +630,13 @@ function prepareAiScoringContext(
       })
     : { score: 0, kingInDanger: false };
   const recentEnemyMoves = input.recentEnemyMoves ?? [];
+  const pieces = piecesFromBoardState(position);
   const quickScored = legalMoves
     .map((move) => ({
       move,
       quickScore:
-        moveScore(move, 'enemy', config) - repetitionPenalty(move, recentEnemyMoves, config),
+        moveScore(move, 'enemy', config, pieces) -
+        repetitionPenalty(move, recentEnemyMoves, config),
     }))
     .sort((a, b) => b.quickScore - a.quickScore);
 

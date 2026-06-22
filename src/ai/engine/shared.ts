@@ -21,12 +21,12 @@ import { findPieceCoveringCell } from '@/ai/engine/giant-piece';
 
 export const PIECE_VALUES: Readonly<Record<string, number>> = {
   OU: 100000,
-  HI: 900,
-  KA: 800,
-  KI: 600,
-  GI: 500,
-  KE: 350,
-  KY: 300,
+  HI: 1040,
+  KA: 890,
+  KI: 690,
+  GI: 640,
+  KE: 450,
+  KY: 430,
   FU: 100,
   TIME: 400,
 };
