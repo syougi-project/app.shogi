@@ -39,6 +39,8 @@ const config = {
   },
   plugins: [
     'expo-router',
+    'expo-asset',
+    'expo-font',
     'expo-secure-store',
     'expo-web-browser',
     ...(enableAdMob
