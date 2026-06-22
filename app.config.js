@@ -17,7 +17,7 @@ const config = {
   newArchEnabled: true,
   ios: {
     bundleIdentifier: 'com.manakana.shogi',
-    buildNumber: '1',
+    buildNumber: '2',
     supportsTablet: true,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
@@ -77,13 +77,9 @@ const config = {
       process.env.EXPO_PUBLIC_ADMOB_IOS_INTERSTITIAL_UNIT_ID ?? IOS_INTERSTITIAL_AD_UNIT_ID,
     admobIosRewardedUnitId:
       process.env.EXPO_PUBLIC_ADMOB_IOS_REWARDED_UNIT_ID ?? IOS_REWARDED_AD_UNIT_ID,
-    ...(process.env.EAS_BUILD === 'true' || enableAdMob
-      ? {
-          eas: {
-            projectId: '865f1aca-5b9d-41a2-b2d8-455b12075ca2',
-          },
-        }
-      : {}),
+    eas: {
+      projectId: '865f1aca-5b9d-41a2-b2d8-455b12075ca2',
+    },
   },
 };
 
