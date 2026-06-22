@@ -1023,7 +1023,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     sideToMove,
   ]);
 
-  async function claimStageClearRewardIfNeeded() {
+  const claimStageClearRewardIfNeeded = useCallback(async () => {
     if (clearRewardClaimedRef.current) return;
     clearRewardClaimedRef.current = true;
     battleSessionSettledRef.current = true;
@@ -1041,7 +1041,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       battleSessionSettledRef.current = false;
       setAiError(toUserFacingBattleError(error));
     }
-  }
+  }, [claimStageClearRewardUseCase, stageParam]);
 
   function applyOptimisticMove(actorSide: Side, move: BattleMove) {
     const nextPieces = enforcePersistentHazardCells(
@@ -1067,14 +1067,6 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
   async function waitForNextFrame() {
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => resolve());
-    });
-  }
-
-  async function waitForUiYield() {
-    if (process.env.NODE_ENV === 'test') return;
-    await waitForNextFrame();
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 0);
     });
   }
 
@@ -1402,7 +1394,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
   useEffect(() => {
     if (winner !== 'player') return;
     void claimStageClearRewardIfNeeded();
-  }, [winner, stageParam]);
+  }, [claimStageClearRewardIfNeeded, winner]);
 
   useEffect(() => {
     if (winner !== 'enemy') return;

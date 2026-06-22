@@ -196,6 +196,9 @@ export function useMatchingScreen() {
     return () => {
       active = false;
       cleanupMessage?.();
+      // Cleanup must compare against the latest session because a newer matching attempt can start
+      // before this effect is torn down.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       if (matchingSessionRef.current !== sessionId) return;
       if (userId && !startedMatchIdRef.current) {
         void cancelMatchingUseCase.execute({ userId });

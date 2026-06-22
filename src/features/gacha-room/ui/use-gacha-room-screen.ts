@@ -31,6 +31,7 @@ export type GachaRoomVM = {
   setSelectedKey: (key: GachaBanner['key']) => void;
   banners: GachaBanner[];
   dailyAdGacha: DailyAdGachaStatus | null;
+  isDailyAdGachaUnavailable: boolean;
   canRollWithAd: (gachaKey: GachaBanner['key']) => boolean;
   isFeaturedAdGacha: (gachaKey: GachaBanner['key']) => boolean;
   featuredAdGachaLabel: string | null;
@@ -51,6 +52,7 @@ export function useGachaRoomScreen(): GachaRoomVM {
   const [selectedKey, setSelectedKey] = useState<GachaBanner['key']>('ukanmuri');
   const [banners, setBanners] = useState<GachaBanner[]>([]);
   const [dailyAdGacha, setDailyAdGacha] = useState<DailyAdGachaStatus | null>(null);
+  const [isDailyAdGachaUnavailable, setIsDailyAdGachaUnavailable] = useState(false);
   const [pawnCurrency, setPawnCurrency] = useState(0);
   const [goldCurrency, setGoldCurrency] = useState(0);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
@@ -76,6 +78,7 @@ export function useGachaRoomScreen(): GachaRoomVM {
         setPawnCurrency(snapshot.pawnCurrency);
         setGoldCurrency(snapshot.goldCurrency);
         setDailyAdGacha(snapshot.dailyAdGacha ?? null);
+        setIsDailyAdGachaUnavailable(snapshot.dailyAdGacha == null);
       })
       .catch((e: unknown) => {
         const msg =
@@ -91,12 +94,14 @@ export function useGachaRoomScreen(): GachaRoomVM {
             setSelectedKey(fallbackBanners[0]!.key);
           }
           setDailyAdGacha(null);
+          setIsDailyAdGachaUnavailable(true);
           setLoadError(null);
           return;
         }
         setLoadError(msg);
         setBanners([]);
         setDailyAdGacha(null);
+        setIsDailyAdGachaUnavailable(false);
       })
       .finally(() => {
         setIsLoading(false);
@@ -230,6 +235,7 @@ export function useGachaRoomScreen(): GachaRoomVM {
     setSelectedKey,
     banners,
     dailyAdGacha,
+    isDailyAdGachaUnavailable,
     canRollWithAd,
     isFeaturedAdGacha,
     featuredAdGachaLabel,

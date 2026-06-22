@@ -347,6 +347,12 @@ export function GachaRoomScreen() {
                     : `本日の広告無償ガチャ: ${vm.featuredAdGachaLabel}（1日1回・0:00更新）`}
                 </Text>
               </View>
+            ) : vm.isDailyAdGachaUnavailable ? (
+              <View className="mb-4 rounded-xl border border-rose-300/50 bg-rose-500/15 px-3 py-2">
+                <Text className="text-center text-xs font-bold text-rose-100">
+                  広告無償ガチャ情報を取得できませんでした。サーバー設定を確認してください。
+                </Text>
+              </View>
             ) : null}
             {introBanners.map((banner) => {
               const src = bannerImageSource(banner.key, banner.imageSignedUrl);
@@ -367,22 +373,24 @@ export function GachaRoomScreen() {
                       </View>
                     ) : null}
                     <Image source={src} contentFit="cover" style={{ width: '100%', height: 200 }} />
-                    <View className="absolute bottom-1 left-0 right-0 items-center gap-1">
-                      <GachaDrawButton
-                        banner={banner}
-                        useAdDraw={canAdRoll}
-                        disabled={!canRoll}
-                        onPress={() => {
-                          vm.setSelectedKey(banner.key);
-                          setIntroVisible(false);
-                          if (canAdRoll) {
-                            void vm.rollWithAd(banner.key);
-                            return;
-                          }
-                        }}
-                      />
-                    </View>
                   </View>
+
+                  <View className="-mt-10 items-center">
+                    <GachaDrawButton
+                      banner={banner}
+                      useAdDraw={canAdRoll}
+                      disabled={!canRoll}
+                      onPress={() => {
+                        vm.setSelectedKey(banner.key);
+                        setIntroVisible(false);
+                        if (canAdRoll) {
+                          void vm.rollWithAd(banner.key);
+                          return;
+                        }
+                      }}
+                    />
+                  </View>
+
                   {banner.pieceRateText ? (
                     <Text className="mt-2 text-center text-xs font-semibold text-white drop-shadow-sm">
                       {banner.pieceRateText}
@@ -438,19 +446,21 @@ export function GachaRoomScreen() {
 
                 <GachaLineupSection banner={selectedBanner} />
 
-                <GachaDrawButton
-                  banner={selectedBanner ?? introBanners[0]!}
-                  useAdDraw={selectedBanner != null && vm.canRollWithAd(selectedBanner.key)}
-                  disabled={!canRoll || selectedBanner == null}
-                  onPress={() => {
-                    if (!canRoll || !selectedBanner) return;
-                    if (vm.canRollWithAd(selectedBanner.key)) {
-                      void vm.rollWithAd(selectedBanner.key);
-                      return;
-                    }
-                    void vm.roll(selectedBanner.key);
-                  }}
-                />
+                <View className="-mt-8 items-center">
+                  <GachaDrawButton
+                    banner={selectedBanner ?? introBanners[0]!}
+                    useAdDraw={selectedBanner != null && vm.canRollWithAd(selectedBanner.key)}
+                    disabled={!canRoll || selectedBanner == null}
+                    onPress={() => {
+                      if (!canRoll || !selectedBanner) return;
+                      if (vm.canRollWithAd(selectedBanner.key)) {
+                        void vm.rollWithAd(selectedBanner.key);
+                        return;
+                      }
+                      void vm.roll(selectedBanner.key);
+                    }}
+                  />
+                </View>
                 <View className="mb-6" />
                 <Text className="mb-2 text-center text-xs text-slate-400">
                   消費: 歩 x{selectedBanner?.pawnCost ?? 0} / 金 x{selectedBanner?.goldCost ?? 0}
