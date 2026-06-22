@@ -241,12 +241,55 @@ export function useOnlineBattleGame(matchId?: string) {
   }, []);
 
   const activateTurnClock = useCallback((turnSeconds = ONLINE_PVP_TURN_SECONDS) => {
+    isTurnClockActiveRef.current = true;
     setIsTurnClockActive(true);
     turnTimerDeadlineRef.current = Date.now() + turnSeconds * 1000;
     timeoutFiredForVersionRef.current = null;
     setTurnSecondsLeft(turnSeconds);
+    if (battleReadyRetryIntervalRef.current) {
+      clearInterval(battleReadyRetryIntervalRef.current);
+      battleReadyRetryIntervalRef.current = null;
+    }
   }, []);
   const client = useMemo(() => createOnlineBattleConnection(), []);
+  const trySignalBattleReady = useCallback(() => {
+    if (!userId || !matchId) return;
+    if (isTurnClockActiveRef.current) return;
+    if (client.getConnectionState() !== 'connected') return;
+    try {
+      client.signalBattleReady(userId, matchId);
+      setSession((current) => {
+        if (current.logLines.includes('相手の準備を待っています…')) {
+          return {
+            ...current,
+            connectionStatus: '接続状態: 準備完了（相手待ち）',
+          };
+        }
+        return {
+          ...current,
+          connectionStatus: '接続状態: 準備完了（相手待ち）',
+          logLines: trimOnlineBattleLogLines([...current.logLines, '相手の準備を待っています…']),
+        };
+      });
+    } catch {
+      // WebSocket 未接続などはリトライで再送する
+    }
+  }, [client, matchId, userId]);
+
+  const startBattleReadyRetry = useCallback(() => {
+    if (battleReadyRetryIntervalRef.current) return;
+    trySignalBattleReady();
+    battleReadyRetryIntervalRef.current = setInterval(() => {
+      if (isTurnClockActiveRef.current) {
+        if (battleReadyRetryIntervalRef.current) {
+          clearInterval(battleReadyRetryIntervalRef.current);
+          battleReadyRetryIntervalRef.current = null;
+        }
+        return;
+      }
+      trySignalBattleReady();
+    }, 2000);
+  }, [trySignalBattleReady]);
   const issueMatchmakingTicketUseCase = useMemo(
     () => createIssueMatchmakingTicketUseCase(accessToken ?? undefined),
     [accessToken],
@@ -278,7 +321,8 @@ export function useOnlineBattleGame(matchId?: string) {
   const timeoutMoveInFlightRef = useRef(false);
   const turnTimerDeadlineRef = useRef<number | null>(null);
   const timeoutFiredForVersionRef = useRef<number | null>(null);
-  const battleReadySentRef = useRef(false);
+  const battleReadyRetryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isTurnClockActiveRef = useRef(false);
   const authoritativeServerGameRef = useRef<MatchingGameState | null>(null);
   const authoritativeWinnerSideRef = useRef<'player' | 'enemy' | null>(null);
   const matchRatingsRef = useRef<{ selfRating: number; opponentRating: number } | null>(null);
@@ -411,6 +455,9 @@ export function useOnlineBattleGame(matchId?: string) {
       logLines: trimOnlineBattleLogLines([...current.logLines, line]),
     }));
   }, []);
+
+  const startBattleReadyRetryRef = useRef(startBattleReadyRetry);
+  startBattleReadyRetryRef.current = startBattleReadyRetry;
 
   const applyServerGame = useCallback(
     (matchIdValue: string, nextRole: PlayerSide, nextGame: MatchingGameState, logLine?: string) => {
@@ -595,6 +642,7 @@ export function useOnlineBattleGame(matchId?: string) {
             payload.initialState,
             '対局が開始されました',
           );
+          startBattleReadyRetryRef.current();
           return;
         }
         case 'game_state_updated': {
@@ -948,6 +996,7 @@ export function useOnlineBattleGame(matchId?: string) {
             'マッチングサーバーに接続しました',
           );
         }
+        startBattleReadyRetryRef.current();
       } catch {
         if (!active) return;
         setSession((current) => ({
@@ -964,6 +1013,10 @@ export function useOnlineBattleGame(matchId?: string) {
 
     return () => {
       active = false;
+      if (battleReadyRetryIntervalRef.current) {
+        clearInterval(battleReadyRetryIntervalRef.current);
+        battleReadyRetryIntervalRef.current = null;
+      }
       remoteMovePreviewTokenRef.current += 1;
       if (remoteMovePreviewTimerRef.current) {
         clearTimeout(remoteMovePreviewTimerRef.current);
@@ -1178,24 +1231,24 @@ export function useOnlineBattleGame(matchId?: string) {
   }, [executeTimeoutMove, game, isTurnClockActive, session.isMyTurn, session.winnerSide]);
 
   useEffect(() => {
-    battleReadySentRef.current = false;
+    isTurnClockActiveRef.current = false;
     setIsTurnClockActive(false);
+    if (battleReadyRetryIntervalRef.current) {
+      clearInterval(battleReadyRetryIntervalRef.current);
+      battleReadyRetryIntervalRef.current = null;
+    }
   }, [matchId]);
 
   useEffect(() => {
-    if (!isReady || !userId || !matchId || !game || !role || battleReadySentRef.current) return;
-    battleReadySentRef.current = true;
-    try {
-      client.signalBattleReady(userId, matchId);
-      setSession((current) => ({
-        ...current,
-        connectionStatus: '接続状態: 準備完了（相手待ち）',
-        logLines: trimOnlineBattleLogLines([...current.logLines, '相手の準備を待っています…']),
-      }));
-    } catch {
-      battleReadySentRef.current = false;
-    }
-  }, [client, game, isReady, matchId, role, userId]);
+    if (!isReady || !userId || !matchId || !game || !role) return;
+    startBattleReadyRetry();
+    return () => {
+      if (battleReadyRetryIntervalRef.current) {
+        clearInterval(battleReadyRetryIntervalRef.current);
+        battleReadyRetryIntervalRef.current = null;
+      }
+    };
+  }, [game, isReady, matchId, role, startBattleReadyRetry, userId]);
 
   const beginSatoriEnemySelectionIfNeeded = useCallback(
     (actionableMoves: BattleMove[]): boolean => {

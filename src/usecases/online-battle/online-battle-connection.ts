@@ -7,6 +7,7 @@ export type OnlineBattleConnection = Pick<
   MatchingServerClient,
   | 'connect'
   | 'disconnect'
+  | 'getConnectionState'
   | 'getLastError'
   | 'getRole'
   | 'makeMove'
