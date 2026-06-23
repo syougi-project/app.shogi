@@ -135,7 +135,7 @@ import {
 } from '@/hooks/common/home-snapshot-store';
 import { syncPvpRatingAfterMatch } from '@/lib/online-match/player-pvp-rating';
 import { clearPvpRatingLeaderboardCache } from '@/lib/online-match/pvp-rating-leaderboard-cache';
-const ONLINE_SKILL_ACTIVATION_TOAST_MS = 3000;
+const ONLINE_SKILL_ACTIVATION_TOAST_MS = 2000;
 
 export type PendingOnlinePromotion = {
   promoteMove: BattleMove;
@@ -615,6 +615,75 @@ export function useOnlineBattleGame(matchId?: string) {
   userIdRef.current = userId;
   const roleRef = useRef(role);
   roleRef.current = role;
+  const startRatedMatchEndRatingSyncRef = useRef<
+    (input: { activeMatchId: string; won: boolean }) => void
+  >(() => {});
+
+  const startRatedMatchEndRatingSync = useCallback(
+    (input: { activeMatchId: string; won: boolean }) => {
+      if (pvpRatingSyncPromiseRef.current) return;
+
+      const profile = getActiveMatchProfile();
+      const ratingPreview = buildPvpRatingPreview({
+        won: input.won,
+        cached: matchRatingsRef.current,
+      });
+      if (ratingPreview?.ratingAfter != null) {
+        pvpRatingAfterRef.current = ratingPreview.ratingAfter;
+        pinHomeSnapshotRating(ratingPreview.ratingAfter);
+      }
+
+      const syncTask = (async () => {
+        const ratingBefore =
+          matchRatingsRef.current?.selfRating ??
+          profile?.self.rating ??
+          getHomeSnapshotState().snapshot.rating;
+        const opponentRating = matchRatingsRef.current?.opponentRating ?? profile?.opponent.rating;
+        try {
+          const applied = await syncPvpRatingAfterMatch({
+            ratingBefore,
+            won: input.won,
+            opponentRating,
+            fallbackRating: ratingPreview?.ratingAfter,
+          });
+          clearPvpRatingLeaderboardCache();
+          syncHomeRatingAfterPvpMatch(applied.rating);
+          pvpRatingAfterRef.current = applied.rating;
+          patchActiveMatchProfileSelfRating(applied.rating);
+          setSession((current) => {
+            if (current.matchId !== input.activeMatchId) return current;
+            const nextProfile = getActiveMatchProfile();
+            return {
+              ...current,
+              pvpRatingDelta: applied.delta,
+              pvpRatingAfter: applied.rating,
+              playerLabel: nextProfile
+                ? formatMatchPlayerLabel({ ...nextProfile.self, rating: applied.rating }, 'あなた')
+                : current.playerLabel,
+              logLines: trimOnlineBattleLogLines([
+                ...current.logLines.filter((line) => !line.startsWith('レート ')),
+                `レート ${formatPvpRatingDelta(applied.delta)}（現在 R${applied.rating}）`,
+              ]),
+            };
+          });
+        } catch {
+          appendLogRef.current(
+            'レート反映に失敗しました。ホーム画面の再読み込み後にご確認ください。',
+          );
+        }
+      })();
+
+      pvpRatingSyncPromiseRef.current = syncTask;
+      void syncTask.finally(() => {
+        if (pvpRatingSyncPromiseRef.current === syncTask) {
+          pvpRatingSyncPromiseRef.current = null;
+        }
+      });
+    },
+    [setSession],
+  );
+
+  startRatedMatchEndRatingSyncRef.current = startRatedMatchEndRatingSync;
 
   useEffect(() => {
     const profile = getActiveMatchProfile();
@@ -905,18 +974,42 @@ export function useOnlineBattleGame(matchId?: string) {
             opponentForfeitTimerRef.current = null;
             if (authoritativeWinnerSideRef.current) return;
             authoritativeWinnerSideRef.current = 'player';
+            const ratingPreview = buildPvpRatingPreview({
+              won: true,
+              cached: matchRatingsRef.current,
+            });
+            if (ratingPreview?.ratingAfter != null) {
+              pvpRatingAfterRef.current = ratingPreview.ratingAfter;
+              pinHomeSnapshotRating(ratingPreview.ratingAfter);
+            }
+            const profile = getActiveMatchProfile();
             setSession((current) => {
               if (current.winnerSide || current.matchId !== payload.matchId) return current;
+              const previewDelta = ratingPreview?.delta ?? null;
+              const previewAfter = ratingPreview?.ratingAfter ?? null;
               return {
                 ...current,
                 winnerSide: 'player',
                 connectionStatus: '接続状態: 終了（disconnect）',
                 turnLabel: '対局終了',
+                pvpRatingDelta: previewDelta,
+                pvpRatingAfter: previewAfter,
+                playerLabel:
+                  previewAfter != null && profile
+                    ? formatMatchPlayerLabel({ ...profile.self, rating: previewAfter }, 'あなた')
+                    : current.playerLabel,
                 logLines: trimOnlineBattleLogLines([
                   ...current.logLines,
                   '対局終了: 相手が再接続しませんでした',
+                  ...(previewDelta != null
+                    ? [`レート ${formatPvpRatingDelta(previewDelta)}`]
+                    : ['レートを計算できませんでした']),
                 ]),
               };
+            });
+            startRatedMatchEndRatingSyncRef.current({
+              activeMatchId: payload.matchId,
+              won: true,
             });
           }, deadlineMs);
           return;
@@ -989,20 +1082,19 @@ export function useOnlineBattleGame(matchId?: string) {
           setLegalTargets([]);
           setPendingPromotion(null);
           clearSkillUiStateRef.current();
+          const ratingPreview = ratesMatch
+            ? buildPvpRatingPreview({
+                won,
+                cached: matchRatingsRef.current,
+              })
+            : null;
+          if (ratingPreview?.ratingAfter != null) {
+            pvpRatingAfterRef.current = ratingPreview.ratingAfter;
+            pinHomeSnapshotRating(ratingPreview.ratingAfter);
+          }
+          const previewDelta = ratingPreview?.delta ?? null;
+          const previewAfter = ratingPreview?.ratingAfter ?? null;
           setSession((current) => {
-            const ratingPreview = ratesMatch
-              ? buildPvpRatingPreview({
-                  won,
-                  playerLabel: current.playerLabel,
-                  opponentLabel: current.opponentLabel,
-                  cached: matchRatingsRef.current,
-                })
-              : null;
-            const previewDelta = ratingPreview?.delta ?? null;
-            const previewAfter = ratingPreview?.ratingAfter ?? null;
-            if (previewAfter != null) {
-              pvpRatingAfterRef.current = previewAfter;
-            }
             return {
               ...current,
               connectionStatus: `接続状態: 終了（${payload.reason}）`,
@@ -1037,66 +1129,9 @@ export function useOnlineBattleGame(matchId?: string) {
               ]),
             };
           });
-          if (!ratesMatch) {
-            return;
+          if (ratesMatch) {
+            startRatedMatchEndRatingSyncRef.current({ activeMatchId, won });
           }
-          const syncTask = (async () => {
-            const ratingBefore =
-              matchRatingsRef.current?.selfRating ??
-              profile?.self.rating ??
-              getHomeSnapshotState().snapshot.rating;
-            const ratingPreview = buildPvpRatingPreview({
-              won,
-              cached: matchRatingsRef.current,
-            });
-            if (ratingPreview?.ratingAfter != null) {
-              pvpRatingAfterRef.current = ratingPreview.ratingAfter;
-              pinHomeSnapshotRating(ratingPreview.ratingAfter);
-            }
-            const opponentRating =
-              matchRatingsRef.current?.opponentRating ?? profile?.opponent.rating;
-            try {
-              const applied = await syncPvpRatingAfterMatch({
-                ratingBefore,
-                won,
-                opponentRating,
-                fallbackRating: ratingPreview?.ratingAfter,
-              });
-              clearPvpRatingLeaderboardCache();
-              syncHomeRatingAfterPvpMatch(applied.rating);
-              pvpRatingAfterRef.current = applied.rating;
-              patchActiveMatchProfileSelfRating(applied.rating);
-              setSession((current) => {
-                if (current.matchId !== activeMatchId) return current;
-                const nextProfile = getActiveMatchProfile();
-                return {
-                  ...current,
-                  pvpRatingDelta: applied.delta,
-                  pvpRatingAfter: applied.rating,
-                  playerLabel: nextProfile
-                    ? formatMatchPlayerLabel(
-                        { ...nextProfile.self, rating: applied.rating },
-                        'あなた',
-                      )
-                    : current.playerLabel,
-                  logLines: trimOnlineBattleLogLines([
-                    ...current.logLines.filter((line) => !line.startsWith('レート ')),
-                    `レート ${formatPvpRatingDelta(applied.delta)}（現在 R${applied.rating}）`,
-                  ]),
-                };
-              });
-            } catch {
-              appendLogRef.current(
-                'レート反映に失敗しました。ホーム画面の再読み込み後にご確認ください。',
-              );
-            }
-          })();
-          pvpRatingSyncPromiseRef.current = syncTask;
-          void syncTask.finally(() => {
-            if (pvpRatingSyncPromiseRef.current === syncTask) {
-              pvpRatingSyncPromiseRef.current = null;
-            }
-          });
           return;
         }
         case 'state_resync_required':
