@@ -17,8 +17,8 @@ const config = {
   newArchEnabled: true,
   ios: {
     bundleIdentifier: 'com.manakana.shogi',
-    buildNumber: '2',
-    supportsTablet: true,
+    buildNumber: '4',
+    supportsTablet: false,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
