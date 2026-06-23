@@ -15,8 +15,8 @@ import { playSe } from '@/lib/audio/audio-manager';
 
 export function MatchingScreen() {
   const router = useRouter();
-  const { snapshot, isLoading, cancel, startedMatchId } = useMatchingScreen();
   const { isReady: areAssetsReady } = useAssetPreload([onlineMatchAssets.matchingBackground]);
+  const { snapshot, cancel, startedMatchId } = useMatchingScreen(areAssetsReady);
   const needsBattleSetup = snapshot.status.includes('対戦準備が未保存');
   useScreenBgm('matching');
 
@@ -25,7 +25,7 @@ export function MatchingScreen() {
     router.replace({ pathname: '/online-battle', params: { matchId: startedMatchId } });
   }, [router, startedMatchId]);
 
-  if (!areAssetsReady || (isLoading && !needsBattleSetup)) {
+  if (!areAssetsReady) {
     return <AppLoadingScreen imageSource={homeAssets.loadingImage} />;
   }
 

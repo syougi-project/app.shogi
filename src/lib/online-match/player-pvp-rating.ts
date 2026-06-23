@@ -1,6 +1,6 @@
 import { isApiDataSource } from '@/lib/config/data-source';
 import {
-  clearPinnedPvpRatingForSync,
+  getHomeSnapshotState,
   loadHomeSnapshot,
   pinHomeSnapshotRating,
 } from '@/hooks/common/home-snapshot-store';
@@ -28,6 +28,7 @@ export async function syncPvpRatingAfterMatch(input: {
   ratingBefore: number;
   won: boolean;
   opponentRating?: number;
+  fallbackRating?: number;
   maxAttempts?: number;
   retryDelayMs?: number;
 }): Promise<{ rating: number; delta: number }> {
@@ -47,8 +48,6 @@ export async function syncPvpRatingAfterMatch(input: {
     return { rating, delta };
   }
 
-  clearPinnedPvpRatingForSync();
-
   const maxAttempts = input.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
   const retryDelayMs = input.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
 
@@ -65,9 +64,23 @@ export async function syncPvpRatingAfterMatch(input: {
     }
   }
 
+  const fallbackCandidates = [input.fallbackRating, getHomeSnapshotState().snapshot.rating]
+    .filter((value): value is number => value != null && Number.isFinite(value))
+    .map((value) => normalizePvpRating(value))
+    .filter((value) => value !== ratingBefore);
+
+  if (fallbackCandidates.length > 0) {
+    const rating = fallbackCandidates[0]!;
+    const delta = rating - ratingBefore;
+    pinHomeSnapshotRating(rating);
+    return { rating, delta };
+  }
+
   const rating = normalizePvpRating((await loadHomeSnapshot(true)).rating);
   const delta = rating - ratingBefore;
-  pinHomeSnapshotRating(rating);
+  if (delta !== 0) {
+    pinHomeSnapshotRating(rating);
+  }
   return { rating, delta };
 }
 

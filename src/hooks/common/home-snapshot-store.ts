@@ -128,6 +128,20 @@ export function prepareHomeSnapshotAfterOnlineBattle(nextRating?: number | null)
   forceRefreshAfterOnlineBattle = true;
 }
 
+/** 対戦終了後の最新レートを HUD 用 snapshot に反映してからホームへ遷移する */
+export async function finalizeHomeSnapshotAfterOnlineBattle(
+  nextRating?: number | null,
+): Promise<void> {
+  prepareHomeSnapshotAfterOnlineBattle(nextRating);
+  try {
+    await loadHomeSnapshot(true);
+  } catch {
+    // ピン留め済みレートを優先して HUD に表示する
+  } finally {
+    forceRefreshAfterOnlineBattle = false;
+  }
+}
+
 /** ホーム画面フォーカス時の snapshot 読込（対戦直後は force 再取得） */
 export function loadHomeSnapshotOnScreenFocus(): Promise<HomeSnapshot> {
   return loadHomeSnapshot(consumeForceRefreshAfterOnlineBattle());

@@ -13,20 +13,25 @@ import {
   clearCurrentBattleSetupId,
 } from '@/lib/online-match/current-battle-setup';
 import { normalizePvpRating } from '@/lib/online-match/pvp-rating-constants';
+import type { StartMatchingInput } from '@/usecases/matching/start-matching-usecase';
 
 const emptySnapshot: MatchingSnapshot = {
   title: 'オンライン対戦',
-  status: '読み込み中',
-  progress: 0,
+  status: '接続準備中',
+  progress: 5,
 };
 
-export function useMatchingScreen() {
+type PreparedMatchingContext = StartMatchingInput;
+
+export function useMatchingScreen(screenReady: boolean) {
   const { accessToken, isReady, userId } = useAuthSession();
   const [snapshot, setSnapshot] = useState<MatchingSnapshot>(emptySnapshot);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isPreparing, setIsPreparing] = useState(true);
+  const [preparedContext, setPreparedContext] = useState<PreparedMatchingContext | null>(null);
   const [startedMatchId, setStartedMatchId] = useState<string | null>(null);
   const startedMatchIdRef = useRef<string | null>(null);
   const matchingSessionRef = useRef(0);
+  const matchingStartedRef = useRef(false);
   const startMatchingUseCase = useMemo(
     () => createStartMatchingUseCase(accessToken ?? undefined),
     [accessToken],
@@ -39,18 +44,17 @@ export function useMatchingScreen() {
 
   useEffect(() => {
     let active = true;
-    if (!isReady) {
-      setIsLoading(true);
-      return () => {
-        active = false;
-      };
-    }
 
-    const sessionId = ++matchingSessionRef.current;
+    const prepare = async () => {
+      if (!isReady) {
+        setIsPreparing(true);
+        return;
+      }
 
-    const start = async () => {
+      setIsPreparing(true);
+      setSnapshot(emptySnapshot);
+
       const battleSetupId = await loadCurrentBattleSetupId();
-
       if (!active) return;
 
       if (!battleSetupId) {
@@ -59,7 +63,8 @@ export function useMatchingScreen() {
           status: '対戦準備が未保存です',
           progress: 0,
         });
-        setIsLoading(false);
+        setPreparedContext(null);
+        setIsPreparing(false);
         return;
       }
 
@@ -69,103 +74,141 @@ export function useMatchingScreen() {
           status: 'ログインが必要です',
           progress: 0,
         });
-        setIsLoading(false);
+        setPreparedContext(null);
+        setIsPreparing(false);
         return;
       }
 
       await loadHomeSnapshot(true).catch(() => undefined);
+      if (!active) return;
+
       const home = getHomeSnapshotState().snapshot;
       const selfName = home.playerName.trim() || 'プレイヤー';
       const selfRating = normalizePvpRating(home.rating);
 
-      if (!active) return;
-
+      setPreparedContext({
+        userId,
+        battleSetupId,
+        selfName,
+        selfRating,
+      });
       setSnapshot({
         title: 'オンライン対戦',
-        status: '対戦相手を探しています',
-        progress: 20,
+        status: 'マッチングを開始します…',
+        progress: 12,
         self: { displayName: selfName, rating: selfRating },
       });
-      setIsLoading(false);
+      setIsPreparing(false);
+    };
 
-      const handleMessage = (payload: WebSocketServerMessage) => {
-        if (!active) return;
+    void prepare();
 
-        switch (payload.type) {
-          case 'queue_entered':
-            setSnapshot((current) => ({
-              ...current,
-              title: 'オンライン対戦',
-              status: '対戦相手を探しています',
-              progress: 35,
-              self: current.self ?? { displayName: selfName, rating: selfRating },
-            }));
-            setIsLoading(false);
-            return;
-          case 'match_found':
+    return () => {
+      active = false;
+    };
+  }, [accessToken, isReady, userId]);
+
+  useEffect(() => {
+    if (!screenReady || isPreparing || !preparedContext || matchingStartedRef.current) {
+      return;
+    }
+
+    let active = true;
+    const sessionId = ++matchingSessionRef.current;
+    matchingStartedRef.current = true;
+
+    const { userId: matchUserId, battleSetupId, selfName, selfRating } = preparedContext;
+
+    setSnapshot((current) => ({
+      ...current,
+      title: 'オンライン対戦',
+      status: 'マッチングサーバーに接続しています…',
+      progress: 20,
+      self: current.self ?? { displayName: selfName, rating: selfRating },
+    }));
+
+    const handleMessage = (payload: WebSocketServerMessage) => {
+      if (!active) return;
+
+      switch (payload.type) {
+        case 'queue_entered':
+          setSnapshot((current) => ({
+            ...current,
+            title: 'オンライン対戦',
+            status: '対戦相手を探しています',
+            progress: 35,
+            self: current.self ?? { displayName: selfName, rating: selfRating },
+          }));
+          return;
+        case 'match_found':
+          setSnapshot({
+            title: 'オンライン対戦',
+            status: `対戦相手が見つかりました（${payload.role === 'black' ? '先手' : '後手'}）`,
+            progress: 85,
+            self: {
+              displayName: payload.self.displayName,
+              rating: normalizePvpRating(payload.self.rating),
+            },
+            opponent: {
+              displayName: payload.opponent.displayName,
+              rating: normalizePvpRating(payload.opponent.rating),
+            },
+          });
+          return;
+        case 'game_started':
+          startedMatchIdRef.current = payload.matchId;
+          setSnapshot((current) => ({
+            ...current,
+            title: 'オンライン対戦',
+            status: '対局を開始します',
+            progress: 100,
+          }));
+          setStartedMatchId(payload.matchId);
+          return;
+        case 'opponent_disconnected':
+          setSnapshot((current) => ({
+            ...current,
+            status: '相手の再接続を待っています',
+          }));
+          return;
+        case 'error':
+          if (payload.message.includes('Battle setup not found')) {
+            void clearCurrentBattleSetupId();
             setSnapshot({
               title: 'オンライン対戦',
-              status: `対戦相手が見つかりました（${payload.role === 'black' ? '先手' : '後手'}）`,
-              progress: 85,
-              self: {
-                displayName: payload.self.displayName,
-                rating: normalizePvpRating(payload.self.rating),
-              },
-              opponent: {
-                displayName: payload.opponent.displayName,
-                rating: normalizePvpRating(payload.opponent.rating),
-              },
+              status: '対戦準備が無効です。作り直してから再試行してください',
+              progress: 0,
+              self: { displayName: selfName, rating: selfRating },
             });
-            return;
-          case 'game_started':
-            startedMatchIdRef.current = payload.matchId;
-            setSnapshot((current) => ({
-              ...current,
+          } else {
+            setSnapshot({
               title: 'オンライン対戦',
-              status: '対局を開始します',
-              progress: 100,
-            }));
-            setIsLoading(false);
-            setStartedMatchId(payload.matchId);
-            return;
-          case 'opponent_disconnected':
-            setSnapshot((current) => ({
-              ...current,
-              status: '相手の再接続を待っています',
-            }));
-            return;
-          case 'error':
-            if (payload.message.includes('Battle setup not found')) {
-              void clearCurrentBattleSetupId();
-              setSnapshot({
-                title: 'オンライン対戦',
-                status: '対戦準備が無効です。作り直してから再試行してください',
-                progress: 0,
-                self: { displayName: selfName, rating: selfRating },
-              });
-            } else {
-              setSnapshot({
-                title: 'オンライン対戦',
-                status: payload.message,
-                progress: 0,
-              });
-            }
-            setIsLoading(false);
-            return;
-        }
-      };
+              status: payload.message,
+              progress: 0,
+            });
+          }
+          return;
+      }
+    };
 
-      const unsubscribe = startMatchingUseCase.subscribe(handleMessage);
+    const unsubscribe = startMatchingUseCase.subscribe(handleMessage);
 
-      try {
+    void startMatchingUseCase
+      .execute({
+        userId: matchUserId,
+        battleSetupId,
+        selfName,
+        selfRating,
+      })
+      .then((next) => {
         if (!active) return;
-        await startMatchingUseCase.execute({
-          userId,
-          battleSetupId,
-          selfName,
-          selfRating,
-        });
-      } catch (error: unknown) {
+        setSnapshot((current) => ({
+          ...current,
+          ...next,
+          self: next.self ?? current.self,
+        }));
+      })
+      .catch((error: unknown) => {
         if (!active) return;
         const fallback = startMatchingUseCase.getLastError() ?? '接続先が未設定です';
         const message =
@@ -180,35 +223,22 @@ export function useMatchingScreen() {
           progress: 0,
           self: { displayName: selfName, rating: selfRating },
         });
-        setIsLoading(false);
-      }
-
-      return () => {
-        unsubscribe();
-      };
-    };
-
-    let cleanupMessage: (() => void) | undefined;
-    void start().then((cleanup) => {
-      cleanupMessage = cleanup;
-    });
+      });
 
     return () => {
       active = false;
-      cleanupMessage?.();
-      // Cleanup must compare against the latest session because a newer matching attempt can start
-      // before this effect is torn down.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      unsubscribe();
       if (matchingSessionRef.current !== sessionId) return;
-      if (userId && !startedMatchIdRef.current) {
-        void cancelMatchingUseCase.execute({ userId });
+      matchingStartedRef.current = false;
+      if (matchUserId && !startedMatchIdRef.current) {
+        void cancelMatchingUseCase.execute({ userId: matchUserId });
       }
     };
-  }, [accessToken, cancelMatchingUseCase, isReady, startMatchingUseCase, userId]);
+  }, [cancelMatchingUseCase, isPreparing, preparedContext, screenReady, startMatchingUseCase]);
 
   async function cancel() {
     await cancelMatchingUseCase.execute({ userId });
   }
 
-  return { snapshot, isLoading, cancel, startedMatchId };
+  return { snapshot, isPreparing, cancel, startedMatchId };
 }

@@ -1,4 +1,5 @@
 import {
+  finalizeHomeSnapshotAfterOnlineBattle,
   getHomeSnapshotState,
   pinHomeSnapshotRating,
   prepareHomeSnapshotAfterOnlineBattle,

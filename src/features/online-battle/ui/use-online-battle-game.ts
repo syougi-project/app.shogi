@@ -1060,6 +1060,7 @@ export function useOnlineBattleGame(matchId?: string) {
                 ratingBefore,
                 won,
                 opponentRating,
+                fallbackRating: ratingPreview?.ratingAfter,
               });
               clearPvpRatingLeaderboardCache();
               syncHomeRatingAfterPvpMatch(applied.rating);

@@ -33,7 +33,7 @@ import {
 import { parseOnlineBattleDisplay } from '@/features/online-battle/lib/parse-session-labels';
 import { useOnlineBattleScreen } from '@/features/online-battle/ui/use-online-battle-screen';
 import { StageShogiHandsRow } from '@/features/stage-shogi/ui/components/stage-shogi-hands-row';
-import { prepareHomeSnapshotAfterOnlineBattle } from '@/hooks/common/home-snapshot-store';
+import { finalizeHomeSnapshotAfterOnlineBattle } from '@/hooks/common/home-snapshot-store';
 import { useAssetPreload } from '@/hooks/common/use-asset-preload';
 import { useScreenBgm } from '@/hooks/common/use-screen-bgm';
 import { showBattleEndInterstitialEveryThirdTime } from '@/lib/ads/admob';
@@ -117,7 +117,7 @@ export function OnlineBattleScreen() {
 
   const returnHomeAfterOnlineBattle = useCallback(async () => {
     await waitForPvpRatingSync();
-    prepareHomeSnapshotAfterOnlineBattle(resolveLatestPvpRatingAfter());
+    await finalizeHomeSnapshotAfterOnlineBattle(resolveLatestPvpRatingAfter());
     disconnect();
     router.replace('/home');
   }, [disconnect, resolveLatestPvpRatingAfter, router, waitForPvpRatingSync]);
@@ -142,7 +142,7 @@ export function OnlineBattleScreen() {
     void (async () => {
       await forfeitAndLeave();
       await waitForPvpRatingSync();
-      prepareHomeSnapshotAfterOnlineBattle(resolveLatestPvpRatingAfter());
+      await finalizeHomeSnapshotAfterOnlineBattle(resolveLatestPvpRatingAfter());
       router.replace('/home');
     })();
   }, [forfeitAndLeave, resolveLatestPvpRatingAfter, router, waitForPvpRatingSync]);
