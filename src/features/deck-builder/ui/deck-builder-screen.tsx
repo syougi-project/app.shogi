@@ -364,6 +364,9 @@ export function DeckBuilderScreen({ mode = 'default' }: DeckBuilderScreenProps) 
       {/* 所持駒パレット */}
       <View className="mt-4 rounded-xl border border-[#8b0000]/30 bg-white p-3">
         <Text className="text-sm font-black text-[#2f1b14]">{paletteDescription}</Text>
+        <Text className="mt-1 text-xs font-bold text-[#6b4532]">
+          駒を長押しすると詳細情報を確認できます。
+        </Text>
         <View className="mt-2 flex-row flex-wrap gap-2">
           {vm.ownedPieces.map((piece) => {
             const remaining = vm.getRemainingCount(piece);
