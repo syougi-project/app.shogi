@@ -12,7 +12,7 @@ export const homeAssets = {
   background: require('../../assets/home/background/home-bg.png'),
   userBar: require('../../assets/bundled/0129-home-ui-122ea6e3ec.png'),
   pvpBadge: require('../../assets/home/ui/pvp-badge.png'),
-  /** ホーム右上「オンライン対戦」エントリー（対人対戦.png） */
+  /** ホーム右上「オンライン対戦」エントリー */
   onlineBattleButton: require('../../assets/bundled/0184-online-battle-e365e9190b.png'),
   /** ホーム左上のガチャ玉装飾・色確認ボタン用 */
   gachaBallIcon: require('../../assets/bundled/0116-gacha-ball-d827cd454e.png'),
