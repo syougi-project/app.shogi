@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, Text, TextInput, View, ScrollView } from 'react-native';
 import Svg, { Line, Rect } from 'react-native-svg';
 
@@ -59,6 +59,15 @@ export function DeckBuilderScreen({ mode = 'default' }: DeckBuilderScreenProps) 
   const lastBoardCellTapRef = useRef<{ row: number; col: number; time: number } | null>(null);
   const [applyBattleBusy, setApplyBattleBusy] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [placementMessage, setPlacementMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!placementMessage) return undefined;
+    const timeout = setTimeout(() => {
+      setPlacementMessage(null);
+    }, 1000);
+    return () => clearTimeout(timeout);
+  }, [placementMessage]);
   const remotePieceUrls = useMemo(
     () =>
       vm.ownedPieces
@@ -91,7 +100,7 @@ export function DeckBuilderScreen({ mode = 'default' }: DeckBuilderScreenProps) 
     ? 'オンライン対戦の初期盤面を試しながら整える'
     : '駒を配置して保存';
   const paletteDescription = isOnlineMatchSetup
-    ? '所持駒からオンライン対戦用の並びを試せます。今はマイデッキ編集UIを流用しています。'
+    ? '所持駒からオンライン対戦用の並びを試せます。'
     : '所持駒（駒を選択して緑マスをタップで配置・盤上の駒をダブルタップでデッキから外す）。';
   const applyButtonTitle = isOnlineMatchSetup ? '対戦準備として反映' : '反映';
   const applyButtonSubtitle = isOnlineMatchSetup
@@ -123,6 +132,7 @@ export function DeckBuilderScreen({ mode = 'default' }: DeckBuilderScreenProps) 
       if (isDoubleTap) {
         lastBoardCellTapRef.current = null;
         setActiveCell({ row, col });
+        setPlacementMessage(null);
         removePieceAt(row, col);
         void playSe('cancel');
         return;
@@ -136,9 +146,16 @@ export function DeckBuilderScreen({ mode = 'default' }: DeckBuilderScreenProps) 
         return;
       }
 
+      if (selectedPieceForPlacement && !isValidPlacementAt(row, col)) {
+        setPlacementMessage('この駒は配置できるマスが決まっています');
+        void playSe('cancel');
+        return;
+      }
+
+      setPlacementMessage(null);
       placeSelectedPieceAt(row, col);
     },
-    [placeSelectedPieceAt, removePieceAt, selectedPieceForPlacement],
+    [isValidPlacementAt, placeSelectedPieceAt, removePieceAt, selectedPieceForPlacement],
   );
 
   if (vm.isLoading || !areAssetsReady) {
@@ -381,6 +398,14 @@ export function DeckBuilderScreen({ mode = 'default' }: DeckBuilderScreenProps) 
                     <Text className="text-[8px] font-black text-[#fde68a]">ボス</Text>
                   </View>
                 ) : null}
+                <View
+                  className="absolute right-0 top-0 z-20 min-w-6 rounded-full border border-white bg-[#7f1d1d] px-1 py-0.5"
+                  style={bossPiece ? { top: 18 } : undefined}
+                >
+                  <Text className="text-center text-[9px] font-black text-white">
+                    {`×${remaining}`}
+                  </Text>
+                </View>
                 {resolveDeckPieceImageSource(piece) ? (
                   <Image
                     source={resolveDeckPieceImageSource(piece)!}
@@ -604,6 +629,20 @@ export function DeckBuilderScreen({ mode = 'default' }: DeckBuilderScreenProps) 
           setHelpModalOpen(false);
         }}
       />
+
+      <Modal
+        visible={!!placementMessage}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPlacementMessage(null)}
+      >
+        <View className="flex-1 items-center justify-center px-8" pointerEvents="none">
+          <View className="rounded-lg bg-black/45 px-4 py-3">
+            <Text className="text-center text-sm font-black text-white">{placementMessage}</Text>
+          </View>
+        </View>
+      </Modal>
 
       {/* デッキ保存モーダル */}
       <Modal

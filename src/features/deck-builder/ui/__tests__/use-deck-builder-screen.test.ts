@@ -22,7 +22,16 @@ const mockOnAuthStateChange = jest.fn();
 
 jest.mock('@/usecases/deck-builder/create-deck-builder-usecases', () => ({
   createLoadDeckBuilderUseCase: () => ({
-    execute: (...args: unknown[]) => mockLoadExecute(...args),
+    execute: async (...args: unknown[]) => {
+      const snapshot = await mockLoadExecute(...args);
+      return {
+        ...snapshot,
+        ownedPieces: snapshot.ownedPieces.map((piece: { quantity?: number }) => ({
+          quantity: 99,
+          ...piece,
+        })),
+      };
+    },
   }),
   createSaveDeckUseCase: () => ({
     execute: (...args: unknown[]) => mockSaveExecute(...args),
@@ -180,11 +189,11 @@ describe('useDeckBuilderScreen', () => {
     expect(mockSaveExecute).not.toHaveBeenCalled();
   }, 15_000);
 
-  it('HTML版準拠で所持数では配置を制限せず、残数表示は無限扱いになる', async () => {
-    const pawn = {
+  it('所持数から配置済み数を引いた残数を返す', async () => {
+    const piece = {
       pieceId: 301,
-      char: '歩',
-      name: '歩兵',
+      char: '竜',
+      name: '竜',
       imageSignedUrl: null,
       quantity: 2,
       desc: '',
@@ -193,26 +202,24 @@ describe('useDeckBuilderScreen', () => {
     };
 
     mockLoadExecute.mockResolvedValue({
-      ownedPieces: [pawn],
+      ownedPieces: [piece],
       savedDecks: [],
     });
 
     const { result } = renderHook(() => useDeckBuilderScreen());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    expect(result.current.getRemainingCount(pawn)).toBe(Infinity);
+    expect(result.current.getRemainingCount(piece)).toBe(2);
 
     act(() => {
-      result.current.selectPieceForPlacement(pawn);
+      result.current.selectPieceForPlacement(piece);
     });
     act(() => {
-      result.current.placeSelectedPieceAt(6, 0);
-      result.current.placeSelectedPieceAt(6, 1);
-      result.current.placeSelectedPieceAt(6, 2);
+      result.current.placeSelectedPieceAt(7, 1);
     });
 
-    expect(result.current.boardPlacements).toHaveLength(9);
-    expect(result.current.getRemainingCount(pawn)).toBe(Infinity);
+    expect(result.current.boardPlacements).toHaveLength(1);
+    expect(result.current.getRemainingCount(piece)).toBe(1);
   });
 
   it('removePieceAt で盤上の駒をデッキから外せる', async () => {
