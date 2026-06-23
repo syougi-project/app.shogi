@@ -326,9 +326,7 @@ function initialBoardPlacementsFromDecks(
 }
 
 function pieceStock(piece: OwnedPiece): number {
-  void piece;
-  // HTML版準拠: デッキビルダーでは所持数で配置を制限しない（同一駒を何枚でも配置可）
-  return Number.POSITIVE_INFINITY;
+  return typeof piece.quantity === 'number' ? piece.quantity : 0;
 }
 
 function isDeckAreaRow(row: number): boolean {
@@ -418,6 +416,14 @@ function canPlacePieceAt(
   row: number,
   col: number,
 ): boolean {
+  const key = pieceIdentityKey(piece);
+  const placedCount = placements.filter(
+    (placement) => pieceIdentityKey(placement.piece) === key,
+  ).length;
+  const existing =
+    placements.find((placement) => placement.row === row && placement.col === col) ?? null;
+  const isReplacingSamePiece = existing !== null && pieceIdentityKey(existing.piece) === key;
+  if (!isReplacingSamePiece && pieceStock(piece) - placedCount <= 0) return false;
   return canPlacePieceAtByRules(piece, row, col, placements);
 }
 
@@ -684,13 +690,20 @@ export function useDeckBuilderScreen() {
     [boardPlacements, selectedPieceForPlacement],
   );
 
-  const selectPieceForPlacement = useCallback((piece: OwnedPiece) => {
-    if (isPieceBannedFromMyDeck(piece)) {
-      setSelectedPieceForPlacement(null);
-      return;
-    }
-    setSelectedPieceForPlacement(piece);
-  }, []);
+  const selectPieceForPlacement = useCallback(
+    (piece: OwnedPiece) => {
+      const currentPiece =
+        ownedPieces.find(
+          (ownedPiece) => pieceIdentityKey(ownedPiece) === pieceIdentityKey(piece),
+        ) ?? piece;
+      if (isPieceBannedFromMyDeck(currentPiece)) {
+        setSelectedPieceForPlacement(null);
+        return;
+      }
+      setSelectedPieceForPlacement(currentPiece);
+    },
+    [ownedPieces],
+  );
 
   const openPieceDetail = useCallback((piece: OwnedPiece) => {
     setSelectedPiece(piece);

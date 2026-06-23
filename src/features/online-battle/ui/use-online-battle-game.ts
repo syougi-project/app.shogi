@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ONLINE_PVP_TURN_SECONDS } from '@/constants/online-battle';
-const ONLINE_SKILL_ACTIVATION_TOAST_MS = 3000;
 
 import { applyMove } from '@/ai/engine';
 import type { SkillVisualEffect } from '@/domain/battle/skill-visual-effect';
@@ -136,6 +135,7 @@ import {
 } from '@/hooks/common/home-snapshot-store';
 import { syncPvpRatingAfterMatch } from '@/lib/online-match/player-pvp-rating';
 import { clearPvpRatingLeaderboardCache } from '@/lib/online-match/pvp-rating-leaderboard-cache';
+const ONLINE_SKILL_ACTIVATION_TOAST_MS = 3000;
 
 export type PendingOnlinePromotion = {
   promoteMove: BattleMove;
