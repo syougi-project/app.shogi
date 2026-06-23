@@ -1,5 +1,5 @@
 import { CHAR_TO_CODE } from '@/features/stage-shogi/domain/piece-conversion';
-import { toBasePieceCode } from '@/ai/model';
+import { toBasePieceCode } from '@/ai/model/move';
 import { normalizeGachaSkillPieceCode } from '@/lib/matching-server/gacha-piece-code';
 
 type PieceLike = {

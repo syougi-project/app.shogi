@@ -30,7 +30,6 @@ export function useMatchingScreen(screenReady: boolean) {
   const [preparedContext, setPreparedContext] = useState<PreparedMatchingContext | null>(null);
   const [startedMatchId, setStartedMatchId] = useState<string | null>(null);
   const startedMatchIdRef = useRef<string | null>(null);
-  const matchingSessionRef = useRef(0);
   const matchingStartedRef = useRef(false);
   const startMatchingUseCase = useMemo(
     () => createStartMatchingUseCase(accessToken ?? undefined),
@@ -114,7 +113,6 @@ export function useMatchingScreen(screenReady: boolean) {
     }
 
     let active = true;
-    const sessionId = ++matchingSessionRef.current;
     matchingStartedRef.current = true;
 
     const { userId: matchUserId, battleSetupId, selfName, selfRating } = preparedContext;
@@ -228,7 +226,6 @@ export function useMatchingScreen(screenReady: boolean) {
     return () => {
       active = false;
       unsubscribe();
-      if (matchingSessionRef.current !== sessionId) return;
       matchingStartedRef.current = false;
       if (matchUserId && !startedMatchIdRef.current) {
         void cancelMatchingUseCase.execute({ userId: matchUserId });

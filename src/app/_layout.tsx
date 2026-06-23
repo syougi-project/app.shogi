@@ -3,7 +3,7 @@ import { ShipporiMincho_700Bold } from '@expo-google-fonts/shippori-mincho';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { View, Text } from 'react-native';
+import { LogBox, View, Text } from 'react-native';
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -13,6 +13,8 @@ import { initializeAdMob } from '@/lib/ads/admob';
 import { releaseAudioPlayers } from '@/lib/audio/audio-manager';
 
 import '../../global.css';
+
+LogBox.ignoreLogs(['SafeAreaView has been deprecated and will be removed in a future release.']);
 
 function RootLayoutInner() {
   const router = useRouter();

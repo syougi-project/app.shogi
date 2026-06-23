@@ -1,5 +1,5 @@
-import type { AiPieceDefinition } from '@/ai/model';
-import { toBasePieceCode } from '@/ai/model';
+import { toBasePieceCode } from '@/ai/model/move';
+import type { AiPieceDefinition } from '@/ai/model/piece';
 import {
   isBirdPiece,
   isBlackOniPiece,
