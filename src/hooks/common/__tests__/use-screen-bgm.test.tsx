@@ -12,11 +12,13 @@ jest.mock('@react-navigation/native', () => ({
 
 jest.mock('@/lib/audio/audio-manager', () => ({
   playBgm: jest.fn().mockResolvedValue(undefined),
+  isBgmPlaying: jest.fn(() => false),
   stopBgm: jest.fn(),
 }));
 
 describe('useScreenBgm', () => {
   afterEach(() => {
+    jest.clearAllTimers();
     jest.useRealTimers();
   });
 
@@ -51,6 +53,24 @@ describe('useScreenBgm', () => {
     await waitFor(() => {
       expect(playBgm).toHaveBeenCalledTimes(2);
       expect(playBgm).toHaveBeenLastCalledWith('home');
+    });
+  });
+
+  it('checks whether BGM stopped and resumes it on the next watchdog tick', async () => {
+    jest.useFakeTimers();
+
+    renderHook(() => useScreenBgm('home'));
+
+    await waitFor(() => {
+      expect(playBgm).toHaveBeenCalledWith('home');
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    await waitFor(() => {
+      expect(playBgm).toHaveBeenCalledTimes(2);
     });
   });
 });

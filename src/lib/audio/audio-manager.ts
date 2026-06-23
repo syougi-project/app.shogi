@@ -97,6 +97,16 @@ export async function playBgm(track: BgmTrack, volume = 0.55) {
   activeBgmTrack = track;
 }
 
+export function isBgmPlaying(track?: BgmTrack) {
+  if (!activeBgmPlayer) {
+    return false;
+  }
+  if (track && activeBgmTrack !== track) {
+    return false;
+  }
+  return activeBgmPlayer.playing;
+}
+
 export function stopBgm(track?: BgmTrack) {
   if (!activeBgmPlayer) {
     return;
