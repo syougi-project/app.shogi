@@ -75,6 +75,12 @@ import {
   createSkillRuntimeView,
   type SkillRuntimeView,
 } from '@/ai/engine/skill-runtime';
+import { readFollowupCellForSide } from '@/ai/engine/skill-state-selectors';
+import {
+  ensureShinTurnMimic,
+  readShinTurnMimic,
+  type ShinTurnMimicEntry,
+} from '@/ai/engine/shin-turn-mimic';
 import {
   isAnyOniVariantPiece,
   isBeastPiece as isBeastPieceForLegal,
@@ -136,12 +142,6 @@ function getPieceLookups(pieceCatalog: AiPieceDefinition[]): AiPieceLookups {
   pieceLookupsCache.set(pieceCatalog, lookups);
   return lookups;
 }
-import { readFollowupCellForSide } from '@/ai/engine/skill-state-selectors';
-import {
-  ensureShinTurnMimic,
-  readShinTurnMimic,
-  type ShinTurnMimicEntry,
-} from '@/ai/engine/shin-turn-mimic';
 
 /** カタログ欠損時でも銃・刀の合法手を生成するためのプレースホルダー */
 const MINIMAL_SPECIAL_PIECE_DEF: AiPieceDefinition = {
