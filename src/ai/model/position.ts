@@ -17,6 +17,34 @@ export type AiBoardPiece = BoardPiece & {
   imageSignedUrl?: string | null;
   copiedMoveVectors?: unknown[];
 };
+export type BoardPieceIndex = {
+  byCell: Map<number, AiBoardPiece>;
+  bySide: Record<'player' | 'enemy', AiBoardPiece[]>;
+};
+
+function boardCellKey(row: number, col: number): number {
+  return row * 9 + col;
+}
+
+export function buildBoardPieceIndex(pieces: AiBoardPiece[]): BoardPieceIndex {
+  const index: BoardPieceIndex = {
+    byCell: new Map<number, AiBoardPiece>(),
+    bySide: { player: [], enemy: [] },
+  };
+  for (const piece of pieces) {
+    index.byCell.set(boardCellKey(piece.row, piece.col), piece);
+    index.bySide[piece.side].push(piece);
+  }
+  return index;
+}
+
+export function getBoardPieceAt(
+  index: BoardPieceIndex,
+  row: number,
+  col: number,
+): AiBoardPiece | null {
+  return index.byCell.get(boardCellKey(row, col)) ?? null;
+}
 
 function cloneRecord(value: Record<string, unknown>): Record<string, unknown> {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;

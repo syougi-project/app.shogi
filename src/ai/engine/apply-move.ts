@@ -1329,6 +1329,7 @@ export function applyMove(input: {
     suppressRandomSkillProcs?: boolean;
     trustedLegalMove?: boolean;
     legalMoveOptions?: GenerateLegalMovesOptions;
+    skipGameEndCheck?: boolean;
   };
 }): BattleCommittedMove {
   const current = normalizeBattlePosition(input.position);
@@ -2539,7 +2540,7 @@ export function applyMove(input: {
     nextPosition = vanishedSyncedPosition;
   }
 
-  if (!winnerSide) {
+  if (!winnerSide && input.options?.skipGameEndCheck !== true) {
     const nextLegal = generateLegalMoves({
       position: nextPosition,
       pieceCatalog: input.pieceCatalog,

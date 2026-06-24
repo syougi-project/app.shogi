@@ -2,12 +2,19 @@ import type {
   AiBattleMove,
   AiBattlePosition,
   AiBoardPiece,
+  BoardPieceIndex,
   AiPieceDefinition,
   Side,
 } from '@/ai/model';
 import type { BattleAiTurn } from '@/usecases/stage-battle/game-move-contract';
 import type { StageAiConfig } from '@/constants/stage-ai-config';
-import { normalizeBattlePosition, piecesFromBoardState, toBasePieceCode } from '@/ai/model';
+import {
+  buildBoardPieceIndex,
+  getBoardPieceAt,
+  normalizeBattlePosition,
+  piecesFromBoardState,
+  toBasePieceCode,
+} from '@/ai/model';
 import { PIECE_VALUES } from '@/ai/engine/shared';
 import { applyMove } from '@/ai/engine/apply-move';
 import { ensureShinTurnMimicForBattle, generateLegalMoves } from '@/ai/engine/legal-moves';
@@ -113,16 +120,20 @@ function moveScore(
   move: AiBattleMove,
   side: Side,
   config: StageAiConfig,
-  pieces?: AiBoardPiece[],
+  pieceIndex?: BoardPieceIndex,
 ): number {
   const movingPiece =
     move.fromRow == null || move.fromCol == null
       ? null
-      : (pieces?.find((piece) => piece.row === move.fromRow && piece.col === move.fromCol) ?? null);
+      : pieceIndex
+        ? getBoardPieceAt(pieceIndex, move.fromRow, move.fromCol)
+        : null;
   const capturedPiece =
     move.capturedPieceCode == null
       ? null
-      : (pieces?.find((piece) => piece.row === move.toRow && piece.col === move.toCol) ?? null);
+      : pieceIndex
+        ? getBoardPieceAt(pieceIndex, move.toRow, move.toCol)
+        : null;
   const pieceCode = toBasePieceCode(move.dropPieceCode ?? move.pieceCode) ?? 'FU';
   const forward = side === 'enemy' ? move.toRow : 8 - move.toRow;
   const captureValue = captureGainValue(capturedPiece, move.capturedPieceCode);
@@ -143,10 +154,9 @@ function opponentOf(side: Side): Side {
   return side === 'enemy' ? 'player' : 'enemy';
 }
 
-function findKing(pieces: AiBoardPiece[], side: Side): AiBoardPiece | null {
+function findKing(pieceIndex: BoardPieceIndex, side: Side): AiBoardPiece | null {
   return (
-    pieces.find((piece) => {
-      if (piece.side !== side) return false;
+    pieceIndex.bySide[side].find((piece) => {
       const code = toBasePieceCode(piece.pieceCode);
       return code === 'OU' || piece.char === '王' || piece.char === '玉';
     }) ?? null
@@ -155,10 +165,6 @@ function findKing(pieces: AiBoardPiece[], side: Side): AiBoardPiece | null {
 
 function cellKey(row: number, col: number): string {
   return `${row}:${col}`;
-}
-
-function pieceAt(pieces: AiBoardPiece[], row: number, col: number): AiBoardPiece | null {
-  return pieces.find((piece) => piece.row === row && piece.col === col) ?? null;
 }
 
 function inBoard(row: number, col: number): boolean {
@@ -170,13 +176,11 @@ function legalMovesForSide(input: {
   side: Side;
   pieceCatalog: AiPieceDefinition[];
 }): AiBattleMove[] {
-  const position = normalizeBattlePosition({
-    ...input.position,
-    sideToMove: input.side,
-  });
-  ensureShinTurnMimicForBattle(position, input.pieceCatalog);
   return generateLegalMoves({
-    position,
+    position: {
+      ...input.position,
+      sideToMove: input.side,
+    },
     pieceCatalog: input.pieceCatalog,
   }).legalMoves;
 }
@@ -187,9 +191,12 @@ function evaluateKingSafety(input: {
   pieceCatalog: AiPieceDefinition[];
   config: StageAiConfig;
   attackerMoves?: AiBattleMove[];
+  pieces?: AiBoardPiece[];
+  pieceIndex?: BoardPieceIndex;
 }): { score: number; kingInDanger: boolean } {
-  const pieces = piecesFromBoardState(input.position);
-  const king = findKing(pieces, input.side);
+  const pieces = input.pieces ?? piecesFromBoardState(input.position);
+  const pieceIndex = input.pieceIndex ?? buildBoardPieceIndex(pieces);
+  const king = findKing(pieceIndex, input.side);
   if (!king) {
     return {
       score: -input.config.kingInDangerPenalty,
@@ -220,7 +227,7 @@ function evaluateKingSafety(input: {
       const col = king.col + dc;
       if (!inBoard(row, col)) continue;
       const key = cellKey(row, col);
-      const occupant = pieceAt(pieces, row, col);
+      const occupant = getBoardPieceAt(pieceIndex, row, col);
       const attacked = attackedTargets.has(key);
       if (attacked) attackedAroundKing += 1;
       if (occupant?.side === input.side) continue;
@@ -241,26 +248,22 @@ function tacticalReplyPenalty(input: {
   position: AiBattlePosition;
   pieceCatalog: AiPieceDefinition[];
   config: StageAiConfig;
+  replies?: AiBattleMove[];
+  pieceIndex?: BoardPieceIndex;
 }): number {
   if (input.config.searchDepth < 2 || input.config.opponentReplyPenaltyWeight <= 0) return 0;
-  const replies = legalMovesForSide({
-    position: input.position,
-    side: 'player',
-    pieceCatalog: input.pieceCatalog,
-  });
+  const replies =
+    input.replies ??
+    legalMovesForSide({
+      position: input.position,
+      side: 'player',
+      pieceCatalog: input.pieceCatalog,
+    });
   if (replies.length === 0) return 0;
-  const pieces = piecesFromBoardState(input.position);
+  const pieceIndex = input.pieceIndex ?? buildBoardPieceIndex(piecesFromBoardState(input.position));
   let bestReplyScore = 0;
-  if (replies.length <= TACTICAL_REPLY_EVAL_LIMIT) {
-    for (const reply of replies) {
-      bestReplyScore = Math.max(bestReplyScore, moveScore(reply, 'player', input.config, pieces));
-    }
-  } else {
-    const topReplies = replies
-      .map((reply) => ({ reply, score: moveScore(reply, 'player', input.config, pieces) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, TACTICAL_REPLY_EVAL_LIMIT);
-    bestReplyScore = topReplies[0]?.score ?? 0;
+  for (const reply of replies) {
+    bestReplyScore = Math.max(bestReplyScore, moveScore(reply, 'player', input.config, pieceIndex));
   }
   return Math.max(0, bestReplyScore) * input.config.opponentReplyPenaltyWeight;
 }
@@ -270,17 +273,23 @@ function hangingPiecePenalty(input: {
   pieceCatalog: AiPieceDefinition[];
   side: Side;
   config: StageAiConfig;
+  attackerMoves?: AiBattleMove[];
+  pieces?: AiBoardPiece[];
+  pieceIndex?: BoardPieceIndex;
 }): number {
   if (input.config.hangingPiecePenaltyWeight <= 0) return 0;
-  const pieces = piecesFromBoardState(input.position);
-  const attackerMoves = legalMovesForSide({
-    position: input.position,
-    side: opponentOf(input.side),
-    pieceCatalog: input.pieceCatalog,
-  });
+  const pieces = input.pieces ?? piecesFromBoardState(input.position);
+  const pieceIndex = input.pieceIndex ?? buildBoardPieceIndex(pieces);
+  const attackerMoves =
+    input.attackerMoves ??
+    legalMovesForSide({
+      position: input.position,
+      side: opponentOf(input.side),
+      pieceCatalog: input.pieceCatalog,
+    });
   let worstLoss = 0;
   for (const move of attackerMoves) {
-    const target = pieceAt(pieces, move.toRow, move.toCol);
+    const target = getBoardPieceAt(pieceIndex, move.toRow, move.toCol);
     if (!target || target.side !== input.side) continue;
     if (toBasePieceCode(target.pieceCode) === 'OU') continue;
     worstLoss = Math.max(worstLoss, boardPieceValue(target));
@@ -294,9 +303,9 @@ function evaluateCandidateMove(input: {
   move: AiBattleMove;
   config: StageAiConfig;
   beforeEnemySafety: { kingInDanger: boolean };
+  beforePieceIndex: BoardPieceIndex;
 }): number {
-  const beforePieces = piecesFromBoardState(input.position);
-  let score = moveScore(input.move, 'enemy', input.config, beforePieces);
+  let score = moveScore(input.move, 'enemy', input.config, input.beforePieceIndex);
   if (input.beforeEnemySafety.kingInDanger && toBasePieceCode(input.move.pieceCode) === 'OU') {
     score += input.config.kingMovePenalty * 0.6;
   }
@@ -309,25 +318,44 @@ function evaluateCandidateMove(input: {
       position: input.position,
       pieceCatalog: input.pieceCatalog,
       move: input.move,
-      options: { trustedLegalMove: true, suppressRandomSkillProcs: true },
+      options: {
+        trustedLegalMove: true,
+        suppressRandomSkillProcs: true,
+        skipGameEndCheck: true,
+      },
     });
     const afterPosition = normalizeBattlePosition(committed.position);
+    const afterPieces = piecesFromBoardState(afterPosition);
+    const afterPieceIndex = buildBoardPieceIndex(afterPieces);
+    const playerReplies = legalMovesForSide({
+      position: afterPosition,
+      side: 'player',
+      pieceCatalog: input.pieceCatalog,
+    });
     score += evaluateKingSafety({
       position: afterPosition,
       side: 'enemy',
       pieceCatalog: input.pieceCatalog,
       config: input.config,
+      attackerMoves: playerReplies,
+      pieces: afterPieces,
+      pieceIndex: afterPieceIndex,
     }).score;
     score -= tacticalReplyPenalty({
       position: afterPosition,
       pieceCatalog: input.pieceCatalog,
       config: input.config,
+      replies: playerReplies,
+      pieceIndex: afterPieceIndex,
     });
     score -= hangingPiecePenalty({
       position: afterPosition,
       pieceCatalog: input.pieceCatalog,
       side: 'enemy',
       config: input.config,
+      attackerMoves: playerReplies,
+      pieces: afterPieces,
+      pieceIndex: afterPieceIndex,
     });
   } catch {
     score -= input.config.kingInDangerPenalty;
@@ -403,8 +431,47 @@ function repetitionPenalty(
 
 /** 重い applyMove + 利き評価を行う候補の上限（速度優先） */
 const FULL_EVAL_CANDIDATE_LIMIT = 6;
-/** 2手読み応手評価で見るプレイヤー手の上限（合法手全列挙後に粗評価で絞る） */
-const TACTICAL_REPLY_EVAL_LIMIT = 20;
+/** 非同期思考中にUIへ制御を返す詳細評価の間隔 */
+const HEAVY_EVALS_PER_YIELD = 3;
+
+type RankedItem<T> = { item: T; rankIndex: number };
+
+function topKByScore<T extends { score: number }>(items: T[], limit: number): T[] {
+  if (limit <= 0 || items.length === 0) return [];
+  const top: RankedItem<T>[] = [];
+  for (let rankIndex = 0; rankIndex < items.length; rankIndex += 1) {
+    const ranked = { item: items[rankIndex]!, rankIndex };
+    let insertAt = top.length;
+    while (
+      insertAt > 0 &&
+      (ranked.item.score > top[insertAt - 1]!.item.score ||
+        (ranked.item.score === top[insertAt - 1]!.item.score &&
+          ranked.rankIndex < top[insertAt - 1]!.rankIndex))
+    ) {
+      insertAt -= 1;
+    }
+    if (insertAt < limit) {
+      top.splice(insertAt, 0, ranked);
+      if (top.length > limit) top.pop();
+    }
+  }
+  return top.map((ranked) => ranked.item);
+}
+
+function prioritizeTopQuickMoves(
+  items: { move: AiBattleMove; quickScore: number }[],
+  limit: number,
+): { move: AiBattleMove; quickScore: number }[] {
+  const ranked = topKByScore(
+    items.map((item) => ({ ...item, score: item.quickScore })),
+    limit,
+  );
+  const selectedMoves = new Set(ranked.map((item) => item.move));
+  return [
+    ...ranked.map(({ score: _score, ...item }) => item),
+    ...items.filter((item) => !selectedMoves.has(item.move)),
+  ];
+}
 
 function needsKingSafetyEval(config: StageAiConfig): boolean {
   return (
@@ -458,7 +525,6 @@ export async function computeAiMoveAsync(input: ComputeAiMoveInput): Promise<Bat
     ...input.position,
     boardState: position.boardState,
   };
-  await yieldToMainThread();
   const legalMoves = generateLegalMoves({
     position: workingPosition,
     pieceCatalog: input.pieceCatalog,
@@ -482,7 +548,6 @@ export async function computeAiMoveAsync(input: ComputeAiMoveInput): Promise<Bat
     workingPosition,
     legalMoves,
   });
-  await yieldToMainThread();
   return turn;
 }
 
@@ -517,6 +582,7 @@ function scoreQuickScoredMoves(input: {
   config: StageAiConfig;
   beforeEnemySafety: { kingInDanger: boolean };
   recentEnemyMoves: AiBattleMove[];
+  pieceIndex: BoardPieceIndex;
 }): { move: AiBattleMove; score: number }[] {
   return input.quickScored.map(({ move, quickScore }, index) => {
     if (!input.useKingSafety || index >= FULL_EVAL_CANDIDATE_LIMIT) {
@@ -531,6 +597,7 @@ function scoreQuickScoredMoves(input: {
           move,
           config: input.config,
           beforeEnemySafety: input.beforeEnemySafety,
+          beforePieceIndex: input.pieceIndex,
         }) - repetitionPenalty(move, input.recentEnemyMoves, input.config),
     };
   });
@@ -547,7 +614,7 @@ async function scoreQuickScoredMovesAsync(
       scoredMoves.push({ move, score: quickScore });
       continue;
     }
-    if (index > 0) {
+    if (index > 0 && index % HEAVY_EVALS_PER_YIELD === 0) {
       await yieldBetweenHeavyEval();
     }
     scoredMoves.push({
@@ -559,6 +626,7 @@ async function scoreQuickScoredMovesAsync(
           move,
           config: input.config,
           beforeEnemySafety: input.beforeEnemySafety,
+          beforePieceIndex: input.pieceIndex,
         }) - repetitionPenalty(move, input.recentEnemyMoves, input.config),
     });
   }
@@ -581,6 +649,7 @@ function prepareAiScoringContext(
       beforeEnemySafety: { kingInDanger: boolean };
       recentEnemyMoves: AiBattleMove[];
       quickScored: { move: AiBattleMove; quickScore: number }[];
+      pieceIndex: BoardPieceIndex;
     } {
   const startedAt = runtime?.startedAt ?? Date.now();
   const config = runtime?.config ?? normalizeStageAiConfig(input.config);
@@ -631,14 +700,16 @@ function prepareAiScoringContext(
     : { score: 0, kingInDanger: false };
   const recentEnemyMoves = input.recentEnemyMoves ?? [];
   const pieces = piecesFromBoardState(position);
-  const quickScored = legalMoves
-    .map((move) => ({
+  const pieceIndex = buildBoardPieceIndex(pieces);
+  const quickScored = prioritizeTopQuickMoves(
+    legalMoves.map((move) => ({
       move,
       quickScore:
-        moveScore(move, 'enemy', config, pieces) -
+        moveScore(move, 'enemy', config, pieceIndex) -
         repetitionPenalty(move, recentEnemyMoves, config),
-    }))
-    .sort((a, b) => b.quickScore - a.quickScore);
+    })),
+    FULL_EVAL_CANDIDATE_LIMIT,
+  );
 
   return {
     startedAt,
@@ -651,6 +722,7 @@ function prepareAiScoringContext(
     beforeEnemySafety,
     recentEnemyMoves,
     quickScored,
+    pieceIndex,
   };
 }
 
@@ -659,8 +731,8 @@ function finalizeAiTurn(
   scoredMoves: { move: AiBattleMove; score: number }[],
   input: ComputeAiMoveInput,
 ): BattleAiTurn {
-  scoredMoves.sort((a, b) => b.score - a.score);
-  const selected = pickWeightedMove(scoredMoves, context.config, context.random);
+  const topScoredMoves = topKByScore(scoredMoves, context.config.maxCandidatePool);
+  const selected = pickWeightedMove(topScoredMoves, context.config, context.random);
   const committed = applyMove({
     position: context.workingPosition,
     pieceCatalog: input.pieceCatalog,
@@ -701,6 +773,7 @@ function scoreAndCommitAiMoveSync(
     config: prepared.config,
     beforeEnemySafety: prepared.beforeEnemySafety,
     recentEnemyMoves: prepared.recentEnemyMoves,
+    pieceIndex: prepared.pieceIndex,
   });
   return finalizeAiTurn(prepared, scoredMoves, input);
 }
@@ -722,6 +795,7 @@ async function scoreAndCommitAiMove(
           config: prepared.config,
           beforeEnemySafety: prepared.beforeEnemySafety,
           recentEnemyMoves: prepared.recentEnemyMoves,
+          pieceIndex: prepared.pieceIndex,
         },
         yieldBetweenHeavyEval,
       )
@@ -733,6 +807,7 @@ async function scoreAndCommitAiMove(
         config: prepared.config,
         beforeEnemySafety: prepared.beforeEnemySafety,
         recentEnemyMoves: prepared.recentEnemyMoves,
+        pieceIndex: prepared.pieceIndex,
       });
   return finalizeAiTurn(prepared, scoredMoves, input);
 }

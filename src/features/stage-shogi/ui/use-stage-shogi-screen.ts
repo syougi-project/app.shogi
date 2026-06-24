@@ -120,7 +120,7 @@ export type PendingPromotion = {
 export type TimeActionMode = 'skill' | 'normal';
 
 /** CPU 移動先の赤ハイライト表示時間（本番のみ） */
-const CPU_MOVE_PREVIEW_MS = process.env.NODE_ENV === 'test' ? 0 : 500;
+const CPU_MOVE_PREVIEW_MS = process.env.NODE_ENV === 'test' ? 0 : 150;
 
 const SKILL_ACTIVATION_TOAST_DURATION_MS = 1400;
 const LONG_PRESS_HINT_MESSAGE = '駒を長押しすると情報を見ることができます';

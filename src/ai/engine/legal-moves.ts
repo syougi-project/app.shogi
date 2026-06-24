@@ -126,6 +126,16 @@ import {
   isZaiPiece,
   normKanjiForEngineRules,
 } from '@/ai/engine/piece-identifiers';
+
+const pieceLookupsCache = new WeakMap<AiPieceDefinition[], AiPieceLookups>();
+
+function getPieceLookups(pieceCatalog: AiPieceDefinition[]): AiPieceLookups {
+  const cached = pieceLookupsCache.get(pieceCatalog);
+  if (cached) return cached;
+  const lookups = buildPieceLookups(pieceCatalog);
+  pieceLookupsCache.set(pieceCatalog, lookups);
+  return lookups;
+}
 import { readFollowupCellForSide } from '@/ai/engine/skill-state-selectors';
 import {
   ensureShinTurnMimic,
@@ -1999,7 +2009,7 @@ export function ensureShinTurnMimicForBattle(
   if (!pieces.some((p) => p.side === side && isShinPiece(p))) {
     return readShinTurnMimic(position, side);
   }
-  const lookups = buildPieceLookups(pieceCatalog);
+  const lookups = getPieceLookups(pieceCatalog);
   return ensureShinTurnMimic(position, side, () => {
     const pool = buildShinMimicPool(pieceCatalog, lookups, position, pieces);
     if (pool.length === 0) return null;
@@ -2907,7 +2917,7 @@ export function generateLegalMoves(input: {
   ensureShinTurnMimicForBattle(position, input.pieceCatalog);
   const pieces = piecesFromBoardState(position);
   const occupancy = buildOccupancyMap(pieces);
-  const lookups = buildPieceLookups(input.pieceCatalog);
+  const lookups = getPieceLookups(input.pieceCatalog);
   const skillView = createSkillRuntimeView(position);
   const sadameCostCap = activeOpponentTurnMaxPieceCostCap(position, position.sideToMove);
   const activePiecesRaw = pieces.filter((piece) => piece.side === position.sideToMove);
