@@ -50,6 +50,7 @@ jest.mock('react-native-google-mobile-ads', () => {
       createForAdRequest: jest.fn(() => ad),
     },
     RewardedAdEventType: {
+      LOADED: 'rewarded_loaded',
       EARNED_REWARD: 'earned_reward',
     },
     TestIds: {

@@ -131,12 +131,16 @@ export function useGachaRoomScreen(): GachaRoomVM {
     return featuredAdGachaDisplayName(dailyAdGacha.featuredGachaKey);
   }, [dailyAdGacha]);
 
-  async function executeRoll(gachaKey: GachaBanner['key'], adFreeRoll: boolean) {
+  async function executeRoll(
+    gachaKey: GachaBanner['key'],
+    adFreeRoll: boolean,
+    initialNoticeMessage: string | null = null,
+  ) {
     if (isRollingRef.current) return;
     if (phase !== 'idle' && phase !== 'done') return;
     isRollingRef.current = true;
     setSelectedKey(gachaKey);
-    setNoticeMessage(null);
+    setNoticeMessage(initialNoticeMessage);
     setLastResult(null);
     pendingResultRef.current = null;
     setPhase(adFreeRoll ? 'video' : 'rolling');
@@ -195,18 +199,21 @@ export function useGachaRoomScreen(): GachaRoomVM {
 
   async function rollWithAd(gachaKey?: GachaBanner['key']) {
     const targetKey = gachaKey ?? selectedKey;
-    if (!canRollWithAd(targetKey)) {
+    const canUseRewardedAd = canRollWithAd(targetKey);
+    console.log('[Rewarded] gacha pressed', { targetKey, canUseRewardedAd });
+    if (!canUseRewardedAd) {
+      console.warn('[Rewarded] gacha unavailable', { targetKey, dailyAdGacha });
       setNoticeMessage('本日の広告無償ガチャは利用できません');
       return;
     }
     const ad = await showRewardedAd();
+    let adFallbackMessage: string | null = null;
     if (!ad.ok) {
-      if (!ad.cancelled) {
-        setNoticeMessage('広告の視聴に失敗しました');
-      }
-      return;
+      if (ad.cancelled) return;
+      // 広告在庫切れ・ロード失敗・表示失敗時も、本日の無償1回分は利用可能にする。
+      adFallbackMessage = '現在広告を読み込めませんでした。今回は広告なしで実行します。';
     }
-    await executeRoll(targetKey, true);
+    await executeRoll(targetKey, true, adFallbackMessage);
   }
 
   const onVideoEnd = useCallback(() => {

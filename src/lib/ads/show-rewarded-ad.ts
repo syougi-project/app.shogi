@@ -17,6 +17,7 @@ export type RewardedAdResult = {
 
 const LOAD_TIMEOUT_MS = 10000;
 const IOS_REWARDED_AD_UNIT_ID = 'ca-app-pub-4722276667311883/9275875313';
+const IOS_REWARDED_TEST_AD_UNIT_ID = 'ca-app-pub-3940256099942544/1712485313';
 const REQUEST_OPTIONS = {
   requestNonPersonalizedAdsOnly: true,
 };
@@ -26,7 +27,9 @@ let rewardedUnitId: string | null = null;
 let isShowingRewarded = false;
 
 function resolveRewardedUnitId(): string {
-  if (__DEV__) return TestIds.REWARDED;
+  if (__DEV__) {
+    return Platform.OS === 'ios' ? IOS_REWARDED_TEST_AD_UNIT_ID : TestIds.REWARDED;
+  }
   if (Platform.OS === 'ios') {
     const configuredUnitId = Constants.expoConfig?.extra?.admobIosRewardedUnitId;
     return typeof configuredUnitId === 'string' && configuredUnitId.trim().length > 0
@@ -45,9 +48,31 @@ function getRewardedAd() {
   return rewardedAd;
 }
 
+function resetRewardedAd(ad: ReturnType<typeof RewardedAd.createForAdRequest>): void {
+  if (rewardedAd === ad) {
+    rewardedAd = null;
+    rewardedUnitId = null;
+  }
+}
+
+function logRewardedError(error: unknown): void {
+  const details = error as { code?: unknown; message?: unknown } | null | undefined;
+  console.error('[Rewarded] error', {
+    code: details?.code,
+    message: details?.message,
+    raw: error,
+  });
+}
+
 function loadRewardedAd(): Promise<boolean> {
   const ad = getRewardedAd();
-  if (ad.loaded) return Promise.resolve(true);
+  const adUnitId = rewardedUnitId ?? resolveRewardedUnitId();
+  if (ad.loaded) {
+    console.log('[Rewarded] loaded');
+    return Promise.resolve(true);
+  }
+
+  console.log('[Rewarded] loading', { adUnitId });
 
   return new Promise((resolve) => {
     let settled = false;
@@ -59,9 +84,23 @@ function loadRewardedAd(): Promise<boolean> {
       clearTimeout(timeout);
       resolve(loaded);
     };
-    const unsubscribeLoaded = ad.addAdEventListener(AdEventType.LOADED, () => finish(true));
-    const unsubscribeError = ad.addAdEventListener(AdEventType.ERROR, () => finish(false));
-    const timeout = setTimeout(() => finish(false), LOAD_TIMEOUT_MS);
+    const unsubscribeLoaded = ad.addAdEventListener(RewardedAdEventType.LOADED, () => {
+      console.log('[Rewarded] loaded');
+      finish(true);
+    });
+    const unsubscribeError = ad.addAdEventListener(AdEventType.ERROR, (error) => {
+      logRewardedError(error);
+      resetRewardedAd(ad);
+      finish(false);
+    });
+    const timeout = setTimeout(() => {
+      logRewardedError({
+        code: 'load-timeout',
+        message: `Rewarded ad did not load within ${LOAD_TIMEOUT_MS}ms`,
+      });
+      resetRewardedAd(ad);
+      finish(false);
+    }, LOAD_TIMEOUT_MS);
 
     ad.load();
   });
@@ -72,7 +111,12 @@ async function showAdMobRewardedAd(): Promise<RewardedAdResult> {
   await initializeAdMob();
 
   const ad = getRewardedAd();
-  const loaded = ad.loaded || (await loadRewardedAd());
+  let loaded = ad.loaded;
+  if (loaded) {
+    console.log('[Rewarded] loaded');
+  } else {
+    loaded = await loadRewardedAd();
+  }
   if (!loaded || !ad.loaded) return { ok: false };
 
   isShowingRewarded = true;
@@ -86,22 +130,25 @@ async function showAdMobRewardedAd(): Promise<RewardedAdResult> {
       unsubscribeEarned();
       unsubscribeClosed();
       unsubscribeError();
-      rewardedAd = null;
+      resetRewardedAd(ad);
       resolve(result);
     };
 
-    const unsubscribeEarned = ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
+    const unsubscribeEarned = ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, (reward) => {
+      console.log('[Rewarded] earned reward', reward);
       earnedReward = true;
     });
     const unsubscribeClosed = ad.addAdEventListener(AdEventType.CLOSED, () => {
+      console.log('[Rewarded] closed');
       finish(earnedReward ? { ok: true } : { ok: false, cancelled: true });
     });
-    const unsubscribeError = ad.addAdEventListener(AdEventType.ERROR, () => {
+    const unsubscribeError = ad.addAdEventListener(AdEventType.ERROR, (error) => {
+      logRewardedError(error);
       finish({ ok: false });
     });
 
     ad.show().catch((error: unknown) => {
-      console.warn('[AdMob] rewarded show failed', error);
+      logRewardedError(error);
       finish({ ok: false });
     });
   });
@@ -111,10 +158,20 @@ async function showAdMobRewardedAd(): Promise<RewardedAdResult> {
  * リワード広告視聴。Expo Go / web では開発向けダイアログで代用する。
  */
 export function showRewardedAd(): Promise<RewardedAdResult> {
-  if (Platform.OS !== 'web' && isAdMobEnabled()) {
-    return showAdMobRewardedAd();
+  const enabled = isAdMobEnabled();
+  console.log('[Rewarded] requested', { enabled, platform: Platform.OS, isDev: __DEV__ });
+  if (Platform.OS !== 'web' && enabled) {
+    return showAdMobRewardedAd().catch((error: unknown) => {
+      // SDK初期化・広告生成など、イベント通知より前の例外も呼び出し側で扱える失敗結果にする。
+      logRewardedError(error);
+      rewardedAd = null;
+      rewardedUnitId = null;
+      isShowingRewarded = false;
+      return { ok: false };
+    });
   }
 
+  console.warn('[Rewarded] native AdMob disabled; using development alert');
   return new Promise((resolve) => {
     Alert.alert(
       '広告視聴',

@@ -13,6 +13,7 @@ export const AdEventType = {
 } as const;
 
 export const RewardedAdEventType = {
+  LOADED: 'rewarded_loaded',
   EARNED_REWARD: 'earned_reward',
 } as const;
 

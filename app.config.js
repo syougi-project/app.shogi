@@ -9,7 +9,7 @@ const enableAdMob = process.env.EXPO_PUBLIC_ENABLE_ADMOB === 'true';
 const config = {
   name: '真名仮名',
   slug: 'frontend',
-  version: '1.0.0',
+  version: '1.0.2',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   scheme: 'frontend',
@@ -17,7 +17,7 @@ const config = {
   newArchEnabled: true,
   ios: {
     bundleIdentifier: 'com.manakana.shogi',
-    buildNumber: '5',
+    buildNumber: '7',
     supportsTablet: false,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
