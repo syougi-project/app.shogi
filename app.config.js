@@ -4,6 +4,26 @@ const IOS_ADMOB_APP_ID = 'ca-app-pub-4722276667311883~4369476061';
 const IOS_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-4722276667311883/8991247351';
 const IOS_REWARDED_AD_UNIT_ID = 'ca-app-pub-4722276667311883/9275875313';
 const enableAdMob = process.env.EXPO_PUBLIC_ENABLE_ADMOB === 'true';
+const appEnvironment = process.env.EXPO_PUBLIC_APP_ENV ?? 'development';
+
+if (appEnvironment === 'production') {
+  const requiredProductionEnv = [
+    'EXPO_PUBLIC_API_BASE_URL',
+    'EXPO_PUBLIC_MATCHING_SERVER_WS_URL',
+    'SUPABASE_URL',
+    'SUPABASE_ANON_KEY',
+  ];
+  const missingProductionEnv = requiredProductionEnv.filter((name) => !process.env[name]?.trim());
+
+  if (process.env.EXPO_PUBLIC_DATA_SOURCE !== 'api') {
+    throw new Error('[production] EXPO_PUBLIC_DATA_SOURCE must be "api"');
+  }
+  if (missingProductionEnv.length > 0) {
+    throw new Error(
+      `[production] Missing environment variables: ${missingProductionEnv.join(', ')}`,
+    );
+  }
+}
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {

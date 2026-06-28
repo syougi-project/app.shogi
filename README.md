@@ -38,6 +38,24 @@ cp .env.example .env
   - 実機確認時は `http://<実機のIP>:3000` を使用
   - 例: `http://192.168.1.25:3000`
 
+ローカルの `.env` / `.env.local` は開発環境用です。EAS Build にはアップロードせず、
+App Store 向けビルドでは EAS の `production` environment に登録した値を使用します。
+
+production environment に必要な変数:
+
+- `EXPO_PUBLIC_DATA_SOURCE=api`
+- `EXPO_PUBLIC_API_BASE_URL`
+- `EXPO_PUBLIC_MATCHING_SERVER_WS_URL`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+
+```bash
+eas build --platform ios --profile production
+```
+
+production build では上記変数が不足している場合、誤って localhost や mock を使った
+バイナリを作らないよう設定検証で停止します。
+
 実機IPの確認:
 - macOS: `ipconfig getifaddr en0`（取得できない場合: `ifconfig | grep "inet "`）
 - Windows: `ipconfig`（`IPv4 Address` / `IPv4 アドレス` を使用）
