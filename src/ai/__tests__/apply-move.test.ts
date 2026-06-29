@@ -2089,6 +2089,168 @@ describe('ai engine apply move', () => {
     expect(committed.position.hands.player.FU ?? 0).toBe(1);
   });
 
+  it('cloud piece cannot capture allied boss piece あ', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'enemy',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/4a4/4,4/9/9/4K4 w - 1',
+      stateHash: 'seed-stage20-cloud-boss',
+      boardState: {
+        pieces: [
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'enemy', row: 4, col: 4, pieceCode: 'A', char: 'あ', promoted: false },
+          { side: 'enemy', row: 5, col: 4, pieceCode: 'CLOUD', char: '雲', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    expect(() =>
+      applyMove({
+        position,
+        pieceCatalog,
+        move: {
+          fromRow: 5,
+          fromCol: 4,
+          toRow: 4,
+          toCol: 4,
+          pieceCode: 'CLOUD',
+          promote: false,
+          dropPieceCode: null,
+          capturedPieceCode: 'A',
+          notation: null,
+        },
+        options: { trustedLegalMove: true },
+      }),
+    ).toThrow('CLOUD cannot capture allied king or boss piece');
+  });
+
+  it('cloud piece captures allied shop naku and adds it to hand', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/4n4/4,4/9/9/4K4 b - 1',
+      stateHash: 'seed',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          {
+            side: 'player',
+            row: 4,
+            col: 4,
+            pieceCode: 'piece_shop_naku',
+            char: '鳴',
+            promoted: false,
+          },
+          { side: 'player', row: 5, col: 4, pieceCode: 'CLOUD', char: '雲', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const committed = applyMove({
+      position,
+      pieceCatalog,
+      move: {
+        fromRow: 5,
+        fromCol: 4,
+        toRow: 4,
+        toCol: 4,
+        pieceCode: 'CLOUD',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: null,
+        notation: null,
+      },
+    });
+    expect(handTotal(committed.position.hands.player)).toBe(1);
+  });
+
+  it('cloud friendly capture adds shop naku to hand when only opaque piece id is set', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/4n4/4,4/9/9/4K4 b - 1',
+      stateHash: 'seed',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          {
+            side: 'player',
+            row: 4,
+            col: 4,
+            pieceCode: 'piece_e9e01aac8e',
+            char: '鳴',
+            promoted: false,
+          },
+          { side: 'player', row: 5, col: 4, pieceCode: 'CLOUD', char: '雲', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const committed = applyMove({
+      position,
+      pieceCatalog,
+      move: {
+        fromRow: 5,
+        fromCol: 4,
+        toRow: 4,
+        toCol: 4,
+        pieceCode: 'CLOUD',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: null,
+        notation: null,
+      },
+    });
+    expect(handTotal(committed.position.hands.player)).toBe(1);
+  });
+
+  it('cloud friendly capture adds shop naku to hand when captured piece has only opaque id without char', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/4n4/4,4/9/9/4K4 b - 1',
+      stateHash: 'seed',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          {
+            side: 'player',
+            row: 4,
+            col: 4,
+            pieceCode: 'piece_e9e01aac8e',
+            char: '',
+            promoted: false,
+          },
+          { side: 'player', row: 5, col: 4, pieceCode: 'CLOUD', char: '雲', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const committed = applyMove({
+      position,
+      pieceCatalog,
+      move: {
+        fromRow: 5,
+        fromCol: 4,
+        toRow: 4,
+        toCol: 4,
+        pieceCode: 'CLOUD',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: 'PIECE_E9E01AAC8E',
+        notation: null,
+      },
+    });
+    expect(handTotal(committed.position.hands.player)).toBe(1);
+  });
+
   it('swamp skill applies vertical-step movement restriction to adjacent enemies', () => {
     const position: AiBattlePosition = {
       sideToMove: 'player',

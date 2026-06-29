@@ -161,4 +161,27 @@ describe('local engine', () => {
     expect(result.game.status).toBe('finished');
     expect(result.game.winnerSide).toBe('enemy');
   });
+
+  it('allows non-escaping moves under check in normal dungeon', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 2,
+      moveCount: 1,
+      sfen: '9/9/9/9/4k4/3+S5/9/p8/4K4 b - 2',
+      stateHash: 'seed-player-check',
+      boardState: {
+        pieces: [
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'player', row: 7, col: 0, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'enemy', row: 4, col: 4, pieceCode: 'OU', char: '玉', promoted: false },
+          { side: 'enemy', row: 5, col: 3, pieceCode: 'GI', char: '成銀', promoted: true },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+
+    const legal = generateLocalLegalMoves({ position, pieceCatalog });
+
+    expect(legal.legalMoves.some((move) => move.fromRow === 7 && move.fromCol === 0)).toBe(true);
+  });
 });

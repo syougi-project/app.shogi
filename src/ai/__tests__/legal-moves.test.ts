@@ -751,6 +751,30 @@ describe('ai engine legal moves', () => {
     ).toBe(false);
   });
 
+  it('cloud piece cannot capture allied boss piece あ', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'enemy',
+      turnNumber: 5,
+      moveCount: 4,
+      sfen: '4k4/9/9/9/4a4/4,4/9/9/4K4 w - 1',
+      stateHash: 'seed-stage20-cloud-boss',
+      boardState: {
+        pieces: [
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'enemy', row: 4, col: 4, pieceCode: 'A', char: 'あ', promoted: false },
+          { side: 'enemy', row: 5, col: 4, pieceCode: 'CLOUD', char: '雲', promoted: false },
+        ],
+      },
+      hands: { player: {}, enemy: {} },
+    };
+    const legal = generateLegalMoves({ position, pieceCatalog });
+    expect(
+      legal.legalMoves.some(
+        (move) => move.fromRow === 5 && move.fromCol === 4 && move.toRow === 4 && move.toCol === 4,
+      ),
+    ).toBe(false);
+  });
+
   it('king cannot move onto poison cell', () => {
     const position: AiBattlePosition = {
       sideToMove: 'player',

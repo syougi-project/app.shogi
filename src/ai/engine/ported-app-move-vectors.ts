@@ -271,6 +271,9 @@ export function resolveIntrinsicPortedMoveVectors(
   if (pieceMatchesAliases(piece, ['HI', '飛'])) {
     return cloneVectors(ROOK_ORTHOGONAL_MOVE_VECTORS);
   }
+  if (pieceMatchesAliases(piece, ['HOO', '鳳', 'phoenix', 'PHOENIX'])) {
+    return cloneVectors(DRAGON_KING_MOVE_VECTORS);
+  }
   if (pieceMatchesAliases(piece, ['KA', '角'])) {
     return cloneVectors(BISHOP_DIAGONAL_MOVE_VECTORS);
   }

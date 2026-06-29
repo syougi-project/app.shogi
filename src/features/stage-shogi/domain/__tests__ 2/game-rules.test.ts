@@ -229,4 +229,34 @@ describe('stage shogi game rules', () => {
       }),
     ).toBe('ZAI');
   });
+
+  it('maps captured shop naku from kanji or opaque piece id', () => {
+    expect(
+      capturedToHandPieceCode({
+        side: 'player',
+        row: 0,
+        col: 0,
+        pieceCode: 'piece_shop_naku',
+        char: '鳴',
+      }),
+    ).toBe('NAKU');
+    expect(
+      capturedToHandPieceCode({
+        side: 'player',
+        row: 0,
+        col: 0,
+        pieceCode: 'piece_e9e01aac8e',
+        char: '鳴',
+      }),
+    ).toBe('NAKU');
+    expect(
+      capturedToHandPieceCode({
+        side: 'player',
+        row: 0,
+        col: 0,
+        pieceCode: 'piece_e9e01aac8e',
+        char: '',
+      }),
+    ).toBe('NAKU');
+  });
 });
