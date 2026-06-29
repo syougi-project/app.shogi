@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 
 import type { SkillVisualEffect } from '@/domain/battle/skill-visual-effect';
 import { generateLegalMoves } from '@/ai/engine';
+import { STAGE_BATTLE_LEGAL_MOVE_OPTIONS } from '@/ai/local-engine';
 import { passiveAuraImmobilizedCellKeys } from '@/ai/engine/skill-runtime';
 import type { AiBattlePosition } from '@/ai/model';
 import { getLocalBattleGame, setLocalBattlePieceCatalog } from '@/ai/local-battle-registry';
@@ -2117,6 +2118,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
           const { legalMoves } = generateLegalMoves({
             position: inspectPosition as unknown as AiBattlePosition,
             pieceCatalog: normalizePieceCatalog(pieceCatalogNormalized),
+            options: STAGE_BATTLE_LEGAL_MOVE_OPTIONS,
           });
           previewTargets = uniqueTargetsFromMoves(
             legalMoves.filter(

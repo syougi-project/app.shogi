@@ -87,6 +87,7 @@ import {
   isBirdPiece as isBirdPieceForLegal,
   isBlackOniPiece,
   isBlueOniPiece,
+  isCloudAlliedCaptureForbidden,
   isCloudPiece,
   isConcavePiece as isConcavePieceForLegal,
   isCowPiece,
@@ -2158,8 +2159,8 @@ function generateCloudTargetsFromVectors(
         // 雲は敵駒を取れないため、敵駒マスは移動不可。
         break;
       }
-      if (occupied && isKingPiece(occupied)) {
-        // 雲でも味方の王/玉は取れない。
+      if (occupied && isCloudAlliedCaptureForbidden(occupied)) {
+        // 雲でも味方の王/玉・ボス駒は取れない。
         break;
       }
       const key = `${row}:${col}`;
@@ -2617,8 +2618,8 @@ function generateBoardPieceMoves(input: {
     if (!captured) return true;
     if (input.noCaptureOnly === true) return false;
     if (isCloudPiece(mover)) {
-      // 雲: 敵は取れず、味方のみ取れる（ただし味方王/玉は不可）。
-      return captured.side === input.piece.side && !isKingPiece(captured);
+      // 雲: 敵は取れず、味方のみ取れる（ただし味方王/玉・ボス駒は不可）。
+      return captured.side === input.piece.side && !isCloudAlliedCaptureForbidden(captured);
     }
     if (captured.side === input.piece.side) return false;
     if (isKingPiece(captured) && hasSoulOnBoardForSide(input.pieces, captured.side)) {

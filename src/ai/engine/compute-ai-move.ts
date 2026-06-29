@@ -17,7 +17,11 @@ import {
 } from '@/ai/model';
 import { PIECE_VALUES } from '@/ai/engine/shared';
 import { applyMove } from '@/ai/engine/apply-move';
-import { ensureShinTurnMimicForBattle, generateLegalMoves } from '@/ai/engine/legal-moves';
+import {
+  ensureShinTurnMimicForBattle,
+  generateLegalMoves,
+  type GenerateLegalMovesOptions,
+} from '@/ai/engine/legal-moves';
 import {
   deckBuilderCostForBoardPiece,
   deckBuilderCostForHandPieceCode,
@@ -31,6 +35,7 @@ export type ComputeAiMoveInput = {
   config?: Partial<StageAiConfig>;
   recentEnemyMoves?: AiBattleMove[];
   random?: () => number;
+  legalMoveOptions?: GenerateLegalMovesOptions;
 };
 
 const PROMOTED_BOARD_PIECE_VALUES: Readonly<Record<string, number>> = {
@@ -528,6 +533,7 @@ export async function computeAiMoveAsync(input: ComputeAiMoveInput): Promise<Bat
   const legalMoves = generateLegalMoves({
     position: workingPosition,
     pieceCatalog: input.pieceCatalog,
+    options: input.legalMoveOptions,
   }).legalMoves;
   if (legalMoves.length === 0) {
     return {
@@ -667,6 +673,7 @@ function prepareAiScoringContext(
     generateLegalMoves({
       position: workingPosition,
       pieceCatalog: input.pieceCatalog,
+      options: input.legalMoveOptions,
     }).legalMoves;
   if (legalMoves.length === 0) {
     return {
@@ -737,7 +744,10 @@ function finalizeAiTurn(
     position: context.workingPosition,
     pieceCatalog: input.pieceCatalog,
     move: selected.move,
-    options: { trustedLegalMove: true },
+    options: {
+      trustedLegalMove: true,
+      legalMoveOptions: input.legalMoveOptions,
+    },
   });
 
   return {

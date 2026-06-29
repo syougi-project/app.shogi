@@ -405,6 +405,18 @@ function isRainbowCatalogPiece(piece: PieceCatalogItem): boolean {
   return piece.char === '虹' || code === 'RAINBOW';
 }
 
+function isHooCatalogPiece(piece: PieceCatalogItem): boolean {
+  const code = (piece.pieceCode ?? '').toUpperCase();
+  const canonical = (piece.canonicalCode ?? '').toUpperCase();
+  return (
+    piece.char === '鳳' ||
+    code === 'HOO' ||
+    code.includes('PIECE_SHOGI_HOO') ||
+    canonical === 'PHOENIX' ||
+    code.includes('PHOENIX')
+  );
+}
+
 /** API カタログを図鑑表示・ローカル対戦の合法手生成向けに正規化する。 */
 export function preparePieceCatalogForBattleAndDisplay(
   items: readonly PieceCatalogItem[],
@@ -666,6 +678,9 @@ export function normalizeCatalogMoveText(piece: PieceCatalogItem): string {
   }
   if (isConcaveCatalogPiece(piece)) {
     return CONCAVE_CATALOG_MOVE_TEXT;
+  }
+  if (isHooCatalogPiece(piece)) {
+    return DRAGON_KING_MOVE_DESCRIPTION_JA;
   }
   if (isPromotedDragonKingCatalogPiece(piece)) {
     return DRAGON_KING_MOVE_DESCRIPTION_JA;
