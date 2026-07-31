@@ -1,6 +1,7 @@
 import {
   findSatoriMoveAt,
   resolveHeartAllyPick,
+  resolvePendingSatoriCellPress,
   resolveSatoriEnemyPick,
 } from '@/lib/battle/battle-skill-interaction';
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
@@ -54,6 +55,43 @@ describe('battle-skill-interaction', () => {
       },
     ];
     expect(findSatoriMoveAt(moves, 3, 4)?.notation).toBe('satori_stun:3:4');
+  });
+
+  it('resolvePendingSatoriCellPress commits on destination (capture square) to avoid freeze', () => {
+    const moves: BattleMove[] = [
+      {
+        fromRow: 7,
+        fromCol: 7,
+        toRow: 1,
+        toCol: 1,
+        pieceCode: 'SATORI',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: 'SATORI',
+        notation: 'satori_stun:2:3',
+      },
+      {
+        fromRow: 7,
+        fromCol: 7,
+        toRow: 1,
+        toCol: 1,
+        pieceCode: 'SATORI',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: 'SATORI',
+        notation: 'satori_stun:2:5',
+      },
+    ];
+    // 捕獲マス（移動先）はスタン対象外。以前はここで無反応のまま固まっていた。
+    expect(resolvePendingSatoriCellPress(moves, 1, 1)).toEqual({
+      kind: 'commit',
+      move: moves[0],
+    });
+    expect(resolvePendingSatoriCellPress(moves, 2, 5)).toEqual({
+      kind: 'commit',
+      move: moves[1],
+    });
+    expect(resolvePendingSatoriCellPress(moves, 4, 4)).toEqual({ kind: 'cancel' });
   });
 
   it('resolveHeartAllyPick returns null for single protect variant', () => {

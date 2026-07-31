@@ -11,6 +11,8 @@ import {
   passiveAuraImmobilizedCellKeys,
 } from '@/ai/engine/skill-runtime';
 import {
+  isCloudAlliedCaptureForbidden,
+  isCloudPiece,
   isKirinImmuneCapturerPiece,
   isKirinPiece,
   isMaiPiece,
@@ -119,6 +121,30 @@ const EXTENDED_HAND_RECONCILE_SKIP_CODES: ReadonlySet<string> = (() => {
     'REDONI',
     'BLUEONI',
     'BLACKONI',
+    'NAKU',
+    'SO',
+    'TANE',
+    'KIRIN',
+    'MAI',
+    'SHOP_P',
+    'SHOP_SO',
+    'SHOP_TANE',
+    'SHOP_KIRIN',
+    'SHOP_MAI',
+    'GACHA_SHIN',
+    'GACHA_ITSU',
+    'GACHA_HEN',
+    'GACHA_SADAME',
+    'GACHA_AN',
+    'GACHA_SO',
+    'GACHA_BAKU',
+    'GACHA_AORI',
+    'GACHA_TOU',
+    'GACHA_TOU2',
+    'GACHA_SOU',
+    'GACHA_EN',
+    'GACHA_KOU',
+    'GACHA_SHITSU',
   ]) {
     if (!NO_CAPTURE_TO_CAPTOR_HAND_CODES.has(k)) s.add(k);
   }
@@ -2790,12 +2816,17 @@ export function isSelfCaptureLikeMove(
   }
   targetVariants.push({ row: move.toRow, col: move.toCol });
 
-  const hasAllyAtTarget = targetVariants.some(
-    ({ row, col }) =>
-      prev.some((p) => p.side === actorSide && p.row === row && p.col === col) ||
-      persistentHazards.some((p) => p.side === actorSide && p.row === row && p.col === col),
-  );
-  if (!hasAllyAtTarget) return false;
+  const allyAtTarget = targetVariants
+    .map(({ row, col }) => {
+      const onBoard = prev.find((p) => p.side === actorSide && p.row === row && p.col === col);
+      if (onBoard) return onBoard;
+      return (
+        persistentHazards.find((p) => p.side === actorSide && p.row === row && p.col === col) ??
+        null
+      );
+    })
+    .find((p) => p != null);
+  if (!allyAtTarget) return false;
 
   if (move.fromRow != null && move.fromCol != null) {
     const fromVariants: { row: number; col: number }[] = [];
@@ -2809,6 +2840,16 @@ export function isSelfCaptureLikeMove(
       targetVariants.some((t) => f.row === t.row && f.col === t.col),
     );
     if (isSameCell) return false;
+
+    const mover = fromVariants
+      .map(({ row, col }) =>
+        prev.find((p) => p.side === actorSide && p.row === row && p.col === col),
+      )
+      .find((p) => p != null);
+    // 雲の合法な味方捕獲は「自己取り」扱いにしない。
+    if (mover && isCloudPiece(mover) && !isCloudAlliedCaptureForbidden(allyAtTarget)) {
+      return false;
+    }
   }
 
   return true;
@@ -3005,6 +3046,11 @@ export function computePiecesAfterOptimisticMove(
   }
   const targetAtDestination = findPieceAt(prev, toRow, toCol);
   const movingIsHazard = PERSISTENT_HAZARD_CHARS.has(moving.char);
+  const cloudAllyCapture =
+    Boolean(targetAtDestination) &&
+    targetAtDestination!.side === actorSide &&
+    isCloudPiece(moving) &&
+    !isCloudAlliedCaptureForbidden(targetAtDestination!);
   if (
     targetAtDestination &&
     targetAtDestination.side === actorSide &&
@@ -3013,7 +3059,8 @@ export function computePiecesAfterOptimisticMove(
   ) {
     return prev;
   }
-  if (targetAtDestination && targetAtDestination.side === actorSide) {
+  // 通常は味方マスへ入れない。雲の味方捕獲だけ例外（盤上から味方を外す）。
+  if (targetAtDestination && targetAtDestination.side === actorSide && !cloudAllyCapture) {
     return prev;
   }
 
@@ -3044,6 +3091,9 @@ export function computePiecesAfterOptimisticMove(
   const captureVictim = findPieceAt(prev, toRow, toCol);
   return prev
     .filter((p) => {
+      if (cloudAllyCapture && p.row === toRow && p.col === toCol && p.side === actorSide) {
+        return false;
+      }
       if (p.side === actorSide) return true;
       if (captureVictim && isGiantPieceForEngine(captureVictim)) {
         return !(

@@ -164,6 +164,27 @@ export function findSatoriMoveAt(moves: BattleMove[], row: number, col: number):
   );
 }
 
+/**
+ * 悟スキル選択中のマス入力。
+ * - スタン対象の敵マス → その表記で確定
+ * - 移動先（捕獲マス含む）→ 先頭バリアントで確定（捕獲マスは対象外のため誤タップで固まらない）
+ * - それ以外 → キャンセル（着手は確定しない）
+ */
+export function resolvePendingSatoriCellPress(
+  pendingMoves: BattleMove[],
+  row: number,
+  col: number,
+): { kind: 'commit'; move: BattleMove } | { kind: 'cancel' } | { kind: 'ignore' } {
+  if (pendingMoves.length === 0) return { kind: 'ignore' };
+  const matchedStun = findSatoriMoveAt(pendingMoves, row, col);
+  if (matchedStun) return { kind: 'commit', move: matchedStun };
+  const sample = pendingMoves[0]!;
+  if (row === sample.toRow && col === sample.toCol) {
+    return { kind: 'commit', move: sample };
+  }
+  return { kind: 'cancel' };
+}
+
 export type HeartPickState = {
   moves: BattleMove[];
   targetCells: BoardCell[];

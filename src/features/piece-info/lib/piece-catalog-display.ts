@@ -412,6 +412,7 @@ function isHooCatalogPiece(piece: PieceCatalogItem): boolean {
     piece.char === '鳳' ||
     code === 'HOO' ||
     code.includes('PIECE_SHOGI_HOO') ||
+    code.includes('4C5084DE2FAD') ||
     canonical === 'PHOENIX' ||
     code.includes('PHOENIX')
   );
@@ -814,6 +815,9 @@ export function normalizeCatalogMoveVectors(
   }
   if (isRyuCatalogPiece(piece)) {
     return RYU_DRAGON_MOVE_VECTORS;
+  }
+  if (isHooCatalogPiece(piece)) {
+    return DRAGON_KING_MOVE_VECTORS;
   }
   if (isPromotedDragonKingCatalogPiece(piece)) {
     return DRAGON_KING_MOVE_VECTORS;

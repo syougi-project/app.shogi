@@ -1,7 +1,11 @@
 import { CHAR_TO_CODE } from '@/features/stage-shogi/domain/piece-conversion';
 import { toBasePieceCode } from '@/ai/model/move';
 import { giantAnchorFootprint, isGiantPieceForEngine } from '@/ai/engine/giant-piece';
-import { isBirdPiece } from '@/ai/engine/piece-identifiers';
+import {
+  isBirdPiece,
+  isCloudAlliedCaptureForbidden,
+  isCloudPiece,
+} from '@/ai/engine/piece-identifiers';
 import { moveRandomAllyToCellBehindBird } from '@/ai/engine/bird-skill';
 import type { BattleMove } from '@/usecases/stage-battle/game-move-contract';
 import type { PieceCatalogItem } from '@/usecases/piece-info/load-piece-catalog-usecase';
@@ -225,12 +229,17 @@ export function isSelfCaptureLikeMove(
   const nCol = normalizeCellIndex(move.toCol);
   if (nRow !== null && nCol !== null) targetVariants.push({ row: nRow, col: nCol });
   targetVariants.push({ row: move.toRow, col: move.toCol });
-  const hasAllyAtTarget = targetVariants.some(
-    ({ row, col }) =>
-      prev.some((p) => p.side === actorSide && p.row === row && p.col === col) ||
-      persistentHazards.some((p) => p.side === actorSide && p.row === row && p.col === col),
-  );
-  if (!hasAllyAtTarget) return false;
+  const allyAtTarget = targetVariants
+    .map(({ row, col }) => {
+      const onBoard = prev.find((p) => p.side === actorSide && p.row === row && p.col === col);
+      if (onBoard) return onBoard;
+      return (
+        persistentHazards.find((p) => p.side === actorSide && p.row === row && p.col === col) ??
+        null
+      );
+    })
+    .find((p) => p != null);
+  if (!allyAtTarget) return false;
   if (move.fromRow != null && move.fromCol != null) {
     const fromVariants: { row: number; col: number }[] = [];
     const nFr = normalizeCellIndex(move.fromRow);
@@ -238,6 +247,14 @@ export function isSelfCaptureLikeMove(
     if (nFr !== null && nFc !== null) fromVariants.push({ row: nFr, col: nFc });
     fromVariants.push({ row: move.fromRow, col: move.fromCol });
     if (fromVariants.some((f) => targetVariants.some((t) => f.row === t.row && f.col === t.col))) {
+      return false;
+    }
+    const mover = fromVariants
+      .map(({ row, col }) =>
+        prev.find((p) => p.side === actorSide && p.row === row && p.col === col),
+      )
+      .find((p) => p != null);
+    if (mover && isCloudPiece(mover) && !isCloudAlliedCaptureForbidden(allyAtTarget)) {
       return false;
     }
   }
@@ -411,6 +428,11 @@ export function computePiecesAfterOptimisticMove(
   }
   const targetAtDestination = findPieceAt(prev, toRow, toCol);
   const movingIsHazard = PERSISTENT_SYNC_GUARD_CHARS.has(moving.char);
+  const cloudAllyCapture =
+    Boolean(targetAtDestination) &&
+    targetAtDestination!.side === actorSide &&
+    isCloudPiece(moving) &&
+    !isCloudAlliedCaptureForbidden(targetAtDestination!);
   if (
     targetAtDestination &&
     targetAtDestination.side === actorSide &&
@@ -418,7 +440,9 @@ export function computePiecesAfterOptimisticMove(
     !movingIsHazard
   )
     return prev;
-  if (targetAtDestination && targetAtDestination.side === actorSide) return prev;
+  // 通常は味方マスへ入れない。雲の味方捕獲だけ例外（盤上から味方を外す）。
+  if (targetAtDestination && targetAtDestination.side === actorSide && !cloudAllyCapture)
+    return prev;
   const resolvedPieceCode = pieceCodeFromPlacement(
     moving.pieceCode ?? null,
     moving.char,
@@ -445,6 +469,9 @@ export function computePiecesAfterOptimisticMove(
   const captureVictim = findPieceAt(prev, toRow, toCol);
   const nextPieces = prev
     .filter((p) => {
+      if (cloudAllyCapture && p.row === toRow && p.col === toCol && p.side === actorSide) {
+        return false;
+      }
       if (p.side === actorSide) return true;
       if (captureVictim && isGiantPieceForEngine(captureVictim)) {
         return !(

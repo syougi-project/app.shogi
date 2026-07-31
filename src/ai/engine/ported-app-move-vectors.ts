@@ -271,7 +271,16 @@ export function resolveIntrinsicPortedMoveVectors(
   if (pieceMatchesAliases(piece, ['HI', '飛'])) {
     return cloneVectors(ROOK_ORTHOGONAL_MOVE_VECTORS);
   }
-  if (pieceMatchesAliases(piece, ['HOO', '鳳', 'phoenix', 'PHOENIX'])) {
+  if (
+    pieceMatchesAliases(piece, [
+      'HOO',
+      '鳳',
+      'phoenix',
+      'PHOENIX',
+      '4C5084DE2FAD',
+      'PIECE_SHOGI_HOO',
+    ])
+  ) {
     return cloneVectors(DRAGON_KING_MOVE_VECTORS);
   }
   if (pieceMatchesAliases(piece, ['KA', '角'])) {

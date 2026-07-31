@@ -4,8 +4,10 @@ import {
   alignLegalMovesToBoardPieces,
   applyKirinImmunityShieldMarkToPieces,
   buildBoardPiecesFromSnapshotPlacements,
+  computePiecesAfterOptimisticMove,
   immobilizedKeysFromCanonical,
   inferSnapshotPlacementCoordinateMode,
+  isSelfCaptureLikeMove,
   kirinShowsImmunityShieldMark,
   legalMovesForBoardPiece,
   legalMovesForBoardPieceAt,
@@ -500,6 +502,79 @@ describe('reconcileExtendedPieceHandsAgainstBoard', () => {
     ];
     const out = reconcileExtendedPieceHandsAgainstBoard(hands, pieces);
     expect(out.enemy.HAA).toBe(1);
+  });
+});
+
+describe('cloud allied capture optimistic board', () => {
+  const cloudMove: BattleMove = {
+    fromRow: 5,
+    fromCol: 4,
+    toRow: 4,
+    toCol: 4,
+    pieceCode: 'CLOUD',
+    promote: false,
+    dropPieceCode: null,
+    capturedPieceCode: 'FU',
+    notation: null,
+  };
+
+  it('removes allied capture target from board and moves cloud', () => {
+    const prev: BoardPiece[] = [
+      {
+        side: 'player',
+        row: 5,
+        col: 4,
+        pieceCode: 'CLOUD',
+        char: '雲',
+        promoted: false,
+        imageSignedUrl: null,
+      },
+      {
+        side: 'player',
+        row: 4,
+        col: 4,
+        pieceCode: 'FU',
+        char: '歩',
+        promoted: false,
+        imageSignedUrl: null,
+      },
+      {
+        side: 'player',
+        row: 8,
+        col: 4,
+        pieceCode: 'OU',
+        char: '王',
+        promoted: false,
+        imageSignedUrl: null,
+      },
+    ];
+    const next = computePiecesAfterOptimisticMove(prev, 'player', cloudMove, {}, {}, {});
+    expect(next.some((p) => p.pieceCode === 'CLOUD' && p.row === 4 && p.col === 4)).toBe(true);
+    expect(next.some((p) => p.pieceCode === 'FU')).toBe(false);
+  });
+
+  it('does not treat legal cloud allied capture as self-capture', () => {
+    const prev: BoardPiece[] = [
+      {
+        side: 'player',
+        row: 5,
+        col: 4,
+        pieceCode: 'CLOUD',
+        char: '雲',
+        promoted: false,
+        imageSignedUrl: null,
+      },
+      {
+        side: 'player',
+        row: 4,
+        col: 4,
+        pieceCode: 'FU',
+        char: '歩',
+        promoted: false,
+        imageSignedUrl: null,
+      },
+    ];
+    expect(isSelfCaptureLikeMove(prev, cloudMove, 'player')).toBe(false);
   });
 });
 

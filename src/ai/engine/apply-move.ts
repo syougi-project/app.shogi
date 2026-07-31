@@ -4,6 +4,7 @@ import {
   hasKing,
   normalizeHandsStateKeys,
 } from '@/features/stage-shogi/domain/game-rules';
+import { CHAR_TO_CODE } from '@/features/stage-shogi/domain/char-to-piece-code-map';
 import type {
   AiBattleMove,
   AiBattlePosition,
@@ -61,6 +62,7 @@ import {
   isNakuPiece as isNakuPieceForApply,
   isSameEnemyPieceTypeForNakuPon,
   isCloudAlliedCaptureForbidden,
+  isCloudPiece,
   isKbossPiece,
   isKenSwordPiece as isKenSwordPieceForApply,
   isKingPiece as isKingPieceForApply,
@@ -1418,6 +1420,7 @@ export function applyMove(input: {
   let nextPieces = pieces.map((piece) => ({ ...piece }));
   let movedPieceAfterApply: (typeof nextPieces)[number] | null = null;
   let didCapture = false;
+  let captureOwnPiece = false;
   let diseaseCapturedByActor = false;
   let abyssCapturedByActor = false;
   let deathCapturedByActor = false;
@@ -1505,7 +1508,7 @@ export function applyMove(input: {
     movedByOtsu = giantHandled ? false : isOtsuPieceForApply(movingPiece);
     movedByConvex = giantHandled ? false : isConvexPieceForApply(movingPiece);
     const movingCode = toBasePieceCode(movingPiece?.pieceCode);
-    const isCloudMover = movingCode === 'CLOUD' || movingPiece?.char === '雲';
+    const isCloudMover = Boolean(movingPiece && isCloudPiece(movingPiece));
     const combatBoardSnapshot = cloneCombatBoardSnapshot({ pieces: nextPieces, hands });
 
     if (!giantHandled) {
@@ -1638,7 +1641,7 @@ export function applyMove(input: {
       let zaiCapturedEnemySnapshot: AiBoardPiece | null = null;
       let rebuffKboss = false;
       if (captured) {
-        const captureOwnPiece = captured.side === actorSide;
+        captureOwnPiece = captured.side === actorSide;
         if (!captureOwnPiece && isGiantPieceForEngine(captured)) {
           throw new Error('cannot capture giant');
         }
@@ -1823,11 +1826,18 @@ export function applyMove(input: {
           nextPieces = removeCapturedPieceFromBoard(nextPieces, move.toRow, move.toCol, captured);
           const fallbackCapturedCode = toBasePieceCode(move.capturedPieceCode);
           if (captureOwnPiece) {
-            // 雲の味方捕獲は自分の手駒に加える。
-            const capturedCode = resolveCapturedHandCode(captured, fallbackCapturedCode);
-            if (capturedCode) {
-              hands = addHandPiece(hands, actorSide, capturedCode, 1);
+            // 雲の味方捕獲は自分の手駒に加える（解決失敗で盤だけ消さない）。
+            const capturedCode =
+              resolveCapturedHandCode(captured, fallbackCapturedCode) ??
+              toBasePieceCode(CHAR_TO_CODE[captured.char] ?? null) ??
+              toBasePieceCode(captured.pieceCode) ??
+              fallbackCapturedCode;
+            if (!capturedCode || /^PIECE_[A-Z0-9_]+$/i.test(capturedCode)) {
+              throw new Error(
+                `CLOUD allied capture could not resolve hand code for ${captured.char || captured.pieceCode || 'piece'}`,
+              );
             }
+            hands = addHandPiece(hands, actorSide, capturedCode, 1);
           } else if (chrysRevivalActive) {
             removeChrysanthemumRevivalAtCell(
               current.boardState as Record<string, unknown> | undefined,
@@ -2391,6 +2401,32 @@ export function applyMove(input: {
       return st;
     });
     (skillState as Record<string, unknown>).piece_statuses = relocated;
+  }
+  // 捕獲したマス上の相手側ステータス（stun 等）を除去する。
+  // 残ると座標だけが残り、後続の駒へ誤って効果が乗ることがある。
+  if (didCapture && !captureOwnPiece) {
+    const capturedSide: Side = actorSide === 'player' ? 'enemy' : 'player';
+    const stripAtCapturedCell = (list: unknown): Record<string, unknown>[] => {
+      const arr = Array.isArray(list) ? [...list] : [];
+      return arr.filter((raw) => {
+        const st = (raw ?? {}) as Record<string, unknown>;
+        const side = String(st.side ?? 'player') === 'enemy' ? 'enemy' : 'player';
+        const row = Number(st.row);
+        const col = Number(st.col);
+        if (side !== capturedSide) return true;
+        if (!Number.isFinite(row) || !Number.isFinite(col)) return true;
+        return !(row === move.toRow && col === move.toCol);
+      });
+    };
+    (skillState as Record<string, unknown>).piece_statuses = stripAtCapturedCell(
+      skillState.piece_statuses ?? skillState.pieceStatuses,
+    );
+    (skillState as Record<string, unknown>).piece_defenses = stripAtCapturedCell(
+      skillState.piece_defenses ?? skillState.pieceDefenses,
+    );
+    (skillState as Record<string, unknown>).movement_modifiers = stripAtCapturedCell(
+      skillState.movement_modifiers ?? skillState.movementModifiers,
+    );
   }
   // 病: 取った駒（攻撃側）を 3 ターン行動不能にする。
   if (

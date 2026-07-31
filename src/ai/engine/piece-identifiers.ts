@@ -301,7 +301,9 @@ export function isReflectivePiece(piece: PieceLike): boolean {
 }
 
 export function isCloudPiece(piece: PieceLike): boolean {
-  return toBasePieceCode(piece.pieceCode) === 'CLOUD' || piece.char === '雲';
+  if (toBasePieceCode(piece.pieceCode) === 'CLOUD' || piece.char === '雲') return true;
+  const raw = (piece.pieceCode ?? '').toUpperCase();
+  return raw.includes('16EDE27B8EFF') || raw.includes('CLOUD');
 }
 
 /** 雲の味方取り対象から除外する駒（王・玉・ステージボス駒）。 */
@@ -771,53 +773,195 @@ export function isSpecialTenPlusPiece(piece: PieceLike): boolean {
   ) {
     return false;
   }
-  if (piece.char === '王' || piece.char === '玉') return false;
-  const strokes = (
-    {
-      忍: 7,
-      影: 15,
-      砲: 10,
-      竜: 10,
-      鳳: 14,
-      炎: 8,
-      火: 4,
-      水: 4,
-      波: 8,
-      木: 4,
-      葉: 12,
-      光: 6,
-      星: 9,
-      闇: 13,
-      魔: 21,
-      銅: 14,
-      鉄: 21,
-      錫: 16,
-      鉛: 13,
-      宝: 20,
-      電: 13,
-      雷: 13,
-      時: 10,
-      氷: 5,
-      雪: 11,
-      砂: 9,
-      風: 9,
-      苔: 8,
-      魚: 11,
-      雲: 12,
-      虹: 9,
-      毒: 8,
-      沼: 8,
-      あ: 3,
-      牢: 7,
-      柵: 9,
-      嶺: 17,
-      峰: 10,
-      山: 3,
-    } as Record<string, number>
-  )[piece.char];
+  const char = normKanjiForEngineRules(piece.char);
+  if (char === '王' || char === '玉') return false;
+  const strokes = specialPieceStrokeCount(piece);
   return strokes != null && strokes >= 10;
 }
 
+/** 峰スキル用: 特殊駒の画数。標準駒・王は null。未知の特殊駒は null（ロックしない）。 */
+export function specialPieceStrokeCount(piece: PieceLike): number | null {
+  const base = toBasePieceCode(piece.pieceCode);
+  if (
+    base &&
+    STANDARD_CORE_PIECE_CODES.includes(base as (typeof STANDARD_CORE_PIECE_CODES)[number])
+  ) {
+    return null;
+  }
+  const char = normKanjiForEngineRules(piece.char);
+  if (char === '王' || char === '玉') return null;
+  const byChar = SPECIAL_PIECE_STROKE_COUNTS[char];
+  if (byChar != null) return byChar;
+  if (base) {
+    const byCode = SPECIAL_PIECE_CODE_STROKE_COUNTS[base];
+    if (byCode != null) return byCode;
+  }
+  const raw = pieceRawUpper(piece);
+  for (const [token, strokes] of Object.entries(SPECIAL_PIECE_CODE_STROKE_COUNTS)) {
+    if (raw.includes(token)) return strokes;
+  }
+  return null;
+}
+
+/** 峰スキル対象判定用の画数表（常用漢字の画数に準拠。一部は旧字体寄り）。 */
+const SPECIAL_PIECE_STROKE_COUNTS: Readonly<Record<string, number>> = {
+  忍: 7,
+  影: 15,
+  砲: 10,
+  竜: 10,
+  龍: 16,
+  鳳: 14,
+  炎: 8,
+  火: 4,
+  水: 4,
+  波: 8,
+  木: 4,
+  葉: 12,
+  光: 6,
+  星: 9,
+  闇: 13,
+  魔: 21,
+  銅: 14,
+  鉄: 13,
+  錫: 16,
+  鉛: 13,
+  宝: 8,
+  電: 13,
+  雷: 13,
+  時: 10,
+  氷: 5,
+  雪: 11,
+  砂: 9,
+  風: 9,
+  苔: 8,
+  魚: 11,
+  雲: 12,
+  虹: 9,
+  毒: 8,
+  沼: 8,
+  あ: 3,
+  牢: 7,
+  柵: 9,
+  嶺: 17,
+  峰: 10,
+  山: 3,
+  鏡: 19,
+  映: 9,
+  幻: 4,
+  霧: 19,
+  岩: 8,
+  鉱: 13,
+  墓: 13,
+  霊: 15,
+  月: 4,
+  舟: 6,
+  機: 16,
+  歯: 15,
+  家: 10,
+  民: 5,
+  畑: 9,
+  泉: 9,
+  辰: 7,
+  実: 8,
+  異: 11,
+  轟: 21,
+  犇: 16,
+  礼: 5,
+  聖: 13,
+  悟: 10,
+  心: 4,
+  鬱: 29,
+  乙: 1,
+  薔: 16,
+  菊: 11,
+  桜: 10,
+  室: 9,
+  定: 8,
+  安: 6,
+  宋: 7,
+  爆: 19,
+  煽: 14,
+  灯: 6,
+  辺: 5,
+  逸: 11,
+  進: 11,
+  逃: 9,
+  艸: 6,
+  閹: 16,
+  膠: 15,
+  凹: 5,
+  凸: 5,
+  焼: 12,
+  炒: 8,
+  煮: 12,
+  陽: 12,
+  陰: 11,
+  牛: 4,
+  豚: 11,
+  鶏: 21,
+  銭: 14,
+  財: 10,
+  巨: 5,
+  鳴: 14,
+  走: 7,
+  種: 14,
+  麒: 19,
+  舞: 14,
+  P: 1,
+  赤鬼: 23,
+  青鬼: 18,
+  黒鬼: 25,
+  刀: 2,
+  剣: 10,
+  銃: 14,
+  鎧: 18,
+  盾: 9,
+  書: 10,
+  封: 9,
+  滝: 13,
+  禽: 13,
+  獣: 16,
+  洞: 9,
+  穴: 5,
+  淵: 11,
+  病: 10,
+  死: 6,
+  魂: 14,
+  朧: 20,
+  無: 12,
+};
+
+const SPECIAL_PIECE_CODE_STROKE_COUNTS: Readonly<Record<string, number>> = {
+  MIRROR: 19,
+  REFLECTION: 9,
+  PHANTOM: 4,
+  MIST: 19,
+  CLOUD: 12,
+  PEAK: 10,
+  RIDGE: 17,
+  DEMON: 21,
+  MAK: 21,
+  IRON: 13,
+  TIN: 16,
+  COPPER: 14,
+  TREASURE: 8,
+  BIGNOISE: 21,
+  BULL: 16,
+  KIRIN: 19,
+  NAKU: 14,
+  TANE: 14,
+  MAI: 14,
+  GIANT: 5,
+  WATERFALL: 13,
+  BIRD: 13,
+  BEAST: 16,
+  HOLY_SWORD: 10,
+  GUN: 14,
+  ARMOR: 18,
+  SHIELD: 9,
+  BOOK: 10,
+  SEAL: 9,
+};
 export function buildSkillMoverFlags(input: {
   movedCode: string;
   movePieceCode: string | null | undefined;

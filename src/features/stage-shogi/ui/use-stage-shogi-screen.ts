@@ -12,12 +12,19 @@ import { toBasePieceCode as toAiBasePieceCode } from '@/ai/model/move';
 import {
   addHandPiece,
   BoardCell,
+  capturedToHandPieceCode,
   createEmptyHandsState,
   getHandCount,
   getLegalTargetsFromVectors,
   HandsState,
   Side,
 } from '@/features/stage-shogi/domain/game-rules';
+import { isCloudAlliedCaptureForbidden, isCloudPiece } from '@/ai/engine/piece-identifiers';
+import { resolvePendingSatoriCellPress } from '@/lib/battle/battle-skill-interaction';
+import {
+  createSkillActivationToastOnceTracker,
+  skillActivationToastOnceKey,
+} from '@/lib/battle/skill-activation-toast-once';
 import {
   CHAR_TO_CODE,
   CODE_TO_CHAR,
@@ -391,6 +398,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
   const clearRewardClaimedRef = useRef(false);
   const battleSessionSettledRef = useRef(false);
   const skillToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skillActivationToastOnceRef = useRef(createSkillActivationToastOnceTracker());
   const isRecoveringFromIllegalMoveRef = useRef(false);
   const pendingAiResumeRef = useRef<{ moveNo: number; side: Side } | null>(null);
   const needsEnemyAiMoveRef = useRef(false);
@@ -402,6 +410,10 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
   const moveNoRef = useRef(1);
   const isCreatingGameRef = useRef(false);
   const winnerRef = useRef<Side | null>(null);
+
+  useEffect(() => {
+    skillActivationToastOnceRef.current.reset();
+  }, [gameId, stageParam]);
 
   useEffect(() => {
     gameIdRef.current = gameId;
@@ -638,6 +650,10 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
     if (move.dropPieceCode) return;
     const keys = buildSkillActivationEffectSoundKeys(move, actor, board);
     void playBattlePieceEffectSoundFirstMatch(keys, 'battleSkill', 0.92);
+    // 説明表示は1対戦あたり各スキル（駒種）最初の1回のみ
+    if (!skillActivationToastOnceRef.current.consume(skillActivationToastOnceKey(move))) {
+      return;
+    }
     const actorLabel = actor === 'player' ? 'あなた' : 'CPU';
     const skillName = resolveSkillName(move);
     const message = skillName
@@ -752,6 +768,7 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       clearTimeout(skillToastTimeoutRef.current);
       skillToastTimeoutRef.current = null;
     }
+    skillActivationToastOnceRef.current.reset();
     aiThinkingRef.current = false;
     inFlightAiKeyRef.current = null;
     lastSuccessfulAiKeyRef.current = null;
@@ -1378,7 +1395,14 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       }
 
       const attempts = autoAiAttemptByKeyRef.current.get(requestKey) ?? 0;
-      if (attempts >= 5) return;
+      if (attempts >= 5) {
+        needsEnemyAiMoveRef.current = false;
+        pendingAiResumeRef.current = null;
+        setAiError(
+          'CPU の着手を複数回試しましたが進められませんでした。画面を開き直すか、一手戻して再開してください。',
+        );
+        return;
+      }
       autoAiAttemptByKeyRef.current.set(requestKey, attempts + 1);
 
       if (pending) {
@@ -1658,6 +1682,24 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
       setPieces(optimisticBaseline);
       if (move.dropPieceCode) {
         setHands((prev) => addHandPiece(prev, 'player', move.dropPieceCode!, -1));
+      } else if (move.fromRow != null && move.fromCol != null) {
+        const mover = findPieceAt(pieces, move.fromRow, move.fromCol);
+        const target = findPieceAt(pieces, move.toRow, move.toCol);
+        if (
+          mover &&
+          target &&
+          target.side === 'player' &&
+          isCloudPiece(mover) &&
+          !isCloudAlliedCaptureForbidden(target)
+        ) {
+          const handCode =
+            toAiBasePieceCode(capturedToHandPieceCode(target)) ??
+            toAiBasePieceCode(CHAR_TO_CODE[target.char] ?? null) ??
+            toAiBasePieceCode(target.pieceCode);
+          if (handCode && !/^PIECE_[A-Z0-9_]+$/i.test(handCode)) {
+            setHands((prev) => addHandPiece(prev, 'player', handCode, 1));
+          }
+        }
       }
       setSelectedCell(null);
       setSelectedDropPieceCode(null);
@@ -1924,17 +1966,12 @@ export function useStageShogiScreen(stageParam: string | undefined, userId?: str
 
     const tapped = { row, col };
     if (pendingSatoriEnemyPick && pendingSatoriEnemyPick.length > 0) {
-      const enemyHere = findPieceAt(pieces, row, col);
-      if (enemyHere?.side === 'enemy') {
-        const matched = pendingSatoriEnemyPick.find((mv) => {
-          const p = /^satori_stun:(\d+):(\d+)$/i.exec(mv.notation ?? '');
-          return p != null && Number(p[1]) === row && Number(p[2]) === col;
-        });
-        if (matched) {
-          setPendingSatoriEnemyPick(null);
-          setEnemyPreviewTargets([]);
-          void commitPlayerMove(matched);
-        }
+      // 捕獲マスはスタン対象外のため、旧実装では敵悟を取った直後の移動先タップが無反応で固まっていた。
+      const resolved = resolvePendingSatoriCellPress(pendingSatoriEnemyPick, row, col);
+      if (resolved.kind === 'commit') {
+        setPendingSatoriEnemyPick(null);
+        setEnemyPreviewTargets([]);
+        void commitPlayerMove(resolved.move);
         return;
       }
       setPendingSatoriEnemyPick(null);

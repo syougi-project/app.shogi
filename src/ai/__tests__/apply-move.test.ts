@@ -717,6 +717,65 @@ describe('ai engine apply move', () => {
     expect(committed.skillVisualEffects).toEqual([]);
   });
 
+  it('clears enemy stun status when capturing the stunned piece (e.g. 悟)', () => {
+    const position: AiBattlePosition = {
+      sideToMove: 'player',
+      turnNumber: 1,
+      moveCount: 0,
+      sfen: '4k4/9/9/9/4p4/4P4/9/9/4K4 b - 1',
+      stateHash: 'seed',
+      boardState: {
+        pieces: [
+          { side: 'enemy', row: 0, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+          { side: 'enemy', row: 4, col: 4, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'player', row: 5, col: 4, pieceCode: 'FU', char: '歩', promoted: false },
+          { side: 'player', row: 8, col: 4, pieceCode: 'OU', char: '王', promoted: false },
+        ],
+        skill_state: {
+          piece_statuses: [
+            {
+              row: 4,
+              col: 4,
+              side: 'enemy',
+              status_type: 'stun',
+              remaining_turns: 2,
+            },
+          ],
+        },
+      },
+      hands: { player: {}, enemy: {} },
+    };
+
+    const committed = applyMove({
+      position,
+      pieceCatalog,
+      move: {
+        fromRow: 5,
+        fromCol: 4,
+        toRow: 4,
+        toCol: 4,
+        pieceCode: 'FU',
+        promote: false,
+        dropPieceCode: null,
+        capturedPieceCode: 'FU',
+        notation: null,
+      },
+      options: { trustedLegalMove: true },
+    });
+
+    const skillState = (
+      committed.position.boardState as { skill_state?: { piece_statuses?: unknown[] } }
+    ).skill_state;
+    const stuns = (skillState?.piece_statuses ?? []).filter(
+      (raw) =>
+        String((raw as { status_type?: string }).status_type ?? '') === 'stun' &&
+        Number((raw as { row?: number }).row) === 4 &&
+        Number((raw as { col?: number }).col) === 4 &&
+        String((raw as { side?: string }).side) === 'enemy',
+    );
+    expect(stuns).toHaveLength(0);
+  });
+
   it('rejects an illegal move', () => {
     const position: AiBattlePosition = {
       sideToMove: 'player',
@@ -2248,7 +2307,7 @@ describe('ai engine apply move', () => {
         notation: null,
       },
     });
-    expect(handTotal(committed.position.hands.player)).toBe(1);
+    expect(committed.position.hands.player.NAKU ?? 0).toBe(1);
   });
 
   it('swamp skill applies vertical-step movement restriction to adjacent enemies', () => {

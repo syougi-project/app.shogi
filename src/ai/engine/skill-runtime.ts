@@ -1329,7 +1329,7 @@ export function pieceHasActiveCaptureImmunityFromBoardState(
   return false;
 }
 
-/** 封・駒ショップPなど、盤上オーラで移動不能になるマス（`side:row:col`）。 */
+/** 封・駒ショップP・峰など、盤上オーラで移動不能になるマス（`side:row:col`）。 */
 export function passiveAuraImmobilizedCellKeys(boardPieces: AiBoardPiece[]): Set<string> {
   const immobilizedCells = new Set<string>();
   for (const piece of boardPieces) {
@@ -1359,7 +1359,29 @@ export function passiveAuraImmobilizedCellKeys(boardPieces: AiBoardPiece[]): Set
       immobilizedCells.add(cellKey(target.side, target.row, target.col));
     }
   }
+  // 峰: 盤上にいる間、敵の画数10以上の特殊駒を行動不能にする（skill_state に依存しない）。
+  const peakSides = new Set<Side>();
+  for (const piece of boardPieces) {
+    if (isPeakBoardPiece(piece)) peakSides.add(piece.side);
+  }
+  if (peakSides.size > 0) {
+    for (const piece of boardPieces) {
+      if (!peakSides.has(sideOpposite(piece.side))) continue;
+      if (!isSpecialTenPlusPiece(piece)) continue;
+      if (isGiantPieceForEngine(piece)) continue;
+      immobilizedCells.add(cellKey(piece.side, piece.row, piece.col));
+    }
+  }
   return immobilizedCells;
+}
+
+function isPeakBoardPiece(piece: AiBoardPiece): boolean {
+  const char = (piece.char ?? '').normalize('NFKC');
+  if (char === '峰') return true;
+  const base = toBasePieceCode(piece.pieceCode);
+  if (base === 'PEAK' || base === 'MINE') return true;
+  const raw = (piece.pieceCode ?? '').toUpperCase();
+  return raw.includes('PEAK') || raw.includes('5A24E1332FF7');
 }
 
 function isSaintPieceForAura(piece: AiBoardPiece): boolean {
@@ -3060,7 +3082,7 @@ export function applyMoveSkillEffects(input: {
           col: piece.col,
           side: piece.side,
           status_type: 'peak_lock',
-          remaining_turns: 1,
+          remaining_turns: 999,
         });
       }
     }

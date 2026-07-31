@@ -2901,7 +2901,10 @@ function filterMovesLeavingOwnKingSafe(input: {
 }
 
 export type GenerateLegalMovesOptions = {
-  /** false のとき王手放置・玉の自取りも含めて合法手とする（オンライン対戦向け） */
+  /**
+   * true のときのみ、王手放置・玉の自取りを合法手から除外する。
+   * デフォルトは false（ノーマルダンジョン／オンラインともにガイド制限なし）。
+   */
   enforceKingSafety?: boolean;
 };
 
@@ -3004,7 +3007,7 @@ export function generateLegalMoves(input: {
     pieces,
     position.sideToMove,
   );
-  const enforceKingSafety = input.options?.enforceKingSafety !== false;
+  const enforceKingSafety = input.options?.enforceKingSafety === true;
   const resolvedLegalMoves = enforceKingSafety
     ? filterMovesLeavingOwnKingSafe({
         moves: legalMoves,

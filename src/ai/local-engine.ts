@@ -8,7 +8,7 @@ import {
 import { createEmptyHandsState } from '@/features/stage-shogi/domain/game-rules';
 import type { BattleCanonicalPosition } from '@/usecases/stage-battle/game-move-contract';
 
-/** ノーマルダンジョン: 王手放置・玉の自取りも合法手として扱う（オンライン対戦と同様）。 */
+/** ノーマルダンジョン: 王手放置・玉の自取りも合法手として扱う（ガイド制限なし）。 */
 export const STAGE_BATTLE_LEGAL_MOVE_OPTIONS: GenerateLegalMovesOptions = {
   enforceKingSafety: false,
 };

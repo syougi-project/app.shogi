@@ -212,7 +212,7 @@ export function StageShogiScreen() {
 
           {vm.pendingSatoriEnemyPick && vm.pendingSatoriEnemyPick.length > 1 ? (
             <Text className="mt-2 text-xs font-bold text-[#1d4ed8]">
-              「悟」のスキル：味方が移動したあと、行動を止める敵駒のマスをタップしてください（王・玉は選べません）
+              「悟」のスキル：行動を止める敵駒をタップしてください（王・玉は選べません）。移動先をタップすると自動で対象を選んで着手します
             </Text>
           ) : null}
 

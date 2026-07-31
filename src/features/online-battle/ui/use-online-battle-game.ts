@@ -120,6 +120,10 @@ import {
   resolveSkillActivationToastMessage,
   type BattleAudioCatalog,
 } from '@/lib/battle/battle-move-audio';
+import {
+  createSkillActivationToastOnceTracker,
+  skillActivationToastOnceKey,
+} from '@/lib/battle/skill-activation-toast-once';
 import { formatOnlineBattleMoveLogLine } from '@/lib/battle/battle-log';
 import {
   detectHolySwordCaptureEvadeFromPieces,
@@ -312,6 +316,7 @@ export function useOnlineBattleGame(matchId?: string) {
     [pieceDefsByChar, pieceDefsByCode, promotedPieceDefsByCode],
   );
   const skillToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skillActivationToastOnceRef = useRef(createSkillActivationToastOnceTracker());
   const battleAudioCatalogRef = useRef(battleAudioCatalog);
   battleAudioCatalogRef.current = battleAudioCatalog;
   const locallyAuditedVersionsRef = useRef<Set<number>>(new Set());
@@ -351,6 +356,10 @@ export function useOnlineBattleGame(matchId?: string) {
         battleAudioCatalogRef.current,
       );
       if (!message) return;
+      // 説明表示は1対戦あたり各スキル（駒種）最初の1回のみ（効果音は毎回）
+      if (!skillActivationToastOnceRef.current.consume(skillActivationToastOnceKey(move))) {
+        return;
+      }
       const applyToast = () => {
         setSkillActivationText(message);
       };
@@ -418,6 +427,10 @@ export function useOnlineBattleGame(matchId?: string) {
     setEnemyPreviewTargets([]);
     setTimeActionMode(null);
   }, []);
+
+  useEffect(() => {
+    skillActivationToastOnceRef.current.reset();
+  }, [matchId]);
   const pieceSfenMapping = useMemo(
     () => (pieceCatalog.length > 0 ? createPieceSfenMapping(pieceCatalog) : null),
     [pieceCatalog],
