@@ -152,7 +152,11 @@ describe('ai engine compute ai move', () => {
       hands: { player: {}, enemy: {} },
     };
 
-    const result = computeAiMove({ position, pieceCatalog });
+    const result = computeAiMove({
+      position,
+      pieceCatalog,
+      legalMoveOptions: { enforceKingSafety: true },
+    });
 
     expect(result.selectedMove).toBeNull();
     expect(result.game).toMatchObject({
