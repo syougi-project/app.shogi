@@ -1,3 +1,4 @@
+import { isBossPiece } from '@/features/deck-builder/lib/boss-pieces';
 import { CHAR_TO_CODE } from '@/features/stage-shogi/domain/piece-conversion';
 import { toBasePieceCode } from '@/ai/model/move';
 import { normalizeGachaSkillPieceCode } from '@/lib/matching-server/gacha-piece-code';
@@ -301,6 +302,13 @@ export function isReflectivePiece(piece: PieceLike): boolean {
 
 export function isCloudPiece(piece: PieceLike): boolean {
   return toBasePieceCode(piece.pieceCode) === 'CLOUD' || piece.char === '雲';
+}
+
+/** 雲の味方取り対象から除外する駒（王・玉・ステージボス駒）。 */
+export function isCloudAlliedCaptureForbidden(piece: PieceLike): boolean {
+  return (
+    isKingPiece(piece) || isBossPiece({ char: piece.char, pieceCode: piece.pieceCode ?? undefined })
+  );
 }
 
 export function isMirrorPiece(piece: PieceLike): boolean {

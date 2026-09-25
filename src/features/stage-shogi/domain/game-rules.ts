@@ -254,6 +254,13 @@ const CAPTURE_CHAR_TO_HAND_CODE: Readonly<Record<string, string>> = {
   閹: 'GACHA_EN',
   膠: 'GACHA_KOU',
   室: 'GACHA_SHITSU',
+  /** ショップ駒（`piece-image-registry` / 合法手エンジンと整合） */
+  鳴: 'NAKU',
+  走: 'SO',
+  種: 'TANE',
+  麒: 'KIRIN',
+  舞: 'MAI',
+  P: 'SHOP_P',
 };
 
 const OPAQUE_CAPTURE_CODE_TO_HAND_CODE: Readonly<Record<string, string>> = {
@@ -372,6 +379,14 @@ function opaqueCapturedCodeToHandCode(rawCode: string | null): string | null {
   if (upper.includes('CONCAVE')) return 'CONCAVE';
   if (upper.includes('CONVEX')) return 'CONVEX';
   if (upper.includes('0F14ABCC6E5E')) return 'HOLY_SWORD';
+  if (upper.includes('NAKU') || upper.includes('SHOP_NAKU') || upper.includes('E9E01AAC8E')) {
+    return 'NAKU';
+  }
+  if (upper.includes('SHOP_SO')) return 'SO';
+  if (upper.includes('SHOP_TANE')) return 'TANE';
+  if (upper.includes('SHOP_KIRIN')) return 'KIRIN';
+  if (upper.includes('SHOP_MAI')) return 'MAI';
+  if (upper.includes('SHOP_P')) return 'SHOP_P';
   for (const [char, code] of Object.entries(CAPTURE_CHAR_TO_HAND_CODE)) {
     if (char.length !== 1) continue;
     if (upper.includes(code)) return code;

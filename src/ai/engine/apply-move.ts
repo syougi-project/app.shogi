@@ -60,6 +60,7 @@ import {
   isKatanaPiece as isKatanaPieceForApply,
   isNakuPiece as isNakuPieceForApply,
   isSameEnemyPieceTypeForNakuPon,
+  isCloudAlliedCaptureForbidden,
   isKbossPiece,
   isKenSwordPiece as isKenSwordPieceForApply,
   isKingPiece as isKingPieceForApply,
@@ -308,6 +309,49 @@ function resolveCapturedHandCode(
   ) {
     return 'GIANT';
   }
+  if (
+    capturedChar === '鳴' ||
+    rawCapturedCode.includes('NAKU') ||
+    rawCapturedCode.includes('SHOP_NAKU')
+  ) {
+    return 'NAKU';
+  }
+  if (capturedChar === '走' || rawCapturedCode.includes('SHOP_SO')) {
+    return 'SO';
+  }
+  if (capturedChar === '種' || rawCapturedCode.includes('SHOP_TANE')) {
+    return 'TANE';
+  }
+  if (capturedChar === '麒' || rawCapturedCode.includes('SHOP_KIRIN')) {
+    return 'KIRIN';
+  }
+  if (capturedChar === '舞' || rawCapturedCode.includes('SHOP_MAI')) {
+    return 'MAI';
+  }
+  if (capturedChar === 'P' || rawCapturedCode.includes('SHOP_P')) {
+    return 'SHOP_P';
+  }
+  if (rawCapturedCode.includes('GIANT')) {
+    return 'GIANT';
+  }
+  if (rawCapturedCode.includes('NAKU') || rawCapturedCode.includes('SHOP_NAKU')) {
+    return 'NAKU';
+  }
+  if (rawCapturedCode.includes('SHOP_SO')) {
+    return 'SO';
+  }
+  if (rawCapturedCode.includes('SHOP_TANE')) {
+    return 'TANE';
+  }
+  if (rawCapturedCode.includes('SHOP_KIRIN')) {
+    return 'KIRIN';
+  }
+  if (rawCapturedCode.includes('SHOP_MAI')) {
+    return 'MAI';
+  }
+  if (rawCapturedCode.includes('SHOP_P')) {
+    return 'SHOP_P';
+  }
   if (capturedChar === '進' || rawCapturedCode.includes('GACHA_SHIN')) {
     return 'GACHA_SHIN';
   }
@@ -347,6 +391,12 @@ function resolveCapturedHandCode(
   if (fb.includes('SEN') || fb.includes('EACC7F540399')) return 'SEN';
   if (fb.includes('ZAI') || fb.includes('7FC715661514')) return 'ZAI';
   if (fb.includes('GIANT') || fb.includes('C4AEB81F3634')) return 'GIANT';
+  if (fb.includes('NAKU') || fb.includes('SHOP_NAKU')) return 'NAKU';
+  if (fb.includes('SHOP_SO')) return 'SO';
+  if (fb.includes('SHOP_TANE')) return 'TANE';
+  if (fb.includes('SHOP_KIRIN')) return 'KIRIN';
+  if (fb.includes('SHOP_MAI')) return 'MAI';
+  if (fb.includes('SHOP_P')) return 'SHOP_P';
   // opaque id をそのまま手駒キーにしない（手駒表示不能の原因）。
   if (/^PIECE_[A-Z0-9_]+$/i.test(fb)) return null;
   return fb;
@@ -1614,11 +1664,8 @@ export function applyMove(input: {
         if (isCloudMover && !captureOwnPiece) {
           throw new Error('CLOUD cannot capture enemy pieces');
         }
-        if (isCloudMover && captureOwnPiece) {
-          const capturedBase = toBasePieceCode(captured.pieceCode);
-          if (capturedBase === 'OU' || captured.char === '王' || captured.char === '玉') {
-            throw new Error('CLOUD cannot capture allied king');
-          }
+        if (isCloudMover && captureOwnPiece && isCloudAlliedCaptureForbidden(captured)) {
+          throw new Error('CLOUD cannot capture allied king or boss piece');
         }
 
         if (

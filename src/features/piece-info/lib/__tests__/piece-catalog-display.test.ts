@@ -387,12 +387,12 @@ describe('piece-catalog-display', () => {
     );
   });
 
-  it('煽はスキルなしの説明に差し替える', () => {
+  it('煽はスキル説明を「相手を煽る」に差し替える', () => {
     const piece = catalogItem({
       char: '煽',
       skill: '相手を煽りたい人の為に。',
     });
-    expect(normalizeCatalogSkillText(piece)).toBe('スキルなし。');
+    expect(normalizeCatalogSkillText(piece)).toBe('相手を煽る');
   });
 
   it('凹は図鑑用の移動説明に差し替える', () => {

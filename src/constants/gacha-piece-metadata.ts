@@ -141,7 +141,7 @@ const GACHA_PIECE_META: Record<GachaCollectibleChar, GachaPieceMeta> = {
     rarity: 'SR',
     unlock: 'ひへんガチャ',
     desc: '前後左右に何マスでも進める。',
-    skill: 'スキルなし。',
+    skill: '相手を煽る',
     move: AORI_MOVE_DESCRIPTION_JA,
   },
   灯: {
@@ -249,6 +249,11 @@ export function isGachaCollectibleChar(char: string): char is GachaCollectibleCh
 export function getGachaPieceMeta(char: string): GachaPieceMeta | null {
   if (!isGachaCollectibleChar(char)) return null;
   return GACHA_PIECE_META[char];
+}
+
+/** API / DB の古い rarity よりクライアント正典を優先する */
+export function resolveGachaPieceDisplayRarity(char: string, apiRarity: string): string {
+  return getGachaPieceMeta(char)?.rarity ?? apiRarity;
 }
 
 /** 図鑑・デッキビルダー表示用（API の古い skill 文言より優先） */
